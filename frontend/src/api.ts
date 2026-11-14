@@ -85,4 +85,4 @@ const realApi: Api = {
   },
 };
 
-export const api: Api = import.meta.env.VITE_MOCK === '1' ? mockApi : realApi;
+export const api: Api = import.meta.env.MODE === 'mock' ? mockApi : realApi;
