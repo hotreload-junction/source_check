@@ -91,7 +91,7 @@ export function Landing() {
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 48 }}>
           <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: compact ? 'clamp(32px, 8.6vw, 84px)' : 'clamp(40px, 5.4vw, 80px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
             Paste something you read.
             <br />
