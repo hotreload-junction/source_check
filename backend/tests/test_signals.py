@@ -102,3 +102,10 @@ def test_rdap_failures_are_unknown_not_young():
     def timeout(req):
         raise httpx.ConnectTimeout("t")
     assert _client(timeout).lookup("a.com").age_days is None
+
+
+def test_extract_ids_yandex_metrika():
+    html = ("<script>ym(97376635, 'init', {});</script><noscript><img src='https://mc.yandex.ru/watch/97376635'>"
+            "</noscript><script>new Ya.Metrika({id:52150180});</script>")
+    assert extract_ids(html).analytics_ids == ["ym-52150180", "ym-97376635"]
+    assert extract_ids("<p>ym(123, x) and item.ym(97376635, 1)</p>").analytics_ids == []

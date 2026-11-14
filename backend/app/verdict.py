@@ -91,8 +91,8 @@ def _label(claims: Sequence[ClaimInput], signals: dict) -> dict:
     unchecked = sum(1 for c in claims if c.verdict == "not_checkable")
     if n == 0 or unchecked / n > INSUFFICIENT_RATIO:
         why = "No central claims were found." if n == 0 else (
-            f"{unchecked} of {n} central claims could not be checked (unreachable, paywalled, "
-            "social media or self-citations)."
+            f"{unchecked} of {n} central claims could not be checked (source not locatable, "
+            "unreachable, paywalled, social media or self-citation)."
         )
         return {"label": "insufficient_evidence",
                 "summary": f"{why} Not enough evidence to judge; this does not count against the article."}
