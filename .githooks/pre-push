@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-push guard (enabled via: git config core.hooksPath .githooks — tools/worktree does this).
+#  - pushes to main: humans only (BOARD_ROLE=human), agents ship to dev via tools/ship
+#  - dev: never rewrite history (no force-push), for anyone
+# Emergency bypass: git push --no-verify  (humans only, tell the board)
+z40=0000000000000000000000000000000000000000
+while read -r lref lsha rref rsha; do
+  case "$rref" in
+    refs/heads/main)
+      if [ "${BOARD_ROLE:-}" != human ]; then
+        echo "pre-push: agents must not push to main. Ship to dev with tools/ship; humans promote with tools/promote." >&2
+        exit 1
+      fi ;;
+    refs/heads/dev)
+      if [ "$lsha" = "$z40" ]; then echo "pre-push: deleting dev is not allowed" >&2; exit 1; fi
+      if [ "$rsha" != "$z40" ] && ! git merge-base --is-ancestor "$rsha" "$lsha" 2>/dev/null; then
+        echo "pre-push: refusing non-fast-forward push to dev (would drop teammates' work). Rebase on origin/dev (tools/ship does this)." >&2
+        exit 1
+      fi ;;
+  esac
+done
+exit 0

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Project checks. Run by tools/ship (before every push to dev), tools/promote and CI on dev.
+# Keep it FAST (< ~2 min) and DETERMINISTIC. Never calls paid/external APIs (AGENTS.md section 7).
+#
+# CiteTrace: backend/ (pytest, with [dev] extra installed in CI) and frontend/ (npm typecheck/lint/test/build).
+# eval/ and deploy/ are never run here: eval makes real API calls, deploy touches the VPS.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+export CI=1   # stops vitest/jest/next from entering watch/interactive mode
+
+ran=0
+# contract mocks must stay valid JSON (frontend codes against them)
+for f in contracts/examples/*.json; do
+  [ -e "$f" ] || continue
+  python3 -m json.tool "$f" >/dev/null || { echo "check: invalid JSON in $f" >&2; exit 1; }
+done
+
+for dir in . */; do
+  dir="${dir%/}"
+  case "$dir" in node_modules|.git|.board|tools|docs|eval|deploy|contracts) continue ;; esac
+  if [ -f "$dir/package.json" ]; then
+    ( cd "$dir"
+      if [ ! -d node_modules ]; then
+        if [ -f package-lock.json ]; then npm ci --silent; else npm install --silent; fi
+      fi
+      for s in typecheck lint test build; do
+        if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts['$s']?0:1)"; then
+          echo "check: [$dir] npm run $s"; npm run -s "$s"
+        fi
+      done )
+    ran=1
+  fi
+  if [ -f "$dir/pyproject.toml" ] || [ -f "$dir/requirements.txt" ]; then
+    if [ -d "$dir/tests" ] || [ -d "$dir/test" ]; then
+      if [ -n "${GITHUB_ACTIONS:-}" ]; then   # locally: use your own venv
+        ( cd "$dir"
+          if [ -f pyproject.toml ]; then python3 -m pip install -q -e ".[dev]" || python3 -m pip install -q -e . pytest
+          else python3 -m pip install -q -r requirements.txt pytest; fi )
+      fi
+      echo "check: [$dir] pytest"; ( cd "$dir" && python3 -m pytest -q -x )
+      ran=1
+    fi
+  fi
+done
+
+[ "$ran" = 1 ] || echo "check: no checks configured yet (edit tools/check). Passing." >&2
+echo "check: OK"

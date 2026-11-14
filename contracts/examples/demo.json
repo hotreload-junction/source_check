@@ -1,0 +1,23 @@
+[
+  {
+    "key": "pravda",
+    "label": "Pravda network article",
+    "url": "https://pravda-mirror.example.com/2026/11/drones-staged",
+    "job_id": "example-job-1",
+    "expected_verdict": "propaganda_pattern"
+  },
+  {
+    "key": "wire",
+    "label": "Wire service (Reuters/AP)",
+    "url": "https://wire.example.com/world/2026-11-13",
+    "job_id": "example-job-3",
+    "expected_verdict": "well_sourced"
+  },
+  {
+    "key": "blog",
+    "label": "Sloppy blog, dead links",
+    "url": "https://someblog.example.io/post",
+    "job_id": "example-job-4",
+    "expected_verdict": "weakly_sourced"
+  }
+]

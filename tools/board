@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+# Agent message board on one pinned GitHub issue. Needs only bash (3.2+ ok) + `gh` (authenticated).
+#
+# Every post has a machine-readable header line:
+#     [<from>] <TYPE> -> <to,to>: <text>      (the "-> ..." part is optional)
+# e.g. [leo-fe] BREAKING -> anna,all: POST /api/session now returns {user, token}
+#
+# Identity is the AGENT HANDLE, not the GitHub login, so several agents of one human
+# (all on the same gh account) see and address each other. Handle = $BOARD_AGENT, else the
+# first line of .board/agent in this worktree (written by tools/worktree).
+# Handles look like <human>-<role> (leo-fe, anna-be); a human uses the bare name (leo);
+# a cloud teammate e.g. "hermes". Addressing "leo" reaches leo AND all leo-* agents,
+# "all" reaches everyone. BREAKING posts are relevant to everyone.
+#
+# Usage: tools/board <post|unread|wait|read|roster|whoami|help> [args]
+# Env: BOARD_AGENT, BOARD_ISSUE (default 1), BOARD_REPO (default: from git remote)
+set -u
+
+TYPES="START DONE BREAKING BLOCKED QUESTION ANSWER NOTE"
+ISSUE="${BOARD_ISSUE:-1}"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+STATE_DIR="$ROOT/.board"
+TMPF="$(mktemp "${TMPDIR:-/tmp}/board.XXXXXX")"; trap 'rm -f "$TMPF"' EXIT
+
+die() { echo "board: $*" >&2; exit 1; }
+command -v gh >/dev/null 2>&1 || die "gh not found (https://cli.github.com), then run: gh auth login"
+
+valid_repo() { [[ "$1" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; }
+valid_handle() { [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; }
+
+# ---------- identity ----------
+me() {
+  local h="${BOARD_AGENT:-}"
+  if [ -z "$h" ] && [ -s "$STATE_DIR/agent" ]; then h="$(head -n1 "$STATE_DIR/agent" | tr -d '[:space:]')"; fi
+  [ -n "$h" ] && valid_handle "$h" || return 1
+  echo "$h"
+}
+need_me() { me || die "no agent handle: export BOARD_AGENT=<human>-<role> (e.g. leo-fe) or run tools/worktree"; }
+
+# ---------- repo ----------
+repo_from_remote() {
+  local url path
+  url="$(git remote get-url origin 2>/dev/null)" || return 1
+  case "$url" in
+    https://*|http://*|ssh://*) path="${url#*://}"; path="${path#*/}" ;;
+    git@*:* ) path="${url#*:}" ;;
+    *) return 1 ;;
+  esac
+  path="${path%.git}"; path="${path%/}"
+  valid_repo "$path" || return 1
+  printf '%s\n' "$path"
+}
+repo() {
+  local r=""
+  if [ -n "${BOARD_REPO:-}" ]; then r="$BOARD_REPO"
+  else
+    r="$(repo_from_remote 2>/dev/null)" || r=""
+    [ -n "$r" ] || { r="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || r=""; }
+  fi
+  valid_repo "$r" || return 1
+  printf '%s\n' "$r"
+}
+REPO="$(repo)" || REPO=""
+need_repo() { [ -n "$REPO" ] || die "cannot determine repo; set BOARD_REPO=owner/name"; }
+
+# ---------- fetching ----------
+b64d() { base64 -d 2>/dev/null || base64 -D; }
+# Row format: id<TAB>login<TAB>created_at<TAB>base64(body)
+JQ_ROW='.[] | "\(.id)\t\(.user.login)\t\(.created_at)\t\(.body | @base64)"'
+
+fetch_since() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100&since=$1" --jq "$JQ_ROW" 2>/dev/null; }
+fetch_last() {
+  local want="$1" count page out have=0 acc=""
+  count="$(gh api "repos/$REPO/issues/$ISSUE" --jq .comments 2>/dev/null)" || return 1
+  case "$count" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$count" -gt 0 ] || return 0
+  page=$(( (count + 99) / 100 ))
+  while [ "$page" -ge 1 ] && [ "$have" -lt "$want" ]; do
+    out="$(gh api "repos/$REPO/issues/$ISSUE/comments?per_page=100&page=$page" --jq "$JQ_ROW" 2>/dev/null)" || return 1
+    [ -n "$out" ] && { acc="$out"$'\n'"$acc"; have=$(( have + $(printf '%s\n' "$out" | wc -l) )); }
+    page=$(( page - 1 ))
+  done
+  printf '%s\n' "$acc" | awk 'NF' | tail -n "$want"
+}
+
+# ---------- parsing ----------
+# parse_header <body> -> sets P_OK (1 = protocol post) P_FROM P_TYPE P_TO (comma list)
+parse_header() {
+  local first re='^\[([a-z0-9][a-z0-9-]*)\] ([A-Z]+)( -> ([a-z0-9, -]+))?:'
+  first="$(printf '%s' "$1" | head -n1)"
+  if [[ "$first" =~ $re ]]; then
+    P_OK=1; P_FROM="${BASH_REMATCH[1]}"; P_TYPE="${BASH_REMATCH[2]}"
+    P_TO="$(printf '%s' "${BASH_REMATCH[4]}" | tr -d ' ')"
+  else
+    # free-form post (e.g. a human typing in the GitHub UI): treat as NOTE to all
+    P_OK=0; P_FROM=""; P_TYPE="NOTE"; P_TO="all"
+  fi
+}
+# relevant <me>: uses P_*; true if addressed to me, to my human, to all, or BREAKING
+relevant() {
+  local m="$1" human="${1%%-*}" t rest
+  [ "$P_TYPE" = "BREAKING" ] && return 0
+  rest="$P_TO,"
+  while [ -n "$rest" ]; do
+    t="${rest%%,*}"; rest="${rest#*,}"
+    if [ "$t" = "all" ] || [ "$t" = "$m" ] || [ "$t" = "$human" ]; then return 0; fi
+  done
+  return 1
+}
+sender_of() { if [ "$P_OK" = 1 ]; then echo "$P_FROM"; else echo "gh:$1"; fi; }
+
+# ---------- cursor (per handle, so several agents can even share a checkout) ----------
+cursor_file() { echo "$STATE_DIR/cursor-$(echo "$REPO" | tr '/' '_')-$ISSUE-$1"; }
+get_cursor() { local f; f="$(cursor_file "$1")"; [ -s "$f" ] && cat "$f" || echo ""; }
+set_cursor() { # handle id created_at ; only moves forward
+  [ -n "$2" ] || return 0
+  mkdir -p "$STATE_DIR"
+  local cur; cur="$(get_cursor "$1" | cut -d' ' -f1)"
+  if [ -z "$cur" ] || [ "$2" -gt "$cur" ]; then echo "$2 $3" > "$(cursor_file "$1")"; fi
+}
+
+# fetch_new <me>: writes rows newer than my cursor that are NOT my own posts to $TMPF.
+# Sets NEW_MAX_ID/NEW_MAX_TS (newest row seen, incl. own posts). Returns 1 on fetch failure.
+# Must NOT be called in a subshell (sets globals).
+fetch_new() {
+  local m="$1" cur cid cts all last id user ts b body
+  : > "$TMPF"; NEW_MAX_ID=""; NEW_MAX_TS=""
+  cur="$(get_cursor "$m")"
+  if [ -z "$cur" ]; then all="$(fetch_last 10)" || return 1; cid=0
+  else cid="${cur%% *}"; cts="${cur#* }"; all="$(fetch_since "$cts")" || return 1; fi
+  all="$(printf '%s\n' "$all" | awk -F'\t' -v c="$cid" 'NF && $1+0 > c+0' | sort -n -t"$(printf '\t')" -k1,1)"
+  [ -n "$all" ] || return 0
+  last="$(printf '%s\n' "$all" | tail -n1)"
+  NEW_MAX_ID="$(printf '%s' "$last" | cut -f1)"; NEW_MAX_TS="$(printf '%s' "$last" | cut -f3)"
+  while IFS=$'\t' read -r id user ts b; do
+    [ -n "$id" ] || continue
+    body="$(printf '%s' "$b" | b64d | tr -d '\r')"
+    parse_header "$body"
+    [ "$P_OK" = 1 ] && [ "$P_FROM" = "$m" ] && continue
+    printf '%s\t%s\t%s\t%s\n' "$id" "$user" "$ts" "$b" >> "$TMPF"
+  done <<< "$all"
+  return 0
+}
+
+# render <me> <brief|full> (stdin rows). Posts relevant to me are always shown in full.
+render() {
+  local m="$1" mode="$2" id user ts b body first
+  while IFS=$'\t' read -r id user ts b; do
+    [ -n "$id" ] || continue
+    body="$(printf '%s' "$b" | b64d | tr -d '\r')"
+    parse_header "$body"
+    if relevant "$m" && ! { [ "$P_OK" = 1 ] && [ "$P_FROM" = "$m" ]; }; then
+      printf -- '--- #%s %s from %s ** FOR YOU **\n%s\n' "$id" "$ts" "$(sender_of "$user")" "$body"
+    elif [ "$mode" = full ]; then
+      printf -- '--- #%s %s from %s\n%s\n' "$id" "$ts" "$(sender_of "$user")" "$body"
+    else
+      first="$(printf '%s' "$body" | head -n1 | cut -c1-200)"
+      [ "$P_OK" = 1 ] || first="[$(sender_of "$user")] NOTE: $first"
+      printf -- '  · %s\n' "$first"
+    fi
+  done
+}
+any_relevant() { # <me>, stdin rows
+  local m="$1" id user ts b body
+  while IFS=$'\t' read -r id user ts b; do
+    [ -n "$id" ] || continue
+    body="$(printf '%s' "$b" | b64d | tr -d '\r')"
+    parse_header "$body"
+    relevant "$m" && return 0
+  done
+  return 1
+}
+
+# ---------- commands ----------
+cmd_post() {
+  local m to="" type text hdr
+  m="$(need_me)" || exit 1
+  [ $# -ge 1 ] || die "usage: tools/board post <TYPE> [--to a,b] [text | stdin]"
+  type="$(printf '%s' "$1" | tr 'a-z' 'A-Z')"; shift
+  case " $TYPES " in *" $type "*) ;; *) die "TYPE must be one of: $TYPES" ;; esac
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --to) to="${2:-}"; shift 2 ;;
+      --to=*) to="${1#--to=}"; shift ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
+  to="$(printf '%s' "$to" | tr -d ' ' | tr 'A-Z' 'a-z')"
+  if [ $# -gt 0 ]; then text="$*"; else text="$(cat)"; fi
+  [ -n "$text" ] || die "empty post"
+  if [ -n "$to" ]; then
+    [[ "$to" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] || die "--to must be comma-separated handles"
+  else
+    case "$type" in QUESTION|BLOCKED|ANSWER) die "$type needs --to <handle|human|all>" ;; esac
+  fi
+  need_repo
+  hdr="[$m] $type"; [ -n "$to" ] && hdr="$hdr -> $to"
+  # Defuse @mentions (zero-width space after @) so we never ping real GitHub users.
+  local zw; zw="$(printf '\342\200\213')"   # U+200B, works on bash 3.2 too
+  text="$(printf '%s' "$text" | sed -E "s/(^|[^A-Za-z0-9_])@([A-Za-z0-9])/\\1@${zw}\\2/g")"
+  gh api "repos/$REPO/issues/$ISSUE/comments" -f body="$hdr: $text" --jq .html_url || die "post failed"
+}
+
+cmd_unread() {
+  local m mode=brief
+  m="$(need_me)" || exit 1
+  [ "${1:-}" = "--full" ] && mode=full
+  need_repo
+  fetch_new "$m" || { echo "board: could not reach GitHub (cursor unchanged)" >&2; exit 1; }
+  render "$m" "$mode" < "$TMPF"
+  set_cursor "$m" "$NEW_MAX_ID" "$NEW_MAX_TS"
+}
+
+cmd_wait() {
+  local m interval=30 timeout=0 mode=relevant start
+  m="$(need_me)" || exit 1
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --interval) interval="${2:-}"; shift 2 ;;
+      --timeout) timeout="${2:-}"; shift 2 ;;
+      --any) mode=any; shift ;;
+      --relevant) mode=relevant; shift ;;
+      *) die "wait: unknown arg $1" ;;
+    esac
+  done
+  case "$interval$timeout" in *[!0-9]*|'') die "wait: --interval/--timeout need whole seconds" ;; esac
+  need_repo
+  start="$(date +%s)"
+  while :; do
+    if fetch_new "$m" 2>/dev/null; then
+      if [ -s "$TMPF" ]; then
+        if [ "$mode" = any ] || any_relevant "$m" < "$TMPF"; then
+          render "$m" brief < "$TMPF"
+          set_cursor "$m" "$NEW_MAX_ID" "$NEW_MAX_TS"
+          exit 0
+        fi
+        # unrelated posts stay unread; they are shown (one line each) on the next wake
+      else
+        set_cursor "$m" "$NEW_MAX_ID" "$NEW_MAX_TS"   # skip past my own posts
+      fi
+    fi
+    if [ "$timeout" -gt 0 ] && [ $(( $(date +%s) - start )) -ge "$timeout" ]; then
+      echo "board: wait timed out after ${timeout}s" >&2; exit 124
+    fi
+    sleep "$interval"
+  done
+}
+
+cmd_read() {
+  local n=10 m all
+  while [ $# -gt 0 ]; do
+    case "$1" in -n) n="${2:-}"; shift 2 ;; -n*) n="${1#-n}"; shift ;; *) die "read: unknown arg $1" ;; esac
+  done
+  case "$n" in ''|*[!0-9]*) die "read: -n needs a number" ;; esac
+  need_repo
+  m="$(me)" || m="-"
+  all="$(fetch_last "$n")" || die "could not reach GitHub"
+  [ -n "$all" ] && printf '%s\n' "$all" | render "$m" full
+  return 0
+}
+
+cmd_roster() { # newest post per sender among the last N posts
+  local n="${1:-100}" all id user ts b body
+  need_repo
+  all="$(fetch_last "$n")" || die "could not reach GitHub"
+  [ -n "$all" ] || { echo "(board is empty)"; return 0; }
+  while IFS=$'\t' read -r id user ts b; do
+    [ -n "$id" ] || continue
+    body="$(printf '%s' "$b" | b64d | tr -d '\r')"; parse_header "$body"
+    printf '%s\t%s\t%s\n' "$(sender_of "$user")" "$ts" "$(printf '%s' "$body" | head -n1 | cut -c1-120)"
+  done <<< "$all" | awk -F'\t' '{ last[$1]=$2"  "$3 } END { for (k in last) printf "%-14s %s\n", k, last[k] }' | sort -k2
+}
+
+case "${1:-help}" in
+  post) shift; cmd_post "$@" ;;
+  unread) shift; cmd_unread "$@" ;;
+  wait) shift; cmd_wait "$@" ;;
+  read) shift; cmd_read "$@" ;;
+  roster) shift; cmd_roster "$@" ;;
+  whoami) m="$(need_me)" || exit 1
+          echo "agent: $m  human: ${m%%-*}  repo: ${REPO:-?}  issue: #$ISSUE  gh: $(gh api user --jq .login 2>/dev/null || echo 'NOT LOGGED IN')" ;;
+  *)
+    cat <<USAGE
+tools/board post <TYPE> [--to a,b] <text>   TYPE: $TYPES
+                                            QUESTION/BLOCKED/ANSWER need --to. --to takes handles (leo-fe),
+                                            humans (leo = leo + every leo-* agent) or all.
+tools/board unread [--full]                 new posts since your last check (posts for you in full, others 1 line)
+tools/board wait [--any] [--interval S] [--timeout S]
+                                            block until a post FOR YOU (or any BREAKING) arrives; --any: any post
+tools/board read [-n N]                     last N posts in full (default 10); does not mark read
+tools/board roster [N]                      newest post per agent among the last N posts
+tools/board whoami                          your handle, repo, issue, gh login
+Env: BOARD_AGENT (or .board/agent), BOARD_ISSUE (default 1), BOARD_REPO
+USAGE
+    ;;
+esac

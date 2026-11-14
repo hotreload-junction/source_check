@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Run a coding agent HEADLESS, woken by the board: wait for a post FOR this agent (or BREAKING),
+# then start one non-interactive agent run with the posts as its prompt. Loops forever.
+#
+# Usage (inside the agent's worktree):
+#   tools/autopilot [--task "first task"] [--max-per-hour N] -- <agent command that takes a prompt as last arg>
+# Examples:
+#   tools/autopilot -- claude -p --dangerously-skip-permissions
+#   tools/autopilot -- codex exec --full-auto
+#   tools/autopilot -- hermes chat -Q --yolo -q
+# Each run is a fresh session: the prompt tells it to re-read AGENTS.md + the board.
+# Log: .board/autopilot.log
+set -u
+die() { echo "autopilot: $*" >&2; exit 1; }
+ROOT="$(git rev-parse --show-toplevel)" || die "not in a git repo"; cd "$ROOT"
+task=""; max=12
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --task) task="${2:-}"; shift 2 ;;
+    --max-per-hour) max="${2:-12}"; shift 2 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+[ $# -gt 0 ] || die "usage: tools/autopilot [--task T] [--max-per-hour N] -- <agent cmd ...>"
+me="$(tools/board whoami 2>/dev/null | awk '{print $2}')"
+[ -n "$me" ] || die "no handle: run inside a tools/worktree worktree or export BOARD_AGENT"
+mkdir -p .board; log=.board/autopilot.log; runs=.board/autopilot.runs
+agent_cmd=("$@")
+
+preamble="You are the autonomous coding agent '$me' in a 48h hackathon team. Read AGENTS.md first and follow it exactly.
+Work in this worktree only. Ship finished, checked work with tools/ship. Communicate only via tools/board.
+Do NOT ask the human anything interactively; if you need a decision, post QUESTION/BLOCKED on the board and continue with other work."
+
+run_agent() { # $1 = prompt
+  local now n
+  while :; do
+    now="$(date +%s)"
+    touch "$runs"
+    awk -v now="$now" 'now - $1 < 3600' "$runs" > "$runs.tmp" && mv "$runs.tmp" "$runs"
+    n="$(wc -l < "$runs" | tr -d ' ')"
+    [ "$n" -lt "$max" ] && break
+    echo "autopilot: budget of $max runs/h used, waiting 5 min before handling these posts" | tee -a "$log"; sleep 300
+  done
+  echo "$now" >> "$runs"
+  echo "===== $(date '+%a %H:%M:%S') run for $me =====" >> "$log"
+  "${agent_cmd[@]}" "$1" 2>&1 | tee -a "$log"
+}
+
+if [ -n "$task" ]; then
+  run_agent "$preamble
+
+Your task: $task
+First run: tools/board unread" || true
+fi
+
+while :; do
+  posts="$(tools/board wait --interval "${AUTOPILOT_INTERVAL:-30}")" || { sleep 30; continue; }
+  prompt="$preamble
+
+New board posts (lines marked ** FOR YOU ** are addressed to you or are BREAKING):
+$posts
+
+Handle what is for you: answer questions (ANSWER --to <asker>), unblock people, adapt to BREAKING changes,
+then continue your current task from PLAN.md. If nothing needs doing, stop immediately (do not post)."
+  run_agent "$prompt"
+done

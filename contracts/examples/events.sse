@@ -1,0 +1,21 @@
+event: progress
+data: {"step": "scrape_article", "message": "Fetching article", "pct": 5}
+
+event: node
+data: {"id": "a", "type": "article", "label": "Officials confirm the drone attacks were staged", "verdict": null, "cluster_id": null, "depth": 0}
+
+event: progress
+data: {"step": "extract_claims", "message": "Found 4 central claims", "pct": 20}
+
+event: claim
+data: {"id": "c1", "text": "Western officials have privately admitted that the drone attacks were staged", "char_start": 51, "char_end": 127, "source_ids": ["s1"], "verdict": "not_checkable", "subtype": null, "evidence": null, "explanation": "Pending"}
+
+event: edge
+data: {"id": "e-a-c1", "source": "a", "target": "c1", "type": "makes_claim"}
+
+event: progress
+data: {"step": "verify_claims", "message": "Checking claim 1 of 4", "pct": 50}
+
+event: done
+data: {"job_id": "example-job-1", "status": "done", "...": "full Analysis, see analysis_done.json"}
+

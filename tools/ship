@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Ship your committed work to the shared `dev` branch, autonomously and safely:
+#   fetch -> rebase on origin/dev -> tools/check -> fast-forward push to dev -> board post.
+# Never force-pushes. Retries if dev moved meanwhile. Refuses if checks fail (dev must stay green).
+#
+# Usage: tools/ship [--breaking] [--to a,b] "what changed, how to verify"
+# Exit: 0 shipped | 1 usage/env error | 2 rebase conflict | 3 checks failed | 4 push kept failing
+# Env:  SHIP_SKIP_CHECK=1  skip tools/check (emergency only; CI still runs on dev)
+set -u
+die() { echo "ship: $1" >&2; exit "${2:-1}"; }
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not in a git repo"
+cd "$ROOT"
+type=DONE; to=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --breaking) type=BREAKING; shift ;;
+    --to) to="${2:-}"; shift 2 ;;
+    --to=*) to="${1#--to=}"; shift ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    *) break ;;
+  esac
+done
+summary="$*"
+[ -n "$summary" ] || die 'usage: tools/ship [--breaking] [--to a,b] "summary"'
+[ "$type" = BREAKING ] && [ -z "$to" ] && to=all
+
+branch="$(git branch --show-current)"
+[ "$branch" = main ] && die "you are on main. Agents work on agent/<handle> branches (tools/worktree)."
+git diff --quiet && git diff --cached --quiet || die "uncommitted changes. Commit your own files first (no 'git add -A' of others' files)."
+if git rebase --show-current-patch >/dev/null 2>&1; then die "a rebase is in progress; finish or abort it first"; fi
+
+for attempt in 1 2 3 4; do
+  git fetch -q origin dev || die "git fetch origin dev failed (does dev exist? run tools/setup)"
+  base="$(git rev-parse origin/dev)"
+  if ! git rebase -q origin/dev >/dev/null 2>&1; then
+    git rebase --abort >/dev/null 2>&1
+    die "rebase conflict with origin/dev. Do: git rebase origin/dev, resolve keeping BOTH sides' intent
+      (conflict in someone else's folder? ask its owner: tools/board post QUESTION --to <owner> ...),
+      git rebase --continue, then run tools/ship again." 2
+  fi
+  n="$(git rev-list --count origin/dev..HEAD)"
+  [ "$n" -gt 0 ] || die "nothing to ship: no commits ahead of origin/dev"
+  if [ "${SHIP_SKIP_CHECK:-}" != 1 ]; then
+    echo "ship: running tools/check on your work rebased onto dev@${base:0:7} ..."
+    tools/check || die "checks failed on the rebased result. Fix it (or ask the owner on the board), commit, ship again." 3
+  fi
+  if git push -q origin HEAD:refs/heads/dev 2>/dev/null; then
+    head="$(git rev-parse --short HEAD)"
+    areas="$(git diff --name-only "$base" HEAD | awk -F/ '{print (NF>1?$1"/":$1)}' | sort -u | head -n 8 | paste -sd, -)"
+    msg="$summary  (dev@$head, $n commit(s), touched: $areas)"
+    echo "ship: dev is now $head"
+    if [ -n "$to" ]; then tools/board post "$type" --to "$to" "$msg"; else tools/board post "$type" "$msg"; fi
+    exit 0
+  fi
+  echo "ship: dev moved while shipping (attempt $attempt), retrying ..." >&2
+  sleep $(( attempt * 3 ))
+done
+die "push to dev kept failing (4 attempts). Check 'git push origin HEAD:dev' output manually." 4

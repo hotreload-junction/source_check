@@ -1,0 +1,381 @@
+{
+  "_note": "FICTIONAL example for frontend mocks. All domains are example.* placeholders, not real data.",
+  "job_id": "example-job-1",
+  "status": "done",
+  "progress": {
+    "step": "verdict",
+    "message": "Done",
+    "pct": 100
+  },
+  "error": null,
+  "created_at": "2026-11-14T12:00:00Z",
+  "finished_at": "2026-11-14T12:01:14Z",
+  "result": {
+    "article": {
+      "url": "https://pravda-mirror.example.com/2026/11/drones-staged",
+      "domain": "pravda-mirror.example.com",
+      "title": "Officials confirm the drone attacks were staged",
+      "published_at": "2026-11-12T08:00:00Z",
+      "text_markdown": "# Officials confirm the drone attacks were staged\n\nWestern officials have privately admitted that the drone attacks were staged, [according to a report](https://news-front.example.net/report-123). The ministry said the incident is still under investigation ([statement](https://ministry.example.gov/press/42)).\n\nIndependent analysts agree that the evidence was fabricated, as [one expert told us](https://daily-truth.example.org/expert-interview).\n\nLocal residents saw no damage at all."
+    },
+    "claims": [
+      {
+        "id": "c1",
+        "text": "Western officials have privately admitted that the drone attacks were staged",
+        "char_start": 51,
+        "char_end": 127,
+        "source_ids": [
+          "s1"
+        ],
+        "verdict": "not_mentioned",
+        "subtype": null,
+        "evidence": {
+          "source_id": "s1",
+          "quote_original": "Источники сообщают о новых атаках беспилотников на прошлой неделе.",
+          "quote_translation": "Sources report new drone attacks last week.",
+          "language": "ru",
+          "fuzzy_score": 97.0
+        },
+        "explanation": "The cited page reports the attacks but says nothing about officials calling them staged."
+      },
+      {
+        "id": "c2",
+        "text": "The ministry said the incident is still under investigation",
+        "char_start": 197,
+        "char_end": 256,
+        "source_ids": [
+          "s2"
+        ],
+        "verdict": "supported",
+        "subtype": null,
+        "evidence": {
+          "source_id": "s2",
+          "quote_original": "The incident remains under investigation by the relevant authorities.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 100.0
+        },
+        "explanation": "The ministry statement says the same thing."
+      },
+      {
+        "id": "c3",
+        "text": "Independent analysts agree that the evidence was fabricated",
+        "char_start": 312,
+        "char_end": 371,
+        "source_ids": [
+          "s3"
+        ],
+        "verdict": "distorted",
+        "subtype": null,
+        "evidence": {
+          "source_id": "s3",
+          "quote_original": "I cannot rule out that some of the published images were edited.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 94.5
+        },
+        "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'."
+      },
+      {
+        "id": "c4",
+        "text": "Local residents saw no damage at all.",
+        "char_start": 449,
+        "char_end": 486,
+        "source_ids": [],
+        "verdict": "unsourced",
+        "subtype": null,
+        "evidence": null,
+        "explanation": "No source is given for this claim."
+      }
+    ],
+    "sources": [
+      {
+        "id": "s1",
+        "url": "https://news-front.example.net/report-123",
+        "domain": "news-front.example.net",
+        "kind": "link",
+        "attribution_text": "according to a report",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s2",
+        "url": "https://ministry.example.gov/press/42",
+        "domain": "ministry.example.gov",
+        "kind": "link",
+        "attribution_text": "statement",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s3",
+        "url": "https://daily-truth.example.org/expert-interview",
+        "domain": "daily-truth.example.org",
+        "kind": "link",
+        "attribution_text": "one expert told us",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "trafilatura"
+      }
+    ],
+    "domains": [
+      {
+        "domain": "pravda-mirror.example.com",
+        "created_at": "2024-02-01T00:00:00Z",
+        "age_days": 1017,
+        "analytics_ids": [
+          "G-EXAMPLE01"
+        ],
+        "adsense_ids": [],
+        "cluster_id": "k1",
+        "is_article_domain": true
+      },
+      {
+        "domain": "news-front.example.net",
+        "created_at": "2026-09-20T00:00:00Z",
+        "age_days": 55,
+        "analytics_ids": [
+          "G-EXAMPLE01"
+        ],
+        "adsense_ids": [],
+        "cluster_id": "k1",
+        "is_article_domain": false
+      },
+      {
+        "domain": "ministry.example.gov",
+        "created_at": "2001-05-10T00:00:00Z",
+        "age_days": 9134,
+        "analytics_ids": [
+          "G-GOVSITE99"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "daily-truth.example.org",
+        "created_at": "2025-11-02T00:00:00Z",
+        "age_days": 377,
+        "analytics_ids": [],
+        "adsense_ids": [
+          "ca-pub-0000000000000001"
+        ],
+        "cluster_id": null,
+        "is_article_domain": false
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "a",
+          "type": "article",
+          "label": "Officials confirm the drone attacks were staged",
+          "verdict": null,
+          "cluster_id": "k1",
+          "depth": 0
+        },
+        {
+          "id": "c1",
+          "type": "claim",
+          "label": "Western officials have privately admitted that the drone att",
+          "verdict": "not_mentioned",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c2",
+          "type": "claim",
+          "label": "The ministry said the incident is still under investigation",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c3",
+          "type": "claim",
+          "label": "Independent analysts agree that the evidence was fabricated",
+          "verdict": "distorted",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c4",
+          "type": "claim",
+          "label": "Local residents saw no damage at all.",
+          "verdict": "unsourced",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "s1",
+          "type": "source",
+          "label": "news-front.example.net",
+          "verdict": null,
+          "cluster_id": "k1",
+          "depth": 1
+        },
+        {
+          "id": "s2",
+          "type": "source",
+          "label": "ministry.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s3",
+          "type": "source",
+          "label": "daily-truth.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:pravda-mirror.example.com",
+          "type": "domain",
+          "label": "pravda-mirror.example.com",
+          "verdict": null,
+          "cluster_id": "k1",
+          "depth": 0
+        },
+        {
+          "id": "d:news-front.example.net",
+          "type": "domain",
+          "label": "news-front.example.net",
+          "verdict": null,
+          "cluster_id": "k1",
+          "depth": 1
+        },
+        {
+          "id": "d:ministry.example.gov",
+          "type": "domain",
+          "label": "ministry.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:daily-truth.example.org",
+          "type": "domain",
+          "label": "daily-truth.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-a-c1",
+          "source": "a",
+          "target": "c1",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c1-s1",
+          "source": "c1",
+          "target": "s1",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c2",
+          "source": "a",
+          "target": "c2",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c2-s2",
+          "source": "c2",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c3",
+          "source": "a",
+          "target": "c3",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c3-s3",
+          "source": "c3",
+          "target": "s3",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c4",
+          "source": "a",
+          "target": "c4",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-s1-host",
+          "source": "s1",
+          "target": "d:news-front.example.net",
+          "type": "hosted_on"
+        },
+        {
+          "id": "e-s2-host",
+          "source": "s2",
+          "target": "d:ministry.example.gov",
+          "type": "hosted_on"
+        },
+        {
+          "id": "e-s3-host",
+          "source": "s3",
+          "target": "d:daily-truth.example.org",
+          "type": "hosted_on"
+        },
+        {
+          "id": "e-a-host",
+          "source": "a",
+          "target": "d:pravda-mirror.example.com",
+          "type": "hosted_on"
+        },
+        {
+          "id": "e-infra-1",
+          "source": "d:pravda-mirror.example.com",
+          "target": "d:news-front.example.net",
+          "type": "shares_infra"
+        }
+      ]
+    },
+    "signals": {
+      "evidence": {
+        "fired": true,
+        "claim_ids": [
+          "c1",
+          "c3",
+          "c4"
+        ],
+        "detail": "3 of 4 central claims are not supported by their sources or unsourced (threshold: 2)."
+      },
+      "infrastructure": {
+        "fired": true,
+        "reasons": [
+          "pravda-mirror.example.com and news-front.example.net share G-EXAMPLE01",
+          "news-front.example.net was registered 55 days ago (threshold: 90)"
+        ]
+      },
+      "circle": {
+        "fired": false,
+        "path": null
+      }
+    },
+    "verdict": {
+      "label": "propaganda_pattern",
+      "summary": "Three of four central claims are not backed by the cited sources, and the main 'independent' source shares an analytics ID with the article's own site and is 55 days old."
+    },
+    "audit": {
+      "model_extract": "EXAMPLE-cheap-model",
+      "model_verify": "EXAMPLE-strong-model",
+      "prompt_version": "v1",
+      "fuzzy_threshold": 90,
+      "depth": 1,
+      "duration_s": 74.2
+    }
+  }
+}

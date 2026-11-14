@@ -1,0 +1,40 @@
+name: dev-check
+# Runs tools/check on every push to dev. If dev goes red, posts a BREAKING note on the board so the
+# agents (woken by `tools/board wait`) fix or revert it autonomously.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dev-check
+  cancel-in-progress: true   # only the newest dev commit matters
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: tools/check
+        run: tools/check
+      - name: Report red dev on the board
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ vars.BOARD_ISSUE || '1' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          last="$(git log -1 --format='%s' "$GITHUB_SHA")"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" -f body="[ci] BREAKING -> all: dev is RED at ${short} (\"${last}\"). Log: ${RUN_URL} . Whoever shipped this: fix it now or revert with 'git revert ${short}' + tools/ship. Everyone else: do not ship on top until it is green."

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Create an isolated worktree + identity for one agent. One agent = one worktree = one handle.
+#
+# Usage: tools/worktree <handle> [base-branch]     e.g. tools/worktree leo-fe
+# Creates ../<repo>-<handle> on branch agent/<handle> (from origin/dev) and writes .board/agent there,
+# so tools/board knows who this agent is without any env vars.
+set -eu
+die() { echo "worktree: $*" >&2; exit 1; }
+h="${1:-}"; base="${2:-dev}"
+[[ "$h" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || die "usage: tools/worktree <handle>   (lowercase, e.g. leo-fe, anna-be, hermes)"
+ROOT="$(git rev-parse --show-toplevel)"; cd "$ROOT"
+git config core.hooksPath .githooks          # pre-push guard (shared by all worktrees of this clone)
+git fetch -q origin "$base" || die "origin/$base missing (lead runs tools/setup first)"
+dir="$(dirname "$ROOT")/$(basename "$ROOT")-$h"
+[ -e "$dir" ] && die "$dir already exists"
+if git show-ref -q --verify "refs/heads/agent/$h"; then git worktree add -q "$dir" "agent/$h"
+else git worktree add -q -b "agent/$h" "$dir" "origin/$base"; fi
+mkdir -p "$dir/.board"; echo "$h" > "$dir/.board/agent"
+echo "worktree: $dir  (branch agent/$h, handle $h)"
+echo "next:     cd $dir && tools/board whoami && <start your agent here>"
