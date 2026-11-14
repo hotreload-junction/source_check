@@ -60,15 +60,15 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 | id | task | owner | status | notes |
 |---|---|---|---|---|
 | F1 | skeleton against `contracts/examples/*.json` mocks; pick stack, log it in DECISIONS.md | louis-fe | done | Vite+React+TS; `npm run dev` / `npm run dev:mock` |
-| F2 | input page: URL field + 3 demo buttons | louis-fe | done | top bar of the result view |
-| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | doing | Source Trace design (DECISIONS Sat 13:45); clusters shown in source panel + orange flag, no compound box yet |
+| F2 | input page: URL field + 3 demo buttons | louis-fe | done | UI done (top bar of the result view). Demo buttons call `GET /api/demo` (B9 pending, 404 today); full flow only in `dev:mock` until then |
+| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | doing | Source Trace design (DECISIONS Sat 13:45), own renderer instead of Cytoscape. Open: article-verdict bar on top (`bar.ts` started, not shipped), operator-cluster box (now only panel + orange flag), click claim in article text, test on real result data |
 | F4 | live progress via SSE (fallback polling every 2 s), graph builds incrementally | louis-fe | doing | built, untested against real backend (B8 pending) |
 | F5 | methodology page: precision, recall, FPR, confusion matrix, error cases, thresholds | louis-fe | todo | **never cut** |
 
 ### Deploy
 | id | task | owner | status | notes |
 |---|---|---|---|---|
-| D1 | `deploy/`: docker compose (mariadb, backend + static frontend), reverse proxy + HTTPS, public URL | louis-bg | todo | Hostinger VPS; secrets only in `.env` on the box |
+| D1 | `deploy/`: docker compose (mariadb, backend + static frontend), reverse proxy + HTTPS, public URL | louis-bg, louis-fe | doing | stack runs locally: `docker compose -f deploy/docker-compose.yml up --build` (db, backend by leo-be, web = Caddy). Open: VPS setup, HTTPS on the real domain (set `SITE_ADDRESS`), public URL |
 | D2 | deploy script: VPS pulls `main` and restarts (`deploy/deploy.sh`), smoke test `/api/health` + demo case | louis-bg | todo | humans run it after `tools/promote` |
 
 ### Evaluation
