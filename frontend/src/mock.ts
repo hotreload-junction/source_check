@@ -19,9 +19,9 @@ const wait = <T,>(v: T, ms = 150) => new Promise<T>((res) => setTimeout(() => re
 export const mockApi: Api = {
   mock: true,
   demo: () => wait(demo as DemoCase[]),
-  start(url) {
+  start(url, force = false) {
     const d = (demo as DemoCase[]).find((x) => x.url === url);
-    return wait(d ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
+    return wait(d && !force ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
   },
   get: (id) => wait(JOBS[id] ?? JOBS['example-job-1']),
   methodology: () => wait(methodology as Methodology),

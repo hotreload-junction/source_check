@@ -95,16 +95,24 @@ export default function App() {
     fitSoon(80);
   };
 
-  const analyze = (ev: FormEvent) => {
-    ev.preventDefault();
-    const u = input.trim();
-    if (!u) return;
+  // force = bypass the URL cache and recompute every step (contract: POST /api/analyses {force: true}).
+  // The demo buttons keep pointing at their precomputed job ids, so a forced run never replaces a demo case.
+  const startUrl = (u: string, force: boolean) => {
     const tk = reset();
     setActive(null); setUrl(u);
-    api.start(u)
+    api.start(u, force)
       .then((r) => { if (tk !== token.current) return; return r.status === 'done' ? load(r.job_id, tk) : follow(r.job_id, tk); })
       .catch(fail(tk));
   };
+
+  const analyze = (ev: FormEvent) => {
+    ev.preventDefault();
+    const u = input.trim();
+    if (u) startUrl(u, false);
+  };
+
+  const running = !!url && !view.done && !error;
+  const reanalyze = () => { if (url && !running) startUrl(url, true); };
 
   useEffect(() => {
     api.demo().then(
@@ -208,6 +216,7 @@ export default function App() {
         </form>
         <div style={{ flex: 1 }} />
         {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
+        <TopBtn onClick={reanalyze} disabled={!url || running} title="Ignore the cache and analyze this article again from scratch (takes 1-2 minutes)">Force re-analyze</TopBtn>
         <TopBtn onClick={replay}>Rebuild</TopBtn>
         <TopBtn onClick={skip}>Show instantly</TopBtn>
       </div>
@@ -263,6 +272,6 @@ export default function App() {
   );
 }
 
-function TopBtn({ onClick, children }: { onClick: () => void; children: string }) {
-  return <div onClick={onClick} style={{ cursor: 'pointer', padding: '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: TH.card }}>{children}</div>;
+function TopBtn({ onClick, children, disabled, title }: { onClick: () => void; children: string; disabled?: boolean; title?: string }) {
+  return <div title={title} aria-disabled={disabled || undefined} onClick={disabled ? undefined : onClick} style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1, padding: '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: TH.card }}>{children}</div>;
 }

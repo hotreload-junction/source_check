@@ -14,7 +14,7 @@ export interface Handlers {
 export interface Api {
   mock: boolean;
   demo(): Promise<DemoCase[]>;
-  start(url: string): Promise<StartResponse>;
+  start(url: string, force?: boolean): Promise<StartResponse>;
   get(jobId: string): Promise<Analysis>;
   methodology(): Promise<Methodology>;
   events(jobId: string, h: Handlers): () => void; // returns close()
@@ -34,8 +34,8 @@ async function json<T>(res: Response): Promise<T> {
 const realApi: Api = {
   mock: false,
   demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)),
-  start: (url) =>
-    fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, force: false }) }).then((r) => json<StartResponse>(r)),
+  start: (url, force = false) =>
+    fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, force }) }).then((r) => json<StartResponse>(r)),
   get: (id) => fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r)),
   methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {
