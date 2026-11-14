@@ -8,7 +8,8 @@ import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate, srcName } from './theme
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
 import type { Analysis, ClaimVerdict, DemoCase, Progress } from './types';
 
-const STEP_MS = 1000;
+const STEP_MS = 1000;           // live run: one node per second
+const CACHED_TOTAL_MS = 3000;   // precomputed result (demo, cache hit): whole reveal takes 3 s
 const upsert = <T extends { id: string }>(list: T[], x: T) => {
   const i = list.findIndex((y) => y.id === x.id);
   if (i < 0) return [...list, x];
@@ -47,11 +48,13 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   nRef.current = N;
   const done = view.done && rev >= N;
 
-  // progressive reveal, one node per step (as in the design)
+  // progressive reveal, one node per step (as in the design); a precomputed result is spread over CACHED_TOTAL_MS
+  const [cached, setCached] = useState(false);
   useEffect(() => {
-    const t = setInterval(() => setRev((r) => (r < nRef.current ? r + 1 : r)), STEP_MS);
+    const ms = cached ? Math.max(40, Math.round(CACHED_TOTAL_MS / Math.max(nRef.current, 1))) : STEP_MS;
+    const t = setInterval(() => setRev((r) => (r < nRef.current ? r + 1 : r)), ms);
     return () => clearInterval(t);
-  }, []);
+  }, [cached]);
 
   const fitSoon = useCallback((ms = 520) => {
     setTimeout(() => (focusRef.current ? canvas.current?.fitFocus(focusRef.current) : canvas.current?.fit()), ms);
@@ -64,7 +67,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
     token.current++;
     order.current = new Map();
     setAnalysis(null); setLive(emptyLive()); setProgress(null); setError(null);
-    setRev(0); setSel(null); setFocus(null); setDd(null); setOv({});
+    setRev(0); setSel(null); setFocus(null); setDd(null); setOv({}); setCached(false);
     focusRef.current = null;
     return token.current;
   };
@@ -84,7 +87,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   const load = (jobId: string, tk: number) =>
     api.get(jobId).then((a) => {
       if (tk !== token.current) return;
-      if (a.status === 'done' && a.result) setAnalysis(a);
+      if (a.status === 'done' && a.result) { setAnalysis(a); setCached(true); }
       else if (a.status === 'failed') setError(a.error || 'Analysis failed');
       else { setProgress(a.progress); follow(jobId, tk); }
     });

@@ -33,10 +33,11 @@ async function json<T>(res: Response): Promise<T> {
 
 const realApi: Api = {
   mock: false,
-  demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)),
+  // The three demo cases ship inside the bundle (precomputed, no backend needed). Once the backend lists its own cases they win.
+  demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
   start: (url, force = false, question) =>
     fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
-  get: (id) => fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r)),
+  get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r))),
   methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {
     let finished = false;
