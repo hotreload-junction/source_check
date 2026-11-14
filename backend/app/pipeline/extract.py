@@ -60,6 +60,7 @@ class ExtractionResult:
     completion_tokens: int = 0
     credits: float = 0.0
     n_votes: int = 0               # readings that answered (K minus failures)
+    units: list[tuple[int, int, str]] = field(default_factory=list)   # the numbered sentences (focus.py reuses them)
 
 
 def _parse_vote(data: dict, n_units: int) -> dict[int, tuple[str, ...]]:
@@ -133,7 +134,7 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
     return ExtractionResult(
         claims, results[0].model if results else s.model_extract, [],
         sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
-        n_votes=len(votes))
+        n_votes=len(votes), units=units)
 
 
 def prefer_sourced(majority: list[int], sourced: set[int], limit: int, min_unsourced: int) -> list[int]:

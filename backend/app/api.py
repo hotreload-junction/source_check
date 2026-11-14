@@ -1,6 +1,7 @@
 """B8: analysis endpoints (contracts/api.md)."""
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Iterator
 
@@ -13,6 +14,7 @@ from . import demo
 from .fetch.urls import InvalidURL, normalize_url
 from .jobs import Busy, JobManager
 from .methodology import load_methodology
+from .pipeline.focus import clean_question
 
 router = APIRouter(prefix="/api")
 
@@ -20,6 +22,15 @@ router = APIRouter(prefix="/api")
 class StartBody(BaseModel):
     url: str
     force: bool = False
+    question: str | None = None     # F6: optional reader question/concern about one point of the article
+
+
+def cache_key(norm: str, question: str | None) -> str:
+    """Analysis cache key: the normalised URL, plus a hash of the question when there is one (same article + same
+    question = same cached result; a different question is a different analysis, its central part replays from the step cache)."""
+    if not question:
+        return norm
+    return f"{norm[:490]}#q={hashlib.sha256(question.casefold().encode()).hexdigest()[:16]}"   # column is 512 chars
 
 
 def _jobs(request: Request) -> JobManager:
@@ -57,10 +68,15 @@ def start_analysis(body: StartBody, request: Request) -> JSONResponse:
         norm = normalize_url(body.url)
     except InvalidURL as exc:
         return JSONResponse(status_code=422, content={"error": "invalid_url", "detail": str(exc)})
+    try:
+        question = clean_question(body.question)
+    except ValueError as exc:
+        return JSONResponse(status_code=422, content={"error": "invalid_question", "detail": str(exc)})
+    norm = cache_key(norm, question)
     jobs = _jobs(request)
     try:
         if not body.force:
-            demo_job = demo.case_for_url(body.url, jobs.settings)      # answered from files: works with the database down
+            demo_job = None if question else demo.case_for_url(body.url, jobs.settings)   # from files: works with the DB down
             if demo_job:
                 return JSONResponse(status_code=200, content={"job_id": demo_job, "status": "done", "cached": True})
             cached = jobs.find_cached(norm)
@@ -69,7 +85,7 @@ def start_analysis(body: StartBody, request: Request) -> JSONResponse:
             active = jobs.find_active(norm)       # same article already being analysed: join it, do not start a twin
             if active:
                 return JSONResponse(status_code=202, content={"job_id": active, "status": "running", "cached": False})
-        job_id = jobs.submit(body.url.strip(), norm, refresh=body.force)   # force = recompute every step, not a replay
+        job_id = jobs.submit(body.url.strip(), norm, refresh=body.force, question=question)   # force = recompute every step, not a replay
     except Busy as exc:
         return JSONResponse(status_code=429, content={
             "error": "busy", "detail": f"{exc.running} analyses running, try again in a minute"})

@@ -27,6 +27,7 @@ from ..signals.laundering import channel_sourced_claims, declared_reposts
 from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
 from ..signals.infra import PLATFORM_DOMAINS
+from .focus import FOCUS_PROMPT_VERSION, focus_claims, focus_note, locate_focus
 from ..signals.reputation import ArchiveResult, WaybackClient, add_reputation
 from ..signals.source_type import classify_source_type
 from ..verdict import ClaimInput, decide
@@ -135,7 +136,7 @@ class _Registry:
 
 def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None = None, settings: Settings | None = None,
             rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None, archive=None,
-            refresh: bool = False) -> AnalysisOutput:
+            refresh: bool = False, question: str | None = None) -> AnalysisOutput:
     """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results."""
     s = settings or get_settings()
     sc = cachemod.for_run(refresh)
@@ -172,7 +173,16 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     except LLMError as exc:
         raise AnalysisError(f"Claim extraction failed: {exc}") from exc
     claims = ex.claims
-    for c in claims:
+
+    # 2b. reader focus (F6): where does the article make the assertion the reader asks about? Never changes the label.
+    focus = None
+    focus_marked: set[str] = set()
+    extra: list = []
+    if question:
+        progress("focus", "Finding the passage your question is about", 20)
+        focus = locate_focus(question, ex.units, url, llm=llm, settings=s)
+        focus_marked, extra = focus_claims(focus, ex.units, claims, text_md, url)
+    for c in claims + extra:
         out("node", {"id": c.id, "type": "claim", "label": _label(c.text), "verdict": None, "cluster_id": None, "depth": 0})
         out("edge", {"id": f"e-a-{c.id}", "source": "a", "target": c.id, "type": "makes_claim"})
 
@@ -192,27 +202,43 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     # 3. sources + verify ------------------------------------------------------------------------------------
     progress("fetch_sources", f"Checking the sources of {len(claims)} claims", 25)
     reg = _Registry()
-    claim_dicts: list[dict] = [None] * len(claims)  # type: ignore[list-item]
+    claim_dicts: list[dict] = [None] * (len(claims) + len(extra))  # type: ignore[list-item]
     done = [0]
+    total = len(claims) + len(extra)
 
     def finalize(i: int, a: ClaimAssessment) -> None:
         cd = _claim_dict(a, reg, out, s.max_evidence_links)
+        cd["central"] = i < len(claims)
+        cd["focus"] = cd["id"] in focus_marked or not cd["central"]
         claim_dicts[i] = cd
         done[0] += 1
         out("claim", cd)
         out("node", {"id": cd["id"], "type": "claim", "label": _label(a.claim.text), "verdict": cd["verdict"],
                      "cluster_id": None, "depth": 0})
-        progress("verify_claims", f"Verified {done[0]} of {len(claims)} claims", 25 + int(55 * done[0] / max(len(claims), 1)))
+        progress("verify_claims", f"Verified {done[0]} of {total} claims", 25 + int(55 * done[0] / max(total, 1)))
 
-    assessments = assess_claims(claims, url, fetcher=fetcher, llm=llm, settings=s, exa_client=exa_client,
-                                published_at=published, on_claim=finalize, step_cache=sc, article_text=text_md) if claims else []
+    # focus-only claims run in their OWN pass, in parallel: their search results never reach the cross-check of the
+    # central claims, and they are registered after them, so the central result is the same with or without a question
+    def assess(cs, on_claim=None):
+        return assess_claims(cs, url, fetcher=fetcher, llm=llm, settings=s, exa_client=exa_client, published_at=published,
+                             on_claim=on_claim, step_cache=sc, article_text=text_md) if cs else []
+    focus_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="focus-claims")
+    focus_future = focus_pool.submit(assess, extra) if extra else None
+    assessments = assess(claims, finalize)
+    if focus_future is not None:
+        extra_assessments = focus_future.result()
+        for j, a in enumerate(extra_assessments):
+            finalize(len(claims) + j, a)
+        assessments = assessments + extra_assessments
+    focus_pool.shutdown(wait=False)
+    central_dicts = claim_dicts[: len(claims)]
 
     # 4. infrastructure --------------------------------------------------------------------------------------
     progress("infra_signals", "Looking at the infrastructure behind the sources", 85)
     rdap_pool.shutdown(wait=True)
     # Pages the search FOUND for an attributed claim are not sources the article cites: their infrastructure must not
     # feed the infrastructure signal (a shared ID between two search results would be a coincidence, not a finding).
-    searched = _search_ids(reg.rows)
+    searched = _search_ids(reg.rows) | _focus_only_ids(reg.rows, claim_dicts)
     pages = [SourcePage(domain=r["domain"], html=r.get("_html")) for r in reg.rows if r["domain"] and r["id"] not in searched]
     for r in reg.rows:
         r.pop("_html", None)
@@ -237,7 +263,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
                             article_domain=article_domain, emit=out)
         depth = 2
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
-        searched = _search_ids(reg.rows, d2.citations)
+        searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
         signal_pages = [p for r, p in zip(d2.rows, d2.pages) if r["id"] not in searched]
         signal_cites = [c for c in d2.citations if c.parent_id not in searched]
         if signal_pages:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
@@ -256,9 +282,9 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     progress("verdict", "Deciding", 95)
     # documented networks (published lists) for the article and every source the article (or a source) cites
     net_reasons = _network_reasons(art.final_url or url, url, reg.rows, infra.domains, searched)
-    channel_ids, linked = channel_sourced_claims(claim_dicts, reg.rows)
+    channel_ids, linked = channel_sourced_claims(central_dicts, reg.rows)
     decision = decide([ClaimInput(c["id"], c["verdict"], c["verdict"] == "supported" and not c["source_ids"] and bool(c.get("found_source_ids")))
-                       for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
+                       for c in central_dicts], infra.domains, infra.shared_id_reasons(),
                       circle_path(circles), network_reasons=net_reasons,
                       declared_reposts=[d.line for d in declared_reposts(text_md)],
                       channel_claim_ids=channel_ids, linked_claims=linked)
@@ -279,8 +305,12 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         "graph": {"nodes": nodes, "edges": edges},
         "signals": decision["signals"],
         "verdict": decision["verdict"],
+        "focus": ({"question": focus.question, "status": focus.status,
+                   "claim_ids": [c["id"] for c in claim_dicts if c["focus"]], "note": focus_note(focus, claim_dicts)}
+                  if focus is not None else None),
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
-                  "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1)},
+                  "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1),
+                  "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None},
     }
     progress("verdict", "Done", 100)
     return AnalysisOutput(result, assessments, reg.rows)
@@ -312,6 +342,22 @@ def _network_reasons(article_final_url: str, article_url: str, rows: list[dict],
             if d["domain"] in (dom, m.host):
                 d["known_network"] = m.network
     return reasons
+
+
+def _focus_only_ids(rows: list[dict], claim_dicts: list[dict], citations=()) -> set[str]:
+    """F6: sources reached ONLY through a focus claim that is not central (and what they cite). The article verdict must
+    not depend on the reader's question, so these never feed the infrastructure, network or circle signals."""
+    if all(c.get("central", True) for c in claim_dicts):
+        return set()
+    reach = {sid for c in claim_dicts if c.get("central", True)
+             for sid in (*c.get("source_ids", ()), *c.get("found_source_ids", ()))}
+    grew = True
+    while grew:                        # close over depth-2 links (parent_source_id and recorded citations)
+        before = len(reach)
+        reach |= {r["id"] for r in rows if r.get("parent_source_id") in reach}
+        reach |= {c.child_id for c in citations if c.parent_id in reach}
+        grew = len(reach) > before
+    return {r["id"] for r in rows} - reach
 
 
 def _search_ids(rows: list[dict], citations=()) -> set[str]:

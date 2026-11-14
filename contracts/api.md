@@ -16,10 +16,14 @@ All JSON is UTF-8, snake_case, timestamps ISO 8601 UTC. Base path `/api`.
 | GET | `/api/methodology` | `Methodology` (from `eval/results/metrics.json`) |
 
 ### POST /api/analyses
+Body: `{"url": str, "force": bool = false, "question": str|null = null}`. `question` (F6, optional, max 500 chars) =
+a reader's question or concern about ONE point of the article. It only decides which sentence(s) are checked in addition
+(see `Result.focus`); it never changes the article verdict. The cache key is the normalised URL plus a hash of the
+question (case-insensitive); demo buttons never send one.
 - `202` `{"job_id": "a1b2c3", "status": "queued", "cached": false}`
 - `200` `{"job_id": "...", "status": "done", "cached": true}` when the normalised URL is cached and `force` is false
 - `429` `{"error": "busy", "detail": "2 analyses running, try again in a minute"}` when `MAX_CONCURRENT_ANALYSES` is reached
-- `422` invalid URL
+- `422` invalid URL (`invalid_url`) or question longer than 500 characters (`invalid_question`)
 
 URL normalisation for the cache: lowercase host, strip `www.`, fragment, `utm_*`/`fbclid`/`gclid`, trailing slash.
 
@@ -36,7 +40,7 @@ graph from them, and the final `done` carries the full `Analysis` anyway.
 | `done` | the full `Analysis` |
 | `error` | `{"message": "..."}` |
 
-Steps, in order: `scrape_article`, `extract_claims`, `fetch_sources`, `verify_claims`, `infra_signals`,
+Steps, in order: `scrape_article`, `extract_claims`, `focus` (only with a question), `fetch_sources`, `verify_claims`, `infra_signals`,
 `depth2` (optional), `verdict`.
 Fallback without SSE: poll `GET /api/analyses/{job_id}` every 2 s.
 
@@ -55,14 +59,27 @@ result: Result | null        # set when status == "done"
 ### Result
 ```
 article:  {url, domain, title, published_at|null, text_markdown}
-claims:   Claim[]            # max 6
+claims:   Claim[]            # max 6 central (central: true) + max 2 focus-only claims (central: false) from the question
 sources:  Source[]
 domains:  Domain[]
 graph:    {nodes: GraphNode[], edges: GraphEdge[]}
 signals:  Signals
-verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences
-audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2, duration_s}
+verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
+focus:    Focus | null       # null when no question was sent
+audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2, duration_s,
+           focus_prompt_version: str|null}   # null without a question
 ```
+```
+Focus: {question: str,                          # as sent, whitespace collapsed
+        status: "found" | "not_in_article" | "failed",
+        claim_ids: str[],                       # claims with focus: true (empty unless status == "found")
+        note: str}                              # one plain-English sentence for the result header, built by code
+```
+Focus rules (DECISIONS F6): the question locates sentences (majority vote, max 2); they are verified with the same
+prompt as every claim (the verify model never sees the question). A focus sentence that is also central keeps
+`central: true`. A focus-only claim (`central: false`) is checked in its own pass and its sources (and what they cite)
+stay out of the infrastructure / network / circle signals and get no domain node, so the article verdict and
+`signals` are identical with or without a question. Example: `contracts/examples/analysis_focus.json`.
 
 `article.text_markdown` is the full normalised article text, stored with the result (cached, so demo
 cases render with all external APIs down). It is final: the backend never alters it after claims were
@@ -88,6 +105,8 @@ evidence: {
   fuzzy_score: float          # 0-100, rapidfuzz partial_ratio vs fetched source text
 } | null
 explanation: str              # one sentence: why this verdict
+central: bool                 # additive (F6): true = one of the article's central claims, counts for the verdict
+focus: bool                   # additive (F6): true = matches the reader's question (Result.focus); absent in older results = false
 ```
 `ClaimVerdict` = `supported` | `distorted` | `contradicted` | `not_mentioned` | `unsourced` | `not_checkable`
 

@@ -110,7 +110,7 @@ class JobManager:
             return self._events.get(job_id)
 
     # ---------------------------------------------------------------- start
-    def submit(self, url: str, normalized_url: str, refresh: bool = False) -> str:
+    def submit(self, url: str, normalized_url: str, refresh: bool = False, question: str | None = None) -> str:
         """Create the job row and start its thread. Raises Busy when the concurrency limit is reached."""
         with self._lock:
             running = self.running_count()
@@ -124,7 +124,7 @@ class JobManager:
             self._events[job_id] = ev
             while len(self._events) > self._keep:
                 self._events.popitem(last=False)
-        threading.Thread(target=self._run, args=(job_id, url, ev, refresh), name=f"job-{job_id}", daemon=True).start()
+        threading.Thread(target=self._run, args=(job_id, url, ev, refresh, question), name=f"job-{job_id}", daemon=True).start()
         return job_id
 
     # ---------------------------------------------------------------- the job
@@ -141,9 +141,10 @@ class JobManager:
                     log.warning("could not store progress for %s", job_id, exc_info=True)
         return emit
 
-    def _run(self, job_id: str, url: str, ev: JobEvents, refresh: bool = False) -> None:
+    def _run(self, job_id: str, url: str, ev: JobEvents, refresh: bool = False, question: str | None = None) -> None:
         try:
-            out = self.analyze_fn(url, settings=self.settings, emit=self._emit(job_id, ev), refresh=refresh)
+            extra = {"question": question} if question else {}        # older analyze_fn stand-ins take no question
+            out = self.analyze_fn(url, settings=self.settings, emit=self._emit(job_id, ev), refresh=refresh, **extra)
             self._store_success(job_id, out)
             with db.session_scope() as s:
                 done = analysis_dict(s.get(Analysis, job_id))

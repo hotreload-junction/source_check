@@ -118,7 +118,8 @@ def run(pages, article=None, rdap=None, events=None, extract=EXTRACT):
 
 def test_result_matches_contract_shape_and_invariants(pages):
     r = run(pages).result
-    assert set(r) == {"article", "claims", "sources", "domains", "graph", "signals", "verdict", "audit"}
+    assert set(r) == {"article", "claims", "sources", "domains", "graph", "signals", "verdict", "focus", "audit"}
+    assert r["focus"] is None and all(c["central"] and not c["focus"] for c in r["claims"])
     assert r["article"]["domain"] == "pravda-mirror.com" and r["article"]["published_at"] == "2026-11-12T08:00:00Z"
     assert r["article"]["text_markdown"] == ARTICLE
     for c in r["claims"]:                                    # offsets always slice the claim text

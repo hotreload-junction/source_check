@@ -37,7 +37,9 @@
           "language": "ru",
           "fuzzy_score": 97.0
         },
-        "explanation": "The cited page reports the attacks but says nothing about officials calling them staged."
+        "explanation": "The cited page reports the attacks but says nothing about officials calling them staged.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c2",
@@ -57,7 +59,9 @@
           "language": "en",
           "fuzzy_score": 100.0
         },
-        "explanation": "The ministry statement says the same thing."
+        "explanation": "The ministry statement says the same thing.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c3",
@@ -77,7 +81,9 @@
           "language": "en",
           "fuzzy_score": 94.5
         },
-        "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'."
+        "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c4",
@@ -89,7 +95,9 @@
         "verdict": "unsourced",
         "subtype": null,
         "evidence": null,
-        "explanation": "No source is given for this claim."
+        "explanation": "No source is given for this claim.",
+        "central": true,
+        "focus": false
       }
     ],
     "sources": [
@@ -412,13 +420,15 @@
       "label": "propaganda_pattern",
       "summary": "Three of four central claims are not backed by the cited sources, and the main 'independent' source shares an analytics ID with the article's own site and is 55 days old."
     },
+    "focus": null,
     "audit": {
       "model_extract": "EXAMPLE-cheap-model",
       "model_verify": "EXAMPLE-strong-model",
       "prompt_version": "v1",
       "fuzzy_threshold": 90,
       "depth": 1,
-      "duration_s": 74.2
+      "duration_s": 74.2,
+      "focus_prompt_version": null
     }
   }
 }

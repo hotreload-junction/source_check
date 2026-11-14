@@ -37,7 +37,9 @@
           "language": "en",
           "fuzzy_score": 100.0
         },
-        "explanation": "The May interview report quotes the CEO saying exactly this."
+        "explanation": "The May interview report quotes the CEO saying exactly this.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c2",
@@ -51,7 +53,9 @@
         "verdict": "not_checkable",
         "subtype": null,
         "evidence": null,
-        "explanation": "Quote could not be verified: neither the original (interview, transcript, statement) nor an independent report of it was found. It is attributed to Anonymous officials, but no page containing it was found."
+        "explanation": "Quote could not be verified: neither the original (interview, transcript, statement) nor an independent report of it was found. It is attributed to Anonymous officials, but no page containing it was found.",
+        "central": true,
+        "focus": false
       }
     ],
     "sources": [
@@ -208,13 +212,15 @@
       "label": "insufficient_evidence",
       "summary": "1 of 2 central claims could not be checked. Not enough evidence to judge; this does not count against the article."
     },
+    "focus": null,
     "audit": {
       "model_extract": "EXAMPLE-cheap-model",
       "model_verify": "EXAMPLE-strong-model",
       "prompt_version": "v6",
       "fuzzy_threshold": 90,
       "depth": 1,
-      "duration_s": 40.0
+      "duration_s": 40.0,
+      "focus_prompt_version": null
     }
   }
 }
