@@ -27,17 +27,14 @@ from ..llm import LLMClient, LLMError
 from ..models import ClaimVerdictRecord
 from datetime import datetime
 
-from .exa import find_candidates, suggest_official_search
+from .evidence import Candidate, SearchPlan, gather_candidates, plan_search
 from .extract import ExtractedClaim
 from .verify import VerifyResult, verify_claim
 
 log = logging.getLogger("citetrace.assess")
 
-MAX_ATTRIBUTIONS = 2           # Exa lookups per claim
-MAX_NAMED_VERIFY = 4           # verify calls spent on Exa candidates per claim
-STALE_AFTER_DAYS = 60          # an Exa candidate published this long before the article is a different occasion
-FUTURE_TOLERANCE_DAYS = 5
 MAX_SOURCES_PER_CLAIM = 3      # keep cost bounded
+NOT_VERIFIED = "Quote could not be verified: neither the original (interview, transcript, statement) nor an independent report of it was found."
 _RANK = {"supported": 4, "contradicted": 3, "distorted": 3, "not_mentioned": 2, "not_checkable": 1}
 
 
@@ -51,6 +48,8 @@ class SourceAssessment:
     verdict: str                    # per-source, after neutral mappings
     note: str = ""                  # why neutral, when no VerifyResult explains it
     corroborated: bool = False      # named source: a secondary report supports the claim, original not found
+    venue_hosted: bool = False      # found on the site of the venue the article names
+    phrase_hit: bool = False        # found through the exact quoted words
 
 
 @dataclass
@@ -61,6 +60,7 @@ class ClaimAssessment:
     explanation: str
     sources: list[SourceAssessment] = field(default_factory=list)
     best: SourceAssessment | None = None   # the source whose evidence the verdict rests on
+    plan: SearchPlan | None = None         # attributed claims: who/where/when the search looked for
 
     @property
     def evidence(self) -> VerifyResult | None:
@@ -146,84 +146,57 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
     if not claim.attributions:
         return ClaimAssessment(claim, "unsourced", None, "The article gives no source for this claim.")
 
-    hits: list[tuple[str, str]] = []                      # (url, attribution), official-site hits first
-    for attribution in claim.attributions[:MAX_ATTRIBUTIONS]:
-        for hit in _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at, step_cache):
-            if hit.url not in {u for u, _ in hits}:
-                hits.append((hit.url, attribution))
-    hits = hits[:MAX_NAMED_VERIFY]
-    with ThreadPoolExecutor(max_workers=min(len(hits), 4) or 1) as pool:   # candidates are independent: verify together
-        sources = list(pool.map(lambda h: _assess_source(claim, h[0], h[1], article_url, cache, llm, settings, published_at), hits))
-    if not sources:   # leo: attributed but nothing located -> neutral, never "unsourced"
-        names = ", ".join(claim.attributions[:MAX_ATTRIBUTIONS])
-        return ClaimAssessment(claim, "not_checkable", None,
-                               f"The claim is attributed to {names}, but no original source could be located.")
-    return _aggregate(claim, sources)
-
-
-def is_contemporary(published: str | None, article_date: datetime | None) -> bool:
-    """False only when Exa dates the candidate clearly away from the article (measured live: a 2022 mid.ru release
-    and a 2025 president.gov.ua page were "verified" as support for Nov 2026 claims). Unknown date -> True; the
-    verify prompt's ARTICLE DATE rule is the second line of defence."""
-    if not published or not article_date:
-        return True
-    try:
-        d = datetime.fromisoformat(published.replace("Z", "+00:00")).replace(tzinfo=None)
-    except ValueError:
-        return True
-    delta = (article_date - d).days
-    return -FUTURE_TOLERANCE_DAYS <= delta <= STALE_AFTER_DAYS
-
-
-def _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at, step_cache=None):
-    """Official-site hits first (model-suggested domains), then the general ranked search; deduplicated.
-
-    The three network steps that do not depend on each other run together: the general Exa search starts at
-    once, next to the (Haiku) domain suggestion, and the two official-site phrasings are searched in parallel.
-    Candidates that do not look first-hand are dropped unless settings.verify_secondary: another outlet can
-    only corroborate, never decide, and verifying it costs an LLM call."""
-    kw = dict(api_key=settings.exa_api_key, client=exa_client, exclude_url=article_url, around=published_at, cache=step_cache)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        general_future = pool.submit(find_candidates, attribution, claim.text, **kw)
-        domains, query = suggest_official_search(attribution, claim.text, llm=llm, model=settings.model_extract)
-        official: list = []
-        if domains:   # two phrasings: the model's keywords, and the claim itself (keyword guesses can miss)
-            queries = list(dict.fromkeys(x for x in (query, f"{attribution} {claim.text}"[:160]) if x))
-            with ThreadPoolExecutor(max_workers=len(queries)) as qpool:
-                lists = list(qpool.map(lambda q: find_candidates(attribution, claim.text, include_domains=domains,
-                                                                 query=q, limit=2, **kw), queries))
-            for hits in lists:
-                official += [h for h in hits if h.url not in {x.url for x in official}]
-        general = general_future.result()
-    seen = {h.url for h in official}
-    rest = [h for h in general if h.url not in seen and (settings.verify_secondary or h.primary_hint >= 1)]
-    return [h for h in official + rest if is_contemporary(h.published, published_at)]
+    speaker = claim.attributions[0]
+    plan = plan_search(speaker, claim.text, claim.context, published_at, llm=llm, model=settings.model_extract)
+    cands = gather_candidates(plan, claim.text, article_url, published_at, api_key=settings.exa_api_key, exa_client=exa_client,
+                              step_cache=step_cache, limit=settings.max_evidence_candidates,
+                              include_secondary=settings.verify_secondary)
+    who = plan.speaker or speaker
+    with ThreadPoolExecutor(max_workers=min(len(cands), 4) or 1) as pool:   # candidates are independent: verify together
+        sources = list(pool.map(lambda c: _assess_source(claim, c.hit.url, who, article_url, cache, llm, settings, published_at,
+                                                         plan=plan, cand=c), cands))
+    if not sources:   # attributed but nothing located -> neutral, never "unsourced"
+        return ClaimAssessment(claim, "not_checkable", None, f"{NOT_VERIFIED} It is attributed to {who}, but no page containing it was found.",
+                               plan=plan)
+    a = _aggregate(claim, sources)
+    a.plan = plan
+    return a
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
                    llm: LLMClient, settings: Settings, published_at: datetime | None = None,
-                   loose_link: bool = False) -> SourceAssessment:
+                   loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None) -> SourceAssessment:
     fetch = cache.get(url)
     kind = "named" if attribution else fetch.kind
+    venue_hosted, phrase_hit = (cand.venue_hosted, cand.phrase_hit) if cand else (False, False)
     if fetch.status != "ok":
         notes = {"not_fetched": "Self-citation or social media post: not independent evidence."}
         return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable",
-                                notes.get(fetch.status, f"Source could not be read ({fetch.status})."))
+                                notes.get(fetch.status, f"Source could not be read ({fetch.status})."),
+                                venue_hosted=venue_hosted, phrase_hit=phrase_hit)
     try:
-        # Exa guesses can be stale (a 2025 page, an earlier forum): tell the model when the claim was reported
+        # Search results can be stale (a 2025 page, an earlier forum): tell the model when the claim was reported, and
+        # which occasion / venue the article itself names (a May interview is older than a November article and right)
         v = verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings,
-                         article_date=published_at.date() if (published_at and attribution) else None)
+                         article_date=published_at.date() if (published_at and attribution) else None,
+                         occasion=plan.occasion if (plan and attribution) else None,
+                         venue=plan.venue if (plan and attribution) else None)
     except LLMError as exc:
         log.warning("verify failed for %s: %s", url, exc)
-        return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.")
+        return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.",
+                                venue_hosted=venue_hosted, phrase_hit=phrase_hit)
     verdict, note, corroborated = v.verdict, "", False
-    if kind == "named" and v.source_type != "original":
-        # Exa found another outlet, not the original statement. It can corroborate, never decide.
+    # the venue's own page (Fox Business's report of its own interview) is first-hand even when the model calls it a report
+    original_like = v.source_type == "original" or venue_hosted
+    if kind == "named" and not original_like:
+        # Another outlet, not the statement itself. It can corroborate; it decides only if the team switched that on.
         corroborated = v.verdict == "supported"
-        verdict = "not_checkable"
-        note = ("Other reporting confirms the statement, but the original source (official statement, transcript "
-                "or full interview) could not be found." if corroborated else
-                "Only secondary reporting was found, not the original source.")
+        if corroborated and settings.corroboration_counts:
+            verdict = "supported"
+        else:
+            verdict = "not_checkable"
+            note = ("Independent reporting confirms the quote, but the original (the interview, transcript or statement "
+                    "itself) could not be found." if corroborated else NOT_VERIFIED)
     elif loose_link and verdict != "supported":
         # The link sits in the claim's PARAGRAPH, not its sentence (DECISIONS Q18 allows both). Live example: one link
         # at the end of a paragraph belonged to the last sentence, and the two sentences before it were judged
@@ -236,10 +209,10 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
         # BEFORE a trip was "distorted" against a report written after it. Only a match that confirms the claim
         # counts; any mismatch says nothing about the article.
         verdict = "not_checkable"
-        note = ("A possible original source was found but does not cover this claim." if v.verdict == "not_mentioned" else
-                "A possible original source was found but differs from the claim; it could not be confirmed to be "
-                "the document the article refers to.")
-    return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, corroborated)
+        note = (NOT_VERIFIED + " A page was found but it does not contain this quote." if v.verdict == "not_mentioned" else
+                NOT_VERIFIED + " A page was found but it differs from the claim, so it cannot be confirmed to be what the article refers to.")
+    return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, corroborated,
+                            venue_hosted=venue_hosted, phrase_hit=phrase_hit)
 
 
 def _aggregate(claim: ExtractedClaim, sources: list[SourceAssessment]) -> ClaimAssessment:

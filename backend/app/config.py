@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v5"
+    prompt_version: str = "v6"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # Step cache (app/cache.py): a finished article replays byte for byte. 0 = never expires.
     step_cache: bool = True
     step_cache_ttl_h: float = 0.0
+
+    # Attributed claims ("X said ...", no link): the evidence search (pipeline/evidence.py)
+    max_evidence_candidates: int = 5
+    max_evidence_links: int = 2        # found pages shown below the named source
+    # Independent reports that confirm the quote but are NOT the original: False = shown as evidence, verdict stays
+    # neutral; True = such a claim becomes `supported`. Off by default: echo chambers repeat each other.
+    corroboration_counts: bool = False
 
     # Runtime
     max_concurrent_analyses: int = 2

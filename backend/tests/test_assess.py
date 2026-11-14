@@ -5,7 +5,7 @@ import httpx
 from app.config import Settings
 from app.fetch import FetchResult
 from app.llm import LLMClient
-from app.pipeline.assess import assess_claims, audit_records, is_contemporary
+from app.pipeline.assess import assess_claims, audit_records
 from app.pipeline.extract import ExtractedClaim
 from app.pipeline.textutil import LinkRef
 
@@ -117,7 +117,7 @@ def test_named_source_secondary_report_corroborates_but_is_neutral():
                   llm=make_llm("supported", QUOTE, source_type="secondary"), exa=exa_client("https://outlet.test/report"),
                   settings=SETTINGS_ALL)
     assert a.verdict == "not_checkable" and a.evidence is None and a.best.corroborated
-    assert "original source" in a.explanation
+    assert "original" in a.explanation and "could not be found" in a.explanation
 
 
 def test_secondary_report_cannot_contradict_or_distort():
@@ -151,7 +151,7 @@ def test_guessed_original_that_differs_is_neutral_not_distorted():
     for verdict in ("distorted", "contradicted"):
         (a,), _ = run([claim(1, attrs=["X"])], {"https://www.orig.gov.test/interview": page("https://www.orig.gov.test/interview")},
                       llm=make_llm(verdict, QUOTE), exa=exa_client())
-        assert a.verdict == "not_checkable" and a.evidence is None and "could not be confirmed" in a.explanation
+        assert a.verdict == "not_checkable" and a.evidence is None and "Quote could not be verified" in a.explanation
 
 
 def test_linked_original_that_distorts_still_counts():
@@ -204,36 +204,13 @@ def test_article_date_only_sent_for_guessed_named_sources():
     assert named and all(m.startswith("ARTICLE DATE: 2026-11-14") for m in named)
 
 
-def test_is_contemporary():
-    from datetime import datetime
-    a = datetime(2026, 11, 14)
-    assert is_contemporary("2026-11-11T00:00:00.000Z", a) and is_contemporary("2026-10-10T00:00:00.000Z", a)
-    assert not is_contemporary("2022-11-04T00:00:00.000Z", a)       # mid.ru release from a 2022 forum
-    assert not is_contemporary("2025-08-21T00:00:00.000Z", a)       # president.gov.ua page from 2025
-    assert not is_contemporary("2026-12-30T00:00:00.000Z", a)       # published after the article
-    assert is_contemporary(None, a) and is_contemporary("garbage", a) and is_contemporary("2022-11-04T00:00:00.000Z", None)
-
-
-def test_stale_exa_candidates_are_dropped_before_verification():
-    from datetime import datetime
-    calls = []
-    results = [{"url": "https://old.gov.test/2022", "publishedDate": "2022-11-04T00:00:00.000Z"},
-               {"url": "https://fresh.gov.test/now", "publishedDate": "2026-11-12T00:00:00.000Z"}]
-    exa = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": results})))
-    pages = {"https://old.gov.test/2022": page("https://old.gov.test/2022"), "https://fresh.gov.test/now": page("https://fresh.gov.test/now")}
-    f = FakeFetcher(pages)
-    (a,) = assess_claims([claim(1, attrs=["X"])], ART, fetcher=f, llm=make_llm("supported", QUOTE, calls), settings=SETTINGS,
-                         exa_client=exa, published_at=datetime(2026, 11, 14))
-    assert f.calls == ["https://fresh.gov.test/now"] and a.verdict == "supported"
-
-
 def test_secondary_candidates_are_not_verified_by_default():
     calls = []
     with_model = Settings(_env_file=None, model_verify="vm", model_extract="m", exa_api_key="exa", prompt_version="vT")
     (a,), f = run([claim(1, attrs=["X"])], {"https://outlet.test/report": page("https://outlet.test/report")},
                   llm=make_llm("supported", QUOTE, calls, source_type="secondary"), exa=exa_client("https://outlet.test/report"),
                   settings=with_model)
-    assert f.calls == [] and a.verdict == "not_checkable" and "no original source could be located" in a.explanation
+    assert f.calls == [] and a.verdict == "not_checkable" and "Quote could not be verified" in a.explanation
     assert len(calls) == 1          # only the domain-suggestion call, no verify call spent on another outlet
 
 

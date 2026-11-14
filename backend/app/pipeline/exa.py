@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import httpx
 
@@ -18,6 +20,11 @@ from ..fetch.urls import is_same_domain, normalize_url, registrable_domain
 
 log = logging.getLogger("citetrace.exa")
 EXA_URL = "https://api.exa.ai/search"
+# One analysis can fire 40+ searches (up to 7 per attributed claim, all claims at once): measured live, that gets HTTP 429.
+# At most this many requests are in flight in the whole process, and a 429 is retried after a pause, never cached.
+EXA_CONCURRENCY = 4
+EXA_RETRIES = 3
+_exa_slots = threading.BoundedSemaphore(EXA_CONCURRENCY)
 NUM_RESULTS = 8
 _OFFICIAL = re.compile(r"(^|\.)(gov|mil|europa\.eu|un\.org|int|gouv\.fr|gob\.[a-z]{2}|bund\.de|admin\.ch)(\.|$)|\.gov\.[a-z]{2}$|president\.|kremlin\.|parlament|parliament|ministry|ministerstvo|minister", re.I)
 _STOP = {"the", "of", "and", "a", "an", "for", "in", "on", "to", "by", "said", "says", "report", "statement",
@@ -48,13 +55,15 @@ def primary_hint(url: str, attribution: str) -> int:
 
 def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: httpx.Client | None = None,
                     timeout: float = 20.0, exclude_url: str | None = None,
-                    around: datetime | None = None, limit: int = 3,
-                    include_domains: list[str] | None = None, query: str | None = None, cache=None) -> list[NamedSourceHit]:
+                    window: tuple[datetime, datetime] | None = None, limit: int = 3,
+                    include_domains: list[str] | None = None, query: str | None = None, cache=None,
+                    include_text: str | None = None) -> list[NamedSourceHit]:
     """Up to `limit` candidates for the attribution, first-hand-looking ones first. Never raises.
 
     The article itself and everything on its domain are excluded (a self-citation is not a source).
-    `around` = article publication date: restricts results to a window around it (older pages are never the
-    statement the article reports on).
+    `window`: only pages published in it (the occasion the article describes, see evidence.py).
+    `include_text`: a verbatim phrase of at most 5 words that every result must contain (Exa `includeText`): the
+    quickest way to find the page where a quoted sentence was actually said.
     """
     if not api_key or not attribution.strip():
         return []
@@ -66,24 +75,22 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
         body["includeDomains"] = include_domains
     # Not for official-site searches: measured live, Exa's date filter dropped president.gov.ua's matching page
     # (11 Nov) from a window that contained it. The domain restriction already narrows the search enough.
-    if around and not include_domains:
-        body["startPublishedDate"] = (around - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00.000Z")
-        body["endPublishedDate"] = (around + timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000Z")
+    if window and not include_domains and not include_text:
+        body["startPublishedDate"] = window[0].strftime("%Y-%m-%dT00:00:00.000Z")
+        body["endPublishedDate"] = window[1].strftime("%Y-%m-%dT00:00:00.000Z")
+    if include_text:
+        body["includeText"] = [include_text]
     from .. import cache as cachemod
 
     step_cache = cache if cache is not None else cachemod.get_default()
     ckey = cachemod.make_key("exa", body)       # the search index moves: freeze what a finished analysis saw
     results = step_cache.get("exa", ckey)
     if results is None:
-        try:
-            r = (client or httpx).post(EXA_URL, json=body, headers={"x-api-key": api_key}, timeout=timeout)
-            if r.status_code != 200:
-                log.warning("exa http %s", r.status_code)
-                step_cache.put("exa", ckey, [], cachemod.FAILURE_TTL_S // 12)   # 30 min: replay the failure, retry soon
-                return []
-            results = [{k: it.get(k) for k in ("url", "title", "publishedDate")} for it in (r.json().get("results") or [])]
-        except (httpx.HTTPError, ValueError) as exc:
-            log.warning("exa failed: %s", type(exc).__name__)
+        results = _post_with_backoff(body, api_key, client, timeout)
+        if results is None:        # rate limited / network trouble: transient, never frozen into the cache
+            return []
+        if results == "failed":
+            step_cache.put("exa", ckey, [], cachemod.FAILURE_TTL_S // 12)   # 30 min: replay a real failure, retry soon
             return []
         step_cache.put("exa", ckey, results)
     own = normalize_url(exclude_url) if exclude_url else None
@@ -96,6 +103,31 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
         hits.append(NamedSourceHit(url, item.get("title"), item.get("publishedDate"), attribution, hint))
     hits.sort(key=lambda h: -h.primary_hint)   # stable: Exa's relevance order within a tier
     return hits[:limit]
+
+
+def _post_with_backoff(body: dict, api_key: str, client, timeout: float):
+    """-> list of results | "failed" (a definite error answer) | None (still rate limited / unreachable: transient)."""
+    for attempt in range(EXA_RETRIES):
+        try:
+            with _exa_slots:
+                r = (client or httpx).post(EXA_URL, json=body, headers={"x-api-key": api_key}, timeout=timeout)
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("exa failed: %s", type(exc).__name__)
+            return None
+        if r.status_code == 429:
+            pause = min(float(r.headers.get("retry-after", 0) or 0) or 1.5 * (attempt + 1), 6.0)
+            log.info("exa rate limited, retry in %.1fs", pause)
+            time.sleep(pause)
+            continue
+        if r.status_code != 200:
+            log.warning("exa http %s", r.status_code)
+            return "failed"
+        try:
+            return [{k: it.get(k) for k in ("url", "title", "publishedDate")} for it in (r.json().get("results") or [])]
+        except ValueError:
+            return "failed"
+    log.warning("exa still rate limited after %d tries", EXA_RETRIES)
+    return None
 
 
 def resolve_named_source(attribution: str, claim_text: str, *, api_key: str, client: httpx.Client | None = None,
@@ -111,38 +143,3 @@ def _safe_norm(url: str) -> str | None:
         return normalize_url(url)
     except ValueError:
         return None
-
-
-OFFICIAL_SEARCH_PROMPT = """A news article attributes a claim to someone. Help find the ORIGINAL first-hand material.
-Return JSON {"domains": [...], "query": "..."}:
-- "domains": up to 3 website domains where that person or organisation publishes its OWN first-hand material (press releases, official statements, transcripts, reports). Only domains you are confident exist; [] if unknown or the source is a private individual without an official site.
-- "query": 3 to 8 plain keywords naming the specific event or topic of the claim (no full sentence, no quotation marks), e.g. "Starshield speed restriction occupied territory"."""
-_DOMAIN_RE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
-
-
-def suggest_official_search(attribution: str, claim_text: str, *, llm, model: str) -> tuple[list[str], str | None]:
-    """Cheap-model hint for where the original lives and how to search for it. A wrong guess is harmless: Exa
-    then returns nothing, or a page the verify step rejects. Never raises."""
-    from ..llm import LLMError
-
-    try:
-        res = llm.chat_json(model, OFFICIAL_SEARCH_PROMPT,
-                            f"Attributed to: {attribution}\nClaim: {claim_text[:300]}", max_tokens=1000)
-    except LLMError as exc:
-        log.info("official-search suggestion failed: %s", exc)
-        return [], None
-    raw = res.data.get("domains")
-    out: list[str] = []
-    for d in raw if isinstance(raw, list) else []:
-        d = str(d).strip().lower().removeprefix("https://").removeprefix("http://").removeprefix("www.").split("/")[0]
-        labels = d.split(".")
-        too_broad = len(labels) == 2 and labels[0] in ("gov", "com", "co", "org", "net", "edu", "ac", "mil")   # gov.ua
-        if _DOMAIN_RE.match(d) and d not in out and not too_broad:
-            out.append(d)
-    q = res.data.get("query")
-    q = re.sub(r"\s+", " ", q.replace('"', " ")).strip() if isinstance(q, str) and q.strip() else None
-    return out[:3], q
-
-
-def suggest_official_domains(attribution: str, claim_text: str, *, llm, model: str) -> list[str]:
-    return suggest_official_search(attribution, claim_text, llm=llm, model=model)[0]

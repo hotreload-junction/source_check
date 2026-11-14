@@ -8,7 +8,7 @@ from app.config import Settings
 from app.llm import LLMClient, LLMError, parse_json_loose
 from datetime import datetime
 
-from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source, suggest_official_domains, suggest_official_search
+from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source
 from app.pipeline.extract import extract_claims
 
 FX = Path(__file__).parent / "fixtures" / "extract"
@@ -177,14 +177,14 @@ def test_candidates_ranked_first_hand_first_and_exclude_article_and_domain():
 
 def test_no_date_window_for_official_site_searches():
     seen = []
-    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), around=datetime(2026, 11, 14),
+    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), window=(datetime(2026, 10, 1), datetime(2026, 11, 16)),
                     include_domains=["a.test"])
     assert "startPublishedDate" not in seen[0] and seen[0]["includeDomains"] == ["a.test"]
 
 
 def test_candidates_date_window_and_limit():
     seen = []
-    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), around=datetime(2026, 11, 14))
+    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), window=(datetime(2026, 10, 31), datetime(2026, 11, 16)))
     assert seen[0]["startPublishedDate"].startswith("2026-10-31") and seen[0]["endPublishedDate"].startswith("2026-11-16")
     seen.clear()
     find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen))
@@ -199,17 +199,6 @@ def test_official_domains_restrict_search_with_short_query_and_rank_first():
     assert hits[0].primary_hint == 3
 
 
-def test_suggest_official_domains_cleans_and_never_raises():
-    def llm_with(content):
-        return llm_returning(content)
-    cases = {json.dumps({"domains": ["https://www.WorldBank.org/en/home", "documents.worldbank.org", "not a domain", "worldbank.org"]}):
-             ["worldbank.org", "documents.worldbank.org"],
-             json.dumps({"domains": []}): [], json.dumps({"domains": "oops"}): [], json.dumps({"other": 1}): []}
-    for content, want in cases.items():
-        assert suggest_official_domains("The World Bank", "claim", llm=llm_with(content), model="m") == want
-    assert suggest_official_domains("X", "c", llm=llm_returning("x", status=500), model="m") == []
-
-
 def test_llm_empty_completion_is_retried():
     calls = []
 
@@ -219,13 +208,6 @@ def test_llm_empty_completion_is_retried():
         return httpx.Response(200, json={"model": "m", "choices": [{"message": {"content": content}}]})
     llm = LLMClient("https://r.test/v1", "k", retries=2, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
     assert llm.chat_json("m", "s", "u").data == {"claims": []} and len(calls) == 2
-
-
-def test_suggest_official_search_returns_domains_and_clean_keyword_query():
-    payload = json.dumps({"domains": ["president.gov.ua"], "query": '  "Starshield   speed restriction" '})
-    assert suggest_official_search("Zelenskyy", "claim", llm=llm_returning(payload), model="m") == (
-        ["president.gov.ua"], "Starshield speed restriction")
-    assert suggest_official_search("X", "c", llm=llm_returning(json.dumps({"domains": [], "query": 5})), model="m") == ([], None)
 
 
 def test_keyword_query_replaces_sentence_query():
@@ -254,11 +236,6 @@ def test_llm_truncation_never_loops_forever():
     llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
     with pytest.raises(LLMError, match="truncated"):
         llm.chat_json("m", "s", "u", max_tokens=300)
-
-
-def test_too_broad_suggested_domains_are_dropped():
-    payload = json.dumps({"domains": ["president.gov.ua", "gov.ua", "co.uk"], "query": "q"})
-    assert suggest_official_search("Z", "c", llm=llm_returning(payload), model="m")[0] == ["president.gov.ua"]
 
 
 def _hedge_client(handler, **kw):
@@ -322,3 +299,59 @@ def test_attributions_need_a_strict_majority_per_name_and_are_order_stable():
     readings = [[(a, ["the ministry"])], [(a, [])], [(a, ["the ministry"])], [(a, [])]]
     res = extract_claims(MD, "", llm=votes_returning(readings), settings=SETTINGS.model_copy(update={"extract_votes": 4}))
     assert res.claims[0].attributions == []
+
+
+def test_the_same_person_under_different_titles_is_one_source():
+    ids, units = unit_ids()
+    a = ids["The ministry said on"]
+    readings = [[(a, ["Senator Tim Scott"])], [(a, ["Tim Scott"])], [(a, ["Sen. Tim Scott"])], [(a, ["Tim Scott"])], [(a, [])]]
+    res = extract_claims(MD, "", llm=votes_returning(readings), settings=SETTINGS.model_copy(update={"extract_votes": 5}))
+    assert res.claims[0].attributions == ["Tim Scott"]            # 4/5 under one key; shown as the spelling most readings used
+    readings = [[(a, ["Tim Scott", "Reuters"])], [(a, ["Reuters", "Tim Scott"])], [(a, ["Reuters"])]]
+    res = extract_claims(MD, "", llm=votes_returning(readings), settings=SETTINGS.model_copy(update={"extract_votes": 3}))
+    assert res.claims[0].attributions == ["Tim Scott", "Reuters"]  # both have a strict majority; first-named order of the first reading
+
+
+def test_exa_429_is_retried_with_a_pause_and_never_cached(monkeypatch):
+    from app.cache import MemoryCache
+    from app.pipeline import exa as exa_mod
+    monkeypatch.setattr(exa_mod.time, "sleep", lambda s: None)
+    n = [0]
+
+    def handler(request):
+        n[0] += 1
+        if n[0] <= 2:
+            return httpx.Response(429, headers={"retry-after": "1"})
+        return httpx.Response(200, json={"results": [{"url": "https://www.amnesty.org/r", "title": "t"}]})
+    mem = MemoryCache()
+    hits = find_candidates("Amnesty International", "said x", api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)), cache=mem)
+    assert [h.url for h in hits] == ["https://www.amnesty.org/r"] and n[0] == 3 and len(mem.data) == 1
+
+    always = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429)))
+    mem2 = MemoryCache()
+    assert find_candidates("Amnesty International", "said x", api_key="k", client=always, cache=mem2) == [] and mem2.data == {}     # transient: not frozen
+    broken = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    mem3 = MemoryCache()
+    find_candidates("Amnesty International", "said x", api_key="k", client=broken, cache=mem3)
+    assert len(mem3.data) == 1                                                                                                        # a real error is replayed for 30 min
+
+
+def test_exa_requests_in_flight_are_capped():
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from app.pipeline import exa as exa_mod
+    active, peak, lock = [0], [0], threading.Lock()
+
+    def handler(request):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return httpx.Response(200, json={"results": []})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with ThreadPoolExecutor(16) as pool:
+        list(pool.map(lambda i: find_candidates("X", f"claim {i}", api_key="k", client=client), range(24)))
+    assert 1 < peak[0] <= exa_mod.EXA_CONCURRENCY

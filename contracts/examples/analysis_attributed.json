@@ -1,0 +1,234 @@
+{
+  "_note": "SYNTHETIC example (no real article text) of an attributed claim whose statement was found: stub (depth 1, no url) -> found page (depth 2).",
+  "job_id": "example-attributed",
+  "status": "done",
+  "progress": {
+    "step": "verdict",
+    "message": "Done",
+    "pct": 100
+  },
+  "error": null,
+  "created_at": "2026-11-14T12:00:00Z",
+  "finished_at": "2026-11-14T12:00:40Z",
+  "result": {
+    "article": {
+      "url": "https://news.example.com/why-ceo-left",
+      "domain": "news.example.com",
+      "title": "Why the CEO left",
+      "published_at": "2026-11-13T09:00:00Z",
+      "text_markdown": "# Why the CEO left\n\nThe CEO repeatedly warned that cutting the country off from technology would speed up its push for independence. In a May interview with Example Business, he pointed to a rival's growing influence: \"They are flourishing in our absence.\""
+    },
+    "claims": [
+      {
+        "id": "c1",
+        "text": "The CEO repeatedly warned that cutting the country off from technology would speed up its push for independence.",
+        "char_start": 19,
+        "char_end": 132,
+        "source_ids": [
+          "s1",
+          "s2"
+        ],
+        "verdict": "supported",
+        "subtype": null,
+        "evidence": {
+          "source_id": "s2",
+          "quote_original": "cutting the country off from technology would speed up its push for independence",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 100.0
+        },
+        "explanation": "The May interview report quotes the CEO saying exactly this."
+      },
+      {
+        "id": "c2",
+        "text": "Anonymous officials reportedly suspect that she was recruited.",
+        "char_start": 0,
+        "char_end": 0,
+        "source_ids": [
+          "s3"
+        ],
+        "verdict": "not_checkable",
+        "subtype": null,
+        "evidence": null,
+        "explanation": "Quote could not be verified: neither the original (interview, transcript, statement) nor an independent report of it was found. It is attributed to Anonymous officials, but no page containing it was found."
+      }
+    ],
+    "sources": [
+      {
+        "id": "s1",
+        "url": null,
+        "domain": null,
+        "kind": "named",
+        "attribution_text": "The CEO",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "not_fetched",
+        "fetched_via": null
+      },
+      {
+        "id": "s2",
+        "url": "https://www.examplebusiness.com/interview/ceo-warns",
+        "domain": "examplebusiness.com",
+        "kind": "named",
+        "attribution_text": "The CEO",
+        "depth": 2,
+        "parent_source_id": "s1",
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s3",
+        "url": null,
+        "domain": null,
+        "kind": "named",
+        "attribution_text": "Anonymous officials",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "not_fetched",
+        "fetched_via": null
+      }
+    ],
+    "domains": [
+      {
+        "domain": "news.example.com",
+        "created_at": null,
+        "age_days": null,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": true
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "a",
+          "type": "article",
+          "label": "Why the CEO left",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c1",
+          "type": "claim",
+          "label": "The CEO repeatedly warned that cutting the country off from technology...",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c2",
+          "type": "claim",
+          "label": "Anonymous officials reportedly suspect that she was recruited.",
+          "verdict": "not_checkable",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "s1",
+          "type": "source",
+          "label": "The CEO",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s2",
+          "type": "source",
+          "label": "examplebusiness.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 2
+        },
+        {
+          "id": "s3",
+          "type": "source",
+          "label": "Anonymous officials",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:news.example.com",
+          "type": "domain",
+          "label": "news.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-a-c1",
+          "source": "a",
+          "target": "c1",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-a-c2",
+          "source": "a",
+          "target": "c2",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c1-s1",
+          "source": "c1",
+          "target": "s1",
+          "type": "cites"
+        },
+        {
+          "id": "e-c1-s2",
+          "source": "c1",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-s1-s2",
+          "source": "s1",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-c2-s3",
+          "source": "c2",
+          "target": "s3",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-host",
+          "source": "a",
+          "target": "d:news.example.com",
+          "type": "hosted_on"
+        }
+      ]
+    },
+    "signals": {
+      "evidence": {
+        "fired": false,
+        "claim_ids": [],
+        "detail": "0 of 2 central claims are distorted, contradicted, not mentioned in their source or unsourced (threshold: 2)."
+      },
+      "infrastructure": {
+        "fired": false,
+        "reasons": []
+      },
+      "circle": {
+        "fired": false,
+        "path": null
+      }
+    },
+    "verdict": {
+      "label": "insufficient_evidence",
+      "summary": "1 of 2 central claims could not be checked. Not enough evidence to judge; this does not count against the article."
+    },
+    "audit": {
+      "model_extract": "EXAMPLE-cheap-model",
+      "model_verify": "EXAMPLE-strong-model",
+      "prompt_version": "v6",
+      "fuzzy_threshold": 90,
+      "depth": 1,
+      "duration_s": 40.0
+    }
+  }
+}

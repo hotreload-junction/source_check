@@ -150,3 +150,25 @@ thresholds: {name: value}     # e.g. {"min_bad_claims": 2, "young_domain_days": 
 tuned_on: str, measured_on: str
 error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
 ```
+
+
+## Attributed claims without a link ("X said ...", "in a May interview with Fox Business, he ...")
+
+The article gives no URL, so the backend searches for the statement (plan -> Exa search -> verify) and hangs what it
+finds below the named person. Additive, no new fields; the shapes are the ones above:
+
+```
+claim  --cites-->  Source{kind:"named", depth:1, url:null, domain:null, attribution_text:"Jensen Huang"}     # the stub: the person
+                     \--cites-->  Source{kind:"named", depth:2, parent_source_id:<stub id>, url:"https://www.foxbusiness.com/...", fetch_status:"ok"}
+claim.source_ids = [stub id, found page id ...]        # up to MAX_EVIDENCE_LINKS found pages
+claim.evidence.source_id = the FOUND page id           # the page that carries the verbatim quote (fuzzy_score checked)
+edges: claim -> stub, claim -> found page, stub -> found page   (all `cites`)
+```
+- Found and verified as the original (the venue's own page, transcript, official site): `verdict: "supported"`.
+- Only an independent report of the quote (not the original): the page is linked below the person, but the verdict stays
+  `not_checkable` with the explanation "Independent reporting confirms the quote, but the original ... could not be found."
+  (`CORROBORATION_COUNTS=true` makes such a claim `supported`).
+- Nothing found: only the stub; `verdict: "not_checkable"`, explanation starts with "Quote could not be verified".
+- A found page that does not contain the quote is not linked and never counts against the article.
+- Depth-2 `named` rows are NOT cited by the article: they are excluded from the infrastructure signal (no domain node,
+  no `hosted_on` edge) and from M1's depth-2 expansion. Several claims about the same person share one stub.

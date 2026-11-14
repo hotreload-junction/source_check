@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import collections
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from ..config import Settings, get_settings
 from ..llm import LLMClient, LLMError
-from .textutil import LinkRef, attach_links, sentence_units
+from .textutil import LinkRef, attach_links, paragraph_bounds, sentence_units
 
 log = logging.getLogger("citetrace.extract")
 
@@ -32,7 +33,7 @@ SYSTEM_PROMPT = """You decide which sentences of a news article are CHECKABLE FA
 A checkable claim is a concrete assertion a source could confirm or refute: an event, a number or statistic, a quoted statement attributed to someone, a statement about what a document, report or official said. NOT checkable: opinions, rhetorical questions, predictions, general background, headlines, bylines, navigation/share/related-article/advertising text.
 
 The article is given as numbered sentences. Answer with JSON only: {"claims": [{"id": <sentence number>, "attributions": ["..."]}]}
-List the sentences that are checkable claims. "attributions" = names of sources the sentence attributes the claim to, exactly as named (e.g. "the Finnish Ministry of Defence", "Reuters"); [] if the sentence names none. Do not invent sources. The article may be in any language."""
+List the sentences that are checkable claims. "attributions" = the people or organisations the sentence presents as the SOURCE of the claim, exactly as the article names them: whoever is reported as saying, warning, claiming, announcing, confirming, reporting or suspecting it ("X said ...", "according to Y", "Z warned that ...", "officials suspect ..."), the document or report it cites, the speaker of a quotation. The source counts when it is named only by role ("the Nvidia founder", "the minister", "anonymous US officials"): then give the person's name if the article names them anywhere, else the role as written. A sentence that continues what the previous sentence said or quoted ("it", "he", "she", "they", a quotation) has the same source as that sentence. [] ONLY when the sentence states the matter as plain fact with no source behind it. Do not invent sources. The article may be in any language."""
 
 
 @dataclass
@@ -45,6 +46,7 @@ class ExtractedClaim:
     attributions: list[str] = field(default_factory=list)
     locate_score: float = 100.0    # kept for audit compatibility: units are exact slices, never fuzzy-located
     votes: int = 0                 # how many of the K readings named this sentence
+    context: str = ""              # the claim's paragraph (markdown): where the occasion ("In a May interview with ...") is named
 
 
 @dataclass
@@ -118,24 +120,43 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
         claims.append(ExtractedClaim(
             id=f"c{len(claims) + 1}", text=article_md[start:end], char_start=start, char_end=end,
             links=attach_links(article_md, start, end, article_url), attributions=list(_attributions(votes, i)),
-            votes=counts[i]))
+            votes=counts[i], context=article_md[slice(*paragraph_bounds(article_md, start, end))][:2000]))
     return ExtractionResult(
         claims, results[0].model if results else s.model_extract, [],
         sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
         n_votes=len(votes))
 
 
-def _attributions(votes: list[dict[int, tuple[str, ...]]], sentence: int) -> tuple[str, ...]:
-    """Names that a strict majority of the readings which picked this sentence agree on, first-named order.
+_TITLES = re.compile(r"^(?:(?:the|mr|mrs|ms|miss|dr|prof|professor|sen|senator|rep|representative|president|vice president|prime minister|"
+                     r"minister|secretary|commerce secretary|chairman|chair|ceo|gen|general|col|colonel|sir|dame|king|queen)\.?\s+)+", re.I)
 
-    Per name, not per list: five readings that phrase the same source slightly differently or disagree whether the
-    sentence names one at all used to flip a claim between `unsourced` and `not_checkable` from run to run."""
+
+def _name_key(name: str) -> str:
+    """Same person under different spellings: "Senator Tim Scott" / "Tim Scott" / "Sen. Tim Scott" share one key."""
+    return re.sub(r"[^\w\s]", "", _TITLES.sub("", name.strip())).casefold().strip()
+
+
+def _attributions(votes: list[dict[int, tuple[str, ...]]], sentence: int) -> tuple[str, ...]:
+    """Sources that a strict majority of the readings which picked this sentence agree on, in first-named order.
+
+    Per PERSON (title-insensitive), not per list: five readings that spell a name differently, phrase the same source
+    slightly differently, or disagree whether the sentence names one at all used to flip a claim between `unsourced`
+    and `not_checkable` from run to run."""
     readings = [v[sentence] for v in votes if sentence in v]
-    names = collections.Counter(n for attrs in readings for n in set(attrs))
-    keep = {n for n, c in names.items() if c * 2 > len(readings)}
+    seen_by_key: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    support: collections.Counter = collections.Counter()
+    for attrs in readings:
+        for key in {_name_key(n) for n in attrs if _name_key(n)}:
+            support[key] += 1
+        for n in attrs:
+            if _name_key(n):
+                seen_by_key[_name_key(n)][n] += 1
+    keep = {k for k, c in support.items() if c * 2 > len(readings)}
     order: list[str] = []
     for attrs in readings:                       # the order the readings gave them in; the first reading that has it wins
         for n in attrs:
-            if n in keep and n not in order:
-                order.append(n)
+            k = _name_key(n)
+            if k in keep and k not in {_name_key(o) for o in order}:
+                forms = seen_by_key[k]           # the spelling most readings used (ties: the longer, then alphabetical)
+                order.append(max(forms, key=lambda f: (forms[f], len(f), f)))
     return tuple(order)

@@ -35,13 +35,15 @@ Verdicts:
 
 Rules:
 - If an ARTICLE DATE is given, the claim was reported then. When the SOURCE is about a clearly different occasion or time (another year, an earlier meeting, an older statement, a different office-holder), it does not support the claim: answer "not_mentioned".
+- If an OCCASION is given, it is what the article itself names for the claim (e.g. an interview with a named outlet in a named month). A source from THAT occasion is the right one even when it is older than the article; a source from another occasion is not.
+- When the claim says that someone SAID, WARNED, ANNOUNCED or CLAIMED something, the passage you quote must show THAT person saying it (their own words, or a report of what they said). A question put to them, or the interviewer's own framing, is not the statement: if only that is there, answer "not_mentioned".
 - Never invent or "clean up" the quote. If you cannot copy a passage that exists in the SOURCE, use "not_mentioned" with an empty quote.
 - A claim that is merely plausible or consistent with the source is NOT supported; the passage must say it.
 - "quote_translation": English translation of the quote, or null if the quote is already English.
 - "language": ISO 639-1 code of the quote (e.g. "en", "ru").
 - "explanation": ONE plain-English sentence on why this verdict.
 - "source_type": what kind of text the SOURCE is.
-  "original" = first-hand material: an official statement or press release, the report/document itself, a transcript, or an interview published as questions and answers.
+  "original" = first-hand material: an official statement or press release, the report/document itself, a transcript, or an interview published as questions and answers. Also first-hand: a page published by the outlet or institution that a NAMED VENUE line gives as the place of the statement, when it reproduces what was said there (that outlet's own interview report, transcript or video page).
   "secondary" = a news article, blog or summary that reports or quotes what someone else said or published (even if it quotes accurately).
   "unclear" = cannot tell.
 
@@ -79,7 +81,8 @@ def fuzzy_score(quote: str, source_text: str) -> float:
 
 
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,
-                 settings: Settings | None = None, article_date: date | None = None) -> VerifyResult:
+                 settings: Settings | None = None, article_date: date | None = None, occasion: str | None = None,
+                 venue: str | None = None) -> VerifyResult:
     s = settings or get_settings()
     llm = llm or LLMClient.from_settings(s)
     plain_claim = build_plain(claim_text).text
@@ -87,7 +90,10 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
     truncated = len(shown) > MAX_SOURCE_CHARS
     res = llm.chat_json(
         s.model_verify, SYSTEM_PROMPT,
-        (f"ARTICLE DATE: {article_date.isoformat()}\n\n" if article_date else "")
+        (f"ARTICLE DATE: {article_date.isoformat()}\n" if article_date else "")
+        + (f"OCCASION: {occasion}\n" if occasion else "")
+        + (f"NAMED VENUE: {venue}\n" if venue else "")
+        + ("\n" if (article_date or occasion or venue) else "")
         + f"CLAIM:\n{plain_claim}\n\nSOURCE:\n{shown[:MAX_SOURCE_CHARS]}",
     )
     d = res.data
