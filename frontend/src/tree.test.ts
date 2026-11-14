@@ -53,6 +53,12 @@ describe('buildTree', () => {
     expect(t.md).toBe(4);
   });
 
+  it('shows no "no source" stub while the analysis is still running', () => {
+    const v = view([claim('c1', [])], []);
+    expect(buildTree({ ...v, done: false }, new Map()).by['nosrc:c1']).toBeUndefined();
+    expect(buildTree(v, new Map()).by['nosrc:c1'].kind).toBe('nosrc');
+  });
+
   it('keeps reveal order stable when new data arrives', () => {
     const order = new Map<string, number>();
     buildTree(view([claim('c1', ['s1'])], [source('s1')]), order);

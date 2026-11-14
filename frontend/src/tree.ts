@@ -136,7 +136,8 @@ export function buildTree(v: View, order: Map<string, number>): Tree {
   };
   claims.forEach((c) => {
     visit(c.id, c, 2, c.id);
-    if (!c.kids.length && !(adj.get(c.id) ?? []).length && c.claim!.source_ids.length === 0) {
+    // while streaming, sources are not known yet: only a finished analysis may say "no source"
+    if (v.done && !c.kids.length && !(adj.get(c.id) ?? []).length && c.claim!.source_ids.length === 0) {
       c.kids.push(mk('nosrc:' + c.id, 'nosrc', { parent: c, d: 2, fc: c.id, claim: c.claim }));
     }
   });
