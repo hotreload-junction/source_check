@@ -3,6 +3,7 @@ import { api } from './api';
 import { Canvas, type CanvasHandle, type Ctx } from './Canvas';
 import { Logo } from './Logo';
 import { Panel } from './Panel';
+import { TrustBar } from './TrustPanel';
 import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate, srcName } from './theme';
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
 import type { Analysis, ClaimVerdict, DemoCase, Progress } from './types';
@@ -260,6 +261,8 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
           </div>
         </div>
       </div>
+
+      <TrustBar ctx={ctx} ready={done} />
 
       {(question || view.focus) && <FocusBar question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
 

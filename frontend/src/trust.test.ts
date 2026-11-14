@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildTree, type View } from './tree';
-import { rspVerdict, trustProfile } from './trust';
-import type { Claim, Domain, RspEntry, Source } from './types';
+import { overview, rspVerdict, trustProfile } from './trust';
+import type { ArticleVerdict, Claim, ClaimVerdict, Domain, RspEntry, Signals, Source } from './types';
 
 const claim = (id: string, source_ids: string[]): Claim => ({
   id, text: id, char_start: null, char_end: null, source_ids, verdict: 'supported', subtype: null, evidence: null, explanation: '',
@@ -103,5 +103,41 @@ describe('trustProfile', () => {
       source('b', { source_type: 'official', depth: 2, parent_source_id: 'a' }),
     ]);
     expect(t.legitimacy.pos).toBe(0.9);
+  });
+});
+
+describe('overview', () => {
+  const calm: Signals = { evidence: { fired: false, claim_ids: [], detail: '' }, infrastructure: { fired: false, reasons: [] }, circle: { fired: false, path: null } };
+  function ov(label: ArticleVerdict, verdicts: ClaimVerdict[], signals: Signals) {
+    const sources = verdicts.map((_, i) => source('s' + i, { source_type: 'official' }));
+    const claims = verdicts.map((vd, i) => ({ ...claim('c' + i, ['s' + i]), verdict: vd }));
+    const v: View = {
+      articleId: 'a', article: { title: 't', url: 'u', domain: 'article.example', text: '', published_at: null },
+      claims, sources, domains: [], edges: [], signals, verdict: { label, summary: '' }, audit: null, focus: null, done: true,
+    };
+    const t = buildTree(v, new Map());
+    return overview(v, t, trustProfile(v, t));
+  }
+
+  it('puts a well sourced article on the objective side, with no propaganda reasons', () => {
+    const o = ov('well_sourced', ['supported', 'supported', 'not_checkable'], calm);
+    expect(o.pos).toBeGreaterThan(0.67);
+    expect(o.positives[0]).toContain('2 of 2 checkable');
+    expect(o.positives.join(' ')).toContain('None of the propaganda signals fired');
+    expect(o.negatives).toEqual([]);
+  });
+
+  it('puts a propaganda pattern on the left and lists the fired signals', () => {
+    const o = ov('propaganda_pattern', ['distorted', 'unsourced', 'supported'], {
+      ...calm, evidence: { fired: true, claim_ids: ['c0', 'c1'], detail: '2 of 3 central claims are distorted or unsourced.' },
+      infrastructure: { fired: true, reasons: ['a.example shares an analytics ID with b.example'] },
+    });
+    expect(o.pos).toBeLessThan(0.34);
+    expect(o.negatives[0]).toContain('Evidence signal');
+    expect(o.negatives.join(' ')).toContain('Infrastructure signal');
+  });
+
+  it('gives no position for insufficient evidence', () => {
+    expect(ov('insufficient_evidence', ['not_checkable'], calm).pos).toBeNull();
   });
 });

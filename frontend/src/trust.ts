@@ -2,8 +2,10 @@
 // plus a short rule-based summary. Context for the reader, never a verdict signal (DECISIONS: source quality is
 // context). The weights below are a transparent heuristic; the UI shows a position and words, not a number.
 
+import { markerPos, supportedShare } from './bar';
 import type { Tree, View } from './tree';
-import type { Domain, RspEntry, Source, SourceType } from './types';
+import { srcName } from './theme';
+import type { ClaimVerdict, Domain, RspEntry, Source, SourceType } from './types';
 
 export interface Gauge { pos: number | null; word: string; basis: string } // pos 0..1, 1 = good; null = not enough data
 export interface Trust { legitimacy: Gauge; diversity: Gauge; positives: string[]; negatives: string[]; summary: string }
@@ -110,4 +112,41 @@ export function trustProfile(v: View, t: Tree): Trust {
     ? `The claims trace back to ${plural(origins.length, 'origin source')} from ${plural(operators.size + (ownN ? 1 : 0), 'operator')}. ${standing}`
     : 'No origin source was found for the central claims, so source trust cannot be judged.';
   return { legitimacy, diversity, positives: positives.slice(0, 4), negatives: negatives.slice(0, 4), summary };
+}
+
+export interface Overview { pos: number | null; positives: string[]; negatives: string[] } // pos 0..1: 0 = propaganda, 1 = objective
+
+const BAD: ClaimVerdict[] = ['distorted', 'contradicted', 'not_mentioned', 'unsourced'];
+
+/**
+ * Top-bar position + what pulls towards objectivity / propaganda. No score is invented: the position is the
+ * backend article verdict's zone nudged by the supported share (bar.ts); the lists only restate backend facts
+ * (verdicts, fired signals) plus the source trust lines. not_checkable never counts against the article.
+ */
+export function overview(v: View, t: Tree, tp: Trust): Overview {
+  const central = t.claims.map((c) => c.claim!).filter((c) => c.central !== false);
+  const verdicts = central.map((c) => c.verdict);
+  const p = v.verdict ? markerPos(v.verdict.label, verdicts) : null;
+  const sg = v.signals;
+  const { supported, checkable } = supportedShare(verdicts);
+  const bad = verdicts.filter((x) => BAD.includes(x)).length;
+  const label = (id: string) => {
+    const n = t.by[id];
+    return id === v.articleId ? 'the article' : n?.kind === 'claim' ? `claim ${n.claimIdx}` : n?.source ? srcName(n.source) : id;
+  };
+
+  const positives: string[] = [];
+  const negatives: string[] = [];
+  if (supported) positives.push(`${supported} of ${checkable} checkable central claims are confirmed by their sources.`);
+  if (sg && !sg.evidence.fired && !sg.infrastructure.fired && !sg.circle.fired && !sg.laundering?.fired) positives.push('None of the propaganda signals fired (evidence, infrastructure, citation circle, laundering).');
+  positives.push(...tp.positives);
+
+  if (sg?.evidence.fired) negatives.push(`Evidence signal: ${sg.evidence.detail}`);
+  else if (bad) negatives.push(`${bad} of ${central.length} central claims are distorted, contradicted, not in their source or unsourced.`);
+  if (sg?.infrastructure.fired) negatives.push(`Infrastructure signal: ${sg.infrastructure.reasons.join(' · ')}`);
+  if (sg?.circle.fired && sg.circle.path) negatives.push(`Citation circle: ${sg.circle.path.map(label).join(' → ')}`);
+  if (sg?.laundering?.fired) negatives.push(`Laundering signal: ${sg.laundering.reasons.join(' · ')}`);
+  negatives.push(...tp.negatives);
+
+  return { pos: p == null ? null : p / 100, positives, negatives };
 }

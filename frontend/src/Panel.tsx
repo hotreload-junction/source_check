@@ -4,7 +4,6 @@ import { Logo } from './Logo';
 import { locate, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
 import type { TNode } from './tree';
-import { TrustSection } from './TrustPanel';
 
 const box: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` };
 
@@ -174,7 +173,6 @@ function RootSections({ ctx }: { ctx: Ctx }) {
         </div>
         <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.5 }}>{view.verdict.summary}</div>
       </div>
-      <TrustSection ctx={ctx} />
       <Section title="Signals">
         <div style={box}>
           {sig('Evidence', sg.evidence.fired, sg.evidence.detail)}
