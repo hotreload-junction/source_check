@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { Wordmark } from './Brand';
 import { Canvas, graphSize, type CanvasHandle, type Ctx } from './Canvas';
-import { Logo } from './Logo';
 import { Panel } from './Panel';
 import { useCompact, useViewport } from './responsive';
 import { TrustBar } from './TrustPanel';
-import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate, srcName } from './theme';
+import { ARTICLE_V, CL, CLAIM_V, TH, srcName } from './theme';
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
 import type { Analysis, ClaimVerdict, DemoCase, Progress } from './types';
 
@@ -23,12 +22,7 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
 export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string } }) {
   const compact = useCompact();
   const [vw, vh] = useViewport();
-  const [formOpen, setFormOpen] = useState(false);   // phones: the URL form is folded away behind "New check"
-  const [demos, setDemos] = useState<DemoCase[]>([]);
-  const [active, setActive] = useState<string | null>(null);
   const [url, setUrl] = useState('');
-  const [input, setInput] = useState('');
-  const [qInput, setQInput] = useState('');            // F6: optional reader question, as typed
   const [question, setQuestion] = useState('');        // F6: the question of the analysis on screen
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [live, setLive] = useState<Live>(emptyLive);
@@ -101,7 +95,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   const pickDemo = (d: DemoCase) => {
     const tk = reset();
-    setActive(d.key); setUrl(d.url); setInput(''); setQInput(''); setQuestion('');
+    setUrl(d.url); setQuestion('');
     load(d.job_id, tk).catch(fail(tk));
     fitSoon(80);
   };
@@ -110,32 +104,22 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   // The demo buttons keep pointing at their precomputed job ids, so a forced run never replaces a demo case.
   const startUrl = (u: string, force: boolean, q = '') => {
     const tk = reset();
-    setActive(null); setUrl(u); setQuestion(q);
+    setUrl(u); setQuestion(q);
     api.start(u, force, q || undefined)
       .then((r) => { if (tk !== token.current) return; return r.status === 'done' ? load(r.job_id, tk) : follow(r.job_id, tk); })
       .catch(fail(tk));
   };
 
-  const analyze = (ev: FormEvent) => {
-    ev.preventDefault();
-    const u = input.trim();
-    if (u) { startUrl(u, false, qInput.trim()); setFormOpen(false); }
-  };
-
-  const running = !!url && !view.done && !error;
-  const reanalyze = () => { if (url && !running) startUrl(url, true, question); };
-
   useEffect(() => {
     api.demo().then(
       (ds) => {
-        setDemos(ds);
         if (initial.url) return;
         const d = ds.find((x) => x.key === initial.demo) ?? ds[0];
         if (d) pickDemo(d);
       },
       (e) => { if (!initial.url) setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`); },
     );
-    if (initial.url) { setInput(initial.url); setQInput(initial.question ?? ''); startUrl(initial.url, false, (initial.question ?? '').trim()); }
+    if (initial.url) { startUrl(initial.url, false, (initial.question ?? '').trim()); }
     return () => closeEvents.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -157,8 +141,10 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
       // the ring counts CENTRAL claims only: a claim found through the reader's question never changes the verdict (F6)
       supported: tree.claims.filter((c) => c.claim!.central !== false && c.claim!.verdict === 'supported').length, // backend verdicts, not local review
       nCentral: tree.claims.filter((c) => c.claim!.central !== false).length,
+      question: view.focus?.question ?? question,
+      questionNote: view.focus?.note ?? null,
     };
-  }, [tree, view, rev, N, ov]);
+  }, [tree, view, rev, N, ov, question]);
 
   const pickRoot = () => {
     if (!done) return;
@@ -180,8 +166,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   };
   const closeSel = () => { setSel(null); fitSoon(); };
   const clearFocus = () => { setFocus(null); focusRef.current = null; fitSoon(); };
-  const replay = () => { setRev(0); setSel(null); setDd(null); setFocus(null); focusRef.current = null; fitSoon(80); };
-  const skip = () => setRev(N);
   const classify = (e: TEdge, v: ClaimVerdict) =>
     setOv((o) => { const next = { ...o }; if (v === e.verdict) delete next[e.id]; else next[e.id] = v; return next; });
 
@@ -218,65 +202,16 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   // phones: the canvas is only as tall as the graph needs at the width-fitting zoom (a wide, flat tree leaves no dead space), at most 66 % of the screen
   const [gW, gH] = graphSize(tree);
   const canvasH = Math.round(Math.min(vh * 0.66, Math.max(340, gH * Math.min(1.3, Math.max(0.18, (vw - 36) / gW)) + 96)));
-  const fieldStyle: CSSProperties = { flex: 1, minWidth: 0, padding: compact ? '10px 12px' : '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 };
-
-  const brand = (
-    <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: compact ? 0 : 6, textDecoration: 'none', color: TH.ink, minHeight: compact ? 40 : undefined }}>
-      <Wordmark />
-    </a>
-  );
-  const demoPills = demos.map((d) => (
-    <button key={d.key} type="button" onClick={() => pickDemo(d)} aria-pressed={active === d.key} style={{ cursor: 'pointer', flex: 'none', padding: compact ? '9px 15px' : '6px 13px', borderRadius: 99, font: 'inherit', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: active === d.key ? TH.ink : 'transparent', color: active === d.key ? TH.bg : TH.ink }}>{d.label}</button>
-  ));
-  const urlForm = (
-    <form onSubmit={analyze} style={compact ? { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 } : { display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 220, maxWidth: 620 }}>
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="Paste an article URL"
-        aria-label="Article URL"
-        type="url"
-        inputMode="url"
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-        style={fieldStyle}
-      />
-      <input
-        value={qInput}
-        onChange={(e) => setQInput(e.target.value)}
-        maxLength={500}
-        placeholder="Optional: your question"
-        aria-label="Optional question about the article"
-        title="Optional: what are you unsure about in this article? We find the sentence and check it too. The article verdict stays the same."
-        style={fieldStyle}
-      />
-      <button type="submit" style={{ cursor: 'pointer', padding: compact ? '11px 14px' : '6px 12px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: compact ? 14 : 13, background: TH.ink, color: TH.bg }}>Analyze</button>
-    </form>
-  );
-  const actions = (
-    <>
-      <TopBtn onClick={reanalyze} disabled={!url || running} title="Ignore the cache and analyze this article again from scratch (takes 1-2 minutes)">Force re-analyze</TopBtn>
-      <TopBtn onClick={replay}>Rebuild</TopBtn>
-      <TopBtn onClick={skip}>Show instantly</TopBtn>
-    </>
-  );
-
-  const articleCard = (
-    <div style={{ margin: `0 ${px}px 10px`, padding: compact ? '10px 12px' : '6px 14px', border: `${compact ? 2 : TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: compact ? 14 : TH.rad, boxShadow: TH.sh, flex: 'none' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 14 }}>
-        <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={compact ? 28 : 32} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: compact ? 15 : 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
-          <div style={{ display: 'flex', gap: compact ? 6 : 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
-            <span style={{ overflowWrap: 'anywhere' }}>{view.article.domain}{view.article.published_at ? ` · published ${fmtDate(view.article.published_at)}` : ''}</span>
-            {url && !compact && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
-          </div>
-        </div>
-        {status && !compact && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
-      </div>
-      {status && compact && <div role="status" style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TH.line}`, fontSize: 12, color: error ? CL.r : TH.mut, lineHeight: 1.35 }}>{status}</div>}
-      {(question || view.focus) && <FocusRow question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
+  const header = (
+    <div style={{
+      display: 'grid', gridTemplateColumns: compact ? 'auto 1fr' : '1fr auto 1fr', alignItems: 'center', justifyItems: 'start', gap: compact ? 8 : 14, flex: 'none',
+      padding: compact ? `max(10px, env(safe-area-inset-top)) max(${px}px, env(safe-area-inset-right)) 8px max(${px}px, env(safe-area-inset-left))` : '10px 18px',
+    }}>
+      <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: compact ? '10px 14px' : '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, background: TH.card, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textDecoration: 'none', color: TH.ink }}>← Back</a>
+      <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink, justifySelf: compact ? 'end' : undefined }}>
+        <Wordmark />
+      </a>
+      <div role="status" style={{ justifySelf: compact ? 'start' : 'end', gridColumn: compact ? '1 / -1' : undefined, maxWidth: compact ? undefined : 320, fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: compact ? 'left' : 'right' }}>{status}</div>
     </div>
   );
 
@@ -284,32 +219,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', ...(compact ? { minHeight: '100dvh' } : { height: '100dvh' }), background: TH.bg, color: TH.ink, fontFamily: TH.font, fontSize: 14 }}>
-      {compact ? (
-        <div style={{ flex: 'none', padding: `max(10px, env(safe-area-inset-top)) max(${px}px, env(safe-area-inset-right)) 8px max(${px}px, env(safe-area-inset-left))` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {brand}
-            <div style={{ flex: 1 }} />
-            <button type="button" onClick={() => setFormOpen((o) => !o)} aria-expanded={formOpen} style={{ cursor: 'pointer', padding: '9px 14px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: formOpen ? TH.ink : TH.card, color: formOpen ? TH.bg : TH.ink }}>{formOpen ? 'Close' : 'New check'}</button>
-          </div>
-          {formOpen && (
-            <>
-              {urlForm}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>{actions}</div>
-            </>
-          )}
-          {demos.length > 0 && <div className="st-strip" style={{ display: 'flex', gap: 8, margin: `10px -${px}px 0`, padding: `0 ${px}px 2px` }}>{demoPills}</div>}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap', flex: 'none' }}>
-          {brand}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{demoPills}</div>
-          {urlForm}
-          <div style={{ flex: 1 }} />
-          {actions}
-        </div>
-      )}
-
-      {articleCard}
+      {header}
 
       <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
 
@@ -374,21 +284,4 @@ function Legend({ compact }: { compact: boolean }) {
       <span style={{ whiteSpace: 'nowrap' }}>Click a claim to show only its sources · Label on line = verdict for that claim-source pair · Click it to classify{api.mock ? ' · Mock data, fictional domains' : ''}</span>
     </div>
   );
-}
-
-// F6: the reader's question and what became of it (the note is built by the backend from the verdicts); sits inside the article card
-function FocusRow({ question, note, status }: { question: string; note: string | null; status: 'found' | 'not_in_article' | 'failed' | null }) {
-  const c = status === 'found' ? TH.ink : status ? CL.p : TH.line;
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 8, padding: '9px 2px 4px', borderTop: `2px dashed ${c}`, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600, whiteSpace: 'nowrap' }}>Your question</span>
-      <span style={{ fontWeight: 600, fontSize: 14, overflowWrap: 'anywhere' }}>“{question}”</span>
-      <span style={{ flex: '1 1 260px', fontSize: 12.5, color: TH.mut, lineHeight: 1.4 }}>{note ?? 'Finding the sentence your question is about …'}</span>
-    </div>
-  );
-}
-
-function TopBtn({ onClick, children, disabled, title }: { onClick: () => void; children: string; disabled?: boolean; title?: string }) {
-  const compact = useCompact();
-  return <button type="button" title={title} disabled={disabled} onClick={onClick} style={{ cursor: disabled ? 'not-allowed' : 'pointer', flex: 'none', opacity: disabled ? 0.45 : 1, padding: compact ? '9px 14px' : '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: TH.card, color: TH.ink }}>{children}</button>;
 }

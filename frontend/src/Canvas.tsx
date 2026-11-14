@@ -15,6 +15,8 @@ export interface Ctx {
   cld: (n: TNode) => boolean;
   edgeVerdict: (e: TEdge) => ClaimVerdict | null; // with local reviewer override
   claimVerdict: (n: TNode) => ClaimVerdict; // with local reviewer override
+  question?: string;                        // F6: the reader's question, shown in the root node
+  questionNote?: string | null;             // F6: what became of it (backend note), shown as tooltip
   nCentral: number;                         // F6: claims that count for the article verdict (not found only via the question)
   overridden: (e: TEdge) => boolean;
   reviewed: (n: TNode) => boolean;
@@ -282,7 +284,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
             <Logo domain={logoDomain} glyph={glyph} color={lcol} size={ls} />
             <div style={{ flex: col ? 'none' : 1, minWidth: 0, width: col ? '100%' : undefined }}>
               <div style={{ fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
-              <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? 8 : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
+              <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? (ctx.question ? 4 : 8) : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
+              {root && ctx.question && (
+                <div title={ctx.questionNote ?? undefined} style={{ fontSize: 11.5, lineHeight: 1.3, marginTop: 6, paddingTop: 5, borderTop: `1px dashed ${TH.bg}66`, opacity: 0.85, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>Your question: “{ctx.question}”</div>
+              )}
               {labels.length > 0 && ( // PLAN Q2 reputation labels; hover for the list entry
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: 6 }}>
                   {labels.map((l) => (
