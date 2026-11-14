@@ -1,0 +1,6032 @@
+{
+ "list": "Wikipedia: Reliable sources/Perennial sources",
+ "license": "CC BY-SA 4.0",
+ "url": "https://en.wikipedia.org/wiki/Wikipedia:Reliable_sources/Perennial_sources",
+ "retrieved": "2026-11-14",
+ "pages": [
+  "Wikipedia:Reliable sources/Perennial sources/1",
+  "Wikipedia:Reliable sources/Perennial sources/2",
+  "Wikipedia:Reliable sources/Perennial sources/3",
+  "Wikipedia:Reliable sources/Perennial sources/4",
+  "Wikipedia:Reliable sources/Perennial sources/5",
+  "Wikipedia:Reliable sources/Perennial sources/6",
+  "Wikipedia:Reliable sources/Perennial sources/7",
+  "Wikipedia:Reliable sources/Perennial sources/8",
+  "Wikipedia:Reliable sources/Perennial sources/X"
+ ],
+ "entries": [
+  {
+   "source": "112 Ukraine",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "112.ua",
+    "112.international"
+   ]
+  },
+  {
+   "source": "ABC News",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "abcnews.com",
+    "abcnews.go.com"
+   ]
+  },
+  {
+   "source": "Academic repositories",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "academia.edu",
+    "researchgate.net",
+    "zenodo.org"
+   ]
+  },
+  {
+   "source": "Acclaimed Music",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "acclaimedmusic.net"
+   ]
+  },
+  {
+   "source": "Ad Fontes Media",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "adfontesmedia.com"
+   ]
+  },
+  {
+   "source": "Advameg",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "company-histories.com",
+    "fundinguniverse.com"
+   ]
+  },
+  {
+   "source": "The Age",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "theage.com.au"
+   ]
+  },
+  {
+   "source": "Agence France-Presse",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "afp.com"
+   ]
+  },
+  {
+   "source": "Al Arabiya",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": null,
+   "domains": [
+    "alarabiya.net"
+   ]
+  },
+  {
+   "source": "Al Jazeera",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "aljazeera.com",
+    "aljazeera.net"
+   ]
+  },
+  {
+   "source": "Al Mayadeen",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "almayadeen.net",
+    "almayadeen.tv"
+   ]
+  },
+  {
+   "source": "Al-Manar",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "almanar.com.lb"
+   ]
+  },
+  {
+   "source": "Al-Manar (controversial topics)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "almanar.com.lb"
+   ]
+  },
+  {
+   "source": "Alexa Internet",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "alexa.com"
+   ]
+  },
+  {
+   "source": "AllMovie",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "allmovie.com"
+   ]
+  },
+  {
+   "source": "AllSides",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "allsides.com"
+   ]
+  },
+  {
+   "source": "AlterNet",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "alternet.org"
+   ]
+  },
+  {
+   "source": "Amazon",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "amazon.com",
+    "amazon.cn",
+    "amazon.in",
+    "amazon.co.jp",
+    "amazon.com.sg",
+    "amazon.com.tr",
+    "amazon.fr",
+    "amazon.de",
+    "amazon.it",
+    "amazon.nl",
+    "amazon.es",
+    "amazon.co.uk",
+    "amazon.ca",
+    "amazon.com.mx",
+    "amazon.com.au",
+    "amazon.com.br"
+   ]
+  },
+  {
+   "source": "The American Conservative",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "theamericanconservative.com"
+   ]
+  },
+  {
+   "source": "Amnesty International",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "amnesty.org"
+   ]
+  },
+  {
+   "source": "Anadolu Agency",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "aa.com.tr"
+   ]
+  },
+  {
+   "source": "Anadolu Agency (controversial topics)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "aa.com.tr"
+   ]
+  },
+  {
+   "source": "Ancestry.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "ancestry.com"
+   ]
+  },
+  {
+   "source": "ANNA News",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "anna-news.info"
+   ]
+  },
+  {
+   "source": "Answers.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2010,
+   "domains": [
+    "answers.com"
+   ]
+  },
+  {
+   "source": "Anti-Defamation League",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "adl.org"
+   ]
+  },
+  {
+   "source": "Anti-Defamation League (antisemitism)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "adl.org"
+   ]
+  },
+  {
+   "source": "Anti-Defamation League (Israel/Palestine conflict)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "adl.org"
+   ]
+  },
+  {
+   "source": "Antiwar.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2011,
+   "domains": [
+    "antiwar.com",
+    "antiwar.org"
+   ]
+  },
+  {
+   "source": "Aon",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "aon.com"
+   ]
+  },
+  {
+   "source": "Apple Daily",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "hk.appledaily.com"
+   ]
+  },
+  {
+   "source": "Arab News",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "arabnews.com"
+   ]
+  },
+  {
+   "source": "Army Recognition",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "armyrecognition.com",
+    "navyrecognition.com"
+   ]
+  },
+  {
+   "source": "Ars Technica",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "arstechnica.com",
+    "arstechnica.co.uk"
+   ]
+  },
+  {
+   "source": "Asian News International",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "aninews.in"
+   ]
+  },
+  {
+   "source": "AskMen",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "askmen.com"
+   ]
+  },
+  {
+   "source": "Association of Religion Data Archives",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "thearda.com",
+    "gordonconwell.edu",
+    "globalreligiousfutures.org"
+   ]
+  },
+  {
+   "source": "Associated Press",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "ap.org",
+    "apnews.com"
+   ]
+  },
+  {
+   "source": "The Atlantic",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "theatlantic.com"
+   ]
+  },
+  {
+   "source": "The Australian",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "theaustralian.com.au"
+   ]
+  },
+  {
+   "source": "Asian News International",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "aspi.org.au"
+   ]
+  },
+  {
+   "source": "The A.V. Club",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "avclub.com"
+   ]
+  },
+  {
+   "source": "AVN",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "avn.com"
+   ]
+  },
+  {
+   "source": "Axios",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "axios.com"
+   ]
+  },
+  {
+   "source": "Baidu Baike",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "baike.baidu.com",
+    "b.baidu.com",
+    "wapbaike.baidu.com",
+    "baike.baidu.hk"
+   ]
+  },
+  {
+   "source": "Ballotpedia",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "ballotpedia.org"
+   ]
+  },
+  {
+   "source": "BBC",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "bbc.co.uk",
+    "bbc.com"
+   ]
+  },
+  {
+   "source": "Behind the Voice Actors",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "behindthevoiceactors.com"
+   ]
+  },
+  {
+   "source": "Bellingcat",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "bellingcat.com"
+   ]
+  },
+  {
+   "source": "Benzinga",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "benzinga.com"
+   ]
+  },
+  {
+   "source": "Best Gore",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2021,
+   "domains": [
+    "bestgore.com"
+   ]
+  },
+  {
+   "source": "Bild",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "bild.de"
+   ]
+  },
+  {
+   "source": "Blaze Media",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "theblaze.com",
+    "conservativereview.com"
+   ]
+  },
+  {
+   "source": "Blogger",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "blogspot.com"
+   ]
+  },
+  {
+   "source": "Bloomberg",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "bloomberg.com",
+    "businessweek.com"
+   ]
+  },
+  {
+   "source": "Bloomberg profiles",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "bloomberg.com"
+   ]
+  },
+  {
+   "source": "Boing Boing",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "boingboing.net"
+   ]
+  },
+  {
+   "source": "Breitbart News",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2023,
+   "domains": [
+    "breitbart.com",
+    "biggovernment.com"
+   ]
+  },
+  {
+   "source": "BroadwayWorld",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "broadwayworld.com"
+   ]
+  },
+  {
+   "source": "Burke's Peerage",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "burkespeerage.com"
+   ]
+  },
+  {
+   "source": "Business Insider",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "insider.com",
+    "businessinsider.com",
+    "thisisinsider.com"
+   ]
+  },
+  {
+   "source": "Business Insider (culture)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "insider.com",
+    "thisisinsider.com"
+   ]
+  },
+  {
+   "source": "Bustle",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "bustle.com"
+   ]
+  },
+  {
+   "source": "BuzzFeed",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "buzzfeed.com"
+   ]
+  },
+  {
+   "source": "BuzzFeed News",
+   "statuses": [
+    "generally_reliable",
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "buzzfeednews.com",
+    "buzzfeed.com",
+    "californiaglobe.com",
+    "thecanary.co"
+   ]
+  },
+  {
+   "source": "Catholic-Hierarchy.org",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "catholic-hierarchy.org"
+   ]
+  },
+  {
+   "source": "Cato Institute",
+   "statuses": [
+    "no_consensus",
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2015,
+   "domains": [
+    "cato.org",
+    "cbsnews.com"
+   ]
+  },
+  {
+   "source": "CelebrityNetWorth",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "celebritynetworth.com"
+   ]
+  },
+  {
+   "source": "Center for Economic and Policy Research",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "cepr.net"
+   ]
+  },
+  {
+   "source": "Centre for Research on Globalization",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "globalresearch.ca",
+    "globalresearch.org",
+    "mondialisation.ca"
+   ]
+  },
+  {
+   "source": "CESNUR",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "cesnur.org",
+    "cesnur.net",
+    "bitterwinter.org"
+   ]
+  },
+  {
+   "source": "Change.org",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2021,
+   "domains": [
+    "change.org"
+   ]
+  },
+  {
+   "source": "Check Your Fact",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "checkyourfact.com"
+   ]
+  },
+  {
+   "source": "China Daily",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "chinadaily.com.cn",
+    "chinadailyasia.com",
+    "chinadailyhk.com"
+   ]
+  },
+  {
+   "source": "China Global Television Network",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "cgtn.com"
+   ]
+  },
+  {
+   "source": "Christian Broadcasting Network",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "cbn.com"
+   ]
+  },
+  {
+   "source": "The Christian Science Monitor",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "csmonitor.com"
+   ]
+  },
+  {
+   "source": "Climate Feedback",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "climatefeedback.org"
+   ]
+  },
+  {
+   "source": "CNA",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "channelnewsasia.com"
+   ]
+  },
+  {
+   "source": "CNET (pre-October 2020)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "cnet.com"
+   ]
+  },
+  {
+   "source": "CNET (October 2020–October 2022)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "cnet.com"
+   ]
+  },
+  {
+   "source": "CNET (November 2022–present)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "cnet.com"
+   ]
+  },
+  {
+   "source": "CNN",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "cnn.com"
+   ]
+  },
+  {
+   "source": "Coda Media",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "codastory.com"
+   ]
+  },
+  {
+   "source": "CoinDesk",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "coindesk.com"
+   ]
+  },
+  {
+   "source": "Common Sense Media",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "commonsensemedia.org"
+   ]
+  },
+  {
+   "source": "Consortium News",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "consortiumnews.com"
+   ]
+  },
+  {
+   "source": "The Conversation",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "theconversation.com"
+   ]
+  },
+  {
+   "source": "Correo del Orinoco",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "correodelorinoco.gob.ve"
+   ]
+  },
+  {
+   "source": "Cosmopolitan",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "cosmopolitan.com"
+   ]
+  },
+  {
+   "source": "CounterPunch",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "counterpunch.org",
+    "counterpunch.com"
+   ]
+  },
+  {
+   "source": "Cracked.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2015,
+   "domains": [
+    "cracked.com"
+   ]
+  },
+  {
+   "source": "The Cradle",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "thecradle.co"
+   ]
+  },
+  {
+   "source": "Crunchbase",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "crunchbase.com"
+   ]
+  },
+  {
+   "source": "The Daily Beast",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "thedailybeast.com"
+   ]
+  },
+  {
+   "source": "The Daily Caller",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "dailycaller.com",
+    "dailycallernewsfoundation.org"
+   ]
+  },
+  {
+   "source": "The Daily Dot",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "dailydot.com"
+   ]
+  },
+  {
+   "source": "Daily Express",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "express.co.uk"
+   ]
+  },
+  {
+   "source": "Daily Kos",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "dailykos.com"
+   ]
+  },
+  {
+   "source": "Daily Mail",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "dailymail.co.uk",
+    "thisismoney.co.uk",
+    "mailplus.co.uk",
+    "dailym.ai",
+    "dailymail.com.au",
+    "travelmail.co.uk",
+    "mailonline.pressreader.com",
+    "dailymail.com"
+   ]
+  },
+  {
+   "source": "Daily Mirror",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "mirror.co.uk"
+   ]
+  },
+  {
+   "source": "Daily_Sabah",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "dailysabah.com"
+   ]
+  },
+  {
+   "source": "Daily Star",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "dailystar.co.uk",
+    "thestar.ie"
+   ]
+  },
+  {
+   "source": "The Daily Telegraph",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "telegraph.co.uk"
+   ]
+  },
+  {
+   "source": "The Daily Telegraph (trans issues)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "telegraph.co.uk"
+   ]
+  },
+  {
+   "source": "The Daily Wire",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "dailywire.com"
+   ]
+  },
+  {
+   "source": "Deadline Hollywood",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "deadline.com",
+    "deadlinehollywooddaily.com"
+   ]
+  },
+  {
+   "source": "The Debrief",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "thedebrief.org"
+   ]
+  },
+  {
+   "source": "Debrett's",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "debretts.com"
+   ]
+  },
+  {
+   "source": "Democracy Now!",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "democracynow.org"
+   ]
+  },
+  {
+   "source": "Den of Geek",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "denofgeek.com"
+   ]
+  },
+  {
+   "source": "Deseret News",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "deseretnews.com",
+    "deseret.com"
+   ]
+  },
+  {
+   "source": "Destructoid",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "destructoid.com"
+   ]
+  },
+  {
+   "source": "DeviantArt",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "deviantart.com"
+   ]
+  },
+  {
+   "source": "Dexerto",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "dexerto.com",
+    "dexerto.fr",
+    "dexerto.es"
+   ]
+  },
+  {
+   "source": "Digital Spy",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2012,
+   "domains": [
+    "digitalspy.co.uk",
+    "digitalspy.com"
+   ]
+  },
+  {
+   "source": "Digital Trends",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "digitaltrends.com"
+   ]
+  },
+  {
+   "source": "The Diplomat",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "thediplomat.com"
+   ]
+  },
+  {
+   "source": "Discogs",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "discogs.com"
+   ]
+  },
+  {
+   "source": "Distractify",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "distractify.com"
+   ]
+  },
+  {
+   "source": "The Dorchester Review",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "dorchesterreview.ca"
+   ]
+  },
+  {
+   "source": "Dotdash Meredith",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "about.com",
+    "thebalance.com",
+    "lifewire.com",
+    "thespruce.com",
+    "thoughtco.com",
+    "tripsavvy.com",
+    "verywell.com",
+    "verywellfamily.com",
+    "verywellhealth.com",
+    "verywellmind.com"
+   ]
+  },
+  {
+   "source": "The Economist",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "economist.com"
+   ]
+  },
+  {
+   "source": "The Electronic Intifada",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "electronicintifada.net"
+   ]
+  },
+  {
+   "source": "Encyclopedia.com",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "encyclopedia.com"
+   ]
+  },
+  {
+   "source": "Encyclopædia Britannica",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "britannica.com"
+   ]
+  },
+  {
+   "source": "Encyclopædia Iranica",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "iranicaonline.org"
+   ]
+  },
+  {
+   "source": "Encyclopaedia Metallum",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "metal-archives.com"
+   ]
+  },
+  {
+   "source": "Encyclopedia Astronautica",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "astronautix.com"
+   ]
+  },
+  {
+   "source": "Engadget",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2012,
+   "domains": [
+    "engadget.com"
+   ]
+  },
+  {
+   "source": "Entertainment Weekly",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "ew.com"
+   ]
+  },
+  {
+   "source": "Entrepreneur",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "entrepreneur.com"
+   ]
+  },
+  {
+   "source": "The Epoch Times",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "theepochtimes.com",
+    "epochtimes.com",
+    "ntd.com",
+    "ntdtv.com",
+    "ntdtv.ca",
+    "ntdtv.com.tw",
+    "epoch.org.il",
+    "epoch-archive.com",
+    "epochtimes.fr",
+    "epochtimes.cz",
+    "epochtimes.de",
+    "epochtimes.co.kr",
+    "epochtimes.co.il",
+    "epochtimes.it",
+    "epochtimes.ru",
+    "epochtimes.se",
+    "epochtimes-romania.com",
+    "etindonesia.com",
+    "nspirement.com",
+    "secretchina.com",
+    "trithucvn.net",
+    "vibrantdot.co",
+    "visiontimes.com",
+    "visiontimes.fr",
+    "visiontimesjp.com",
+    "visiontimes.com.au"
+   ]
+  },
+  {
+   "source": "Ethnicity of Celebs",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "ethnicelebs.com"
+   ]
+  },
+  {
+   "source": "EurAsia Daily",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "eadaily.com"
+   ]
+  },
+  {
+   "source": "The EurAsian Times",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "eurasiantimes.com"
+   ]
+  },
+  {
+   "source": "Eurogamer",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "eurogamer.net",
+    "usgamer.net",
+    "eurogamer.cz",
+    "eurogamer.de",
+    "eurogamer.es",
+    "eurogamer.nl",
+    "eurogamer.pl",
+    "eurogamer.pt"
+   ]
+  },
+  {
+   "source": "Euro-Med",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": null,
+   "domains": [
+    "euromedmonitor.org"
+   ]
+  },
+  {
+   "source": "Evening Standard",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "standard.co.uk"
+   ]
+  },
+  {
+   "source": "Examiner.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2014,
+   "domains": [
+    "examiner.com"
+   ]
+  },
+  {
+   "source": "Facebook",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "facebook.com"
+   ]
+  },
+  {
+   "source": "Fairness and Accuracy in Reporting",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2014,
+   "domains": [
+    "fair.org"
+   ]
+  },
+  {
+   "source": "FamilySearch",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "familysearch.org"
+   ]
+  },
+  {
+   "source": "Famous Birthdays",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "famousbirthdays.com"
+   ]
+  },
+  {
+   "source": "Fandom",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "fandom.com",
+    "wikia.com",
+    "wikia.org",
+    "wikicities.com",
+    "gamepedia.com"
+   ]
+  },
+  {
+   "source": "Far Out",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "faroutmagazine.co.uk"
+   ]
+  },
+  {
+   "source": "The Federalist",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "thefederalist.com"
+   ]
+  },
+  {
+   "source": "FilmAffinity",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "filmaffinity.com"
+   ]
+  },
+  {
+   "source": "Financial Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "ft.com"
+   ]
+  },
+  {
+   "source": "Find a Grave",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "findagrave.com"
+   ]
+  },
+  {
+   "source": "Findmypast",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "findmypast.co.uk",
+    "findmypast.com"
+   ]
+  },
+  {
+   "source": "Flags of the World",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2013,
+   "domains": [
+    "fotw.info"
+   ]
+  },
+  {
+   "source": "Flickr",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "flickr.com"
+   ]
+  },
+  {
+   "source": "Forbes",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "forbes.com"
+   ]
+  },
+  {
+   "source": "ForbesOld",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "forbes.com"
+   ]
+  },
+  {
+   "source": "Forbes.com non-staff",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "forbes.com"
+   ]
+  },
+  {
+   "source": "Fox News",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "foxnews.com",
+    "foxbusiness.com"
+   ]
+  },
+  {
+   "source": "Fox News (politics and science)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "foxnews.com"
+   ]
+  },
+  {
+   "source": "Fox News (talk shows)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "foxnews.com"
+   ]
+  },
+  {
+   "source": "The Free Press (Bari Weiss)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "thefp.com",
+    "bariweiss.substack.com"
+   ]
+  },
+  {
+   "source": "FrontPage Magazine",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "frontpagemag.com",
+    "frontpagemagazine.com"
+   ]
+  },
+  {
+   "source": "Game Developer",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "gamedeveloper.com",
+    "gamasutra.com"
+   ]
+  },
+  {
+   "source": "Game Informer",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "gameinformer.com"
+   ]
+  },
+  {
+   "source": "GameSpot",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "gamespot.com",
+    "gamespot.co.uk"
+   ]
+  },
+  {
+   "source": "The Gateway Pundit",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "thegatewaypundit.com"
+   ]
+  },
+  {
+   "source": "Gawker",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "gawker.com"
+   ]
+  },
+  {
+   "source": "Gazeta Wyborcza",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "wyborcza.pl"
+   ]
+  },
+  {
+   "source": "GB News",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "gbnews.uk",
+    "gbnews.com"
+   ]
+  },
+  {
+   "source": "Genealogy.eu",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "genealogy.eu",
+    "genealogy.euweb.cz"
+   ]
+  },
+  {
+   "source": "Geni.com",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "geni.com"
+   ]
+  },
+  {
+   "source": "Genius",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "genius.com",
+    "rapgenius.com"
+   ]
+  },
+  {
+   "source": "gnis-coord",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "geonames.usgs.gov"
+   ]
+  },
+  {
+   "source": "gnis-class",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "geonames.usgs.gov"
+   ]
+  },
+  {
+   "source": "gns-coord",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "geonames.nga.mil"
+   ]
+  },
+  {
+   "source": "gns-class",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "geonames.nga.mil"
+   ]
+  },
+  {
+   "source": "Gizmodo",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "gizmodo.com"
+   ]
+  },
+  {
+   "source": "GLAAD",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "glaad.org"
+   ]
+  },
+  {
+   "source": "Global Times",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "globaltimes.cn",
+    "huanqiu.com"
+   ]
+  },
+  {
+   "source": "GlobalSecurity.org",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "globalsecurity.org"
+   ]
+  },
+  {
+   "source": "The Globe and Mail",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "theglobeandmail.com"
+   ]
+  },
+  {
+   "source": "GoFundMe",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "gofundme.com",
+    "youcaring.com"
+   ]
+  },
+  {
+   "source": "Goodreads",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "goodreads.com"
+   ]
+  },
+  {
+   "source": "Google Maps",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "maps.google.com"
+   ]
+  },
+  {
+   "source": "GQ",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "gq.com",
+    "gq-magazine.co.uk"
+   ]
+  },
+  {
+   "source": "The Grayzone",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "thegrayzone.com"
+   ]
+  },
+  {
+   "source": "The Green Papers",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "thegreenpapers.com"
+   ]
+  },
+  {
+   "source": "The Guardian",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "theguardian.com",
+    "guardian.co.uk",
+    "theguardian.co.uk"
+   ]
+  },
+  {
+   "source": "The Guardian blogs",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "theguardian.com",
+    "guardian.co.uk",
+    "theguardian.co.uk"
+   ]
+  },
+  {
+   "source": "Guido Fawkes",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "order-order.com"
+   ]
+  },
+  {
+   "source": "Guinness World Records",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "guinnessworldrecords.com"
+   ]
+  },
+  {
+   "source": "Haaretz",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "haaretz.com",
+    "haaretz.co.il"
+   ]
+  },
+  {
+   "source": "Hansard",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "parliament.uk",
+    "hansard.parliament.uk",
+    "hansard.millbanksystems.com"
+   ]
+  },
+  {
+   "source": "Hardcore Gaming 101",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "hardcoregaming101.net"
+   ]
+  },
+  {
+   "source": "Healthline",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2025,
+   "domains": [
+    "healthline.com"
+   ]
+  },
+  {
+   "source": "Heat Street",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "heatst.com"
+   ]
+  },
+  {
+   "source": "Heavy.com",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "heavy.com"
+   ]
+  },
+  {
+   "source": "The Heritage Foundation",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2025,
+   "domains": [
+    "heritage.org"
+   ]
+  },
+  {
+   "source": "The Hill",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "thehill.com"
+   ]
+  },
+  {
+   "source": "The Hindu",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "thehindu.com"
+   ]
+  },
+  {
+   "source": "HispanTV",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "hispantv.com",
+    "hispantv.ir"
+   ]
+  },
+  {
+   "source": "History",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "history.com"
+   ]
+  },
+  {
+   "source": "The Hollywood Reporter",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "hollywoodreporter.com"
+   ]
+  },
+  {
+   "source": "Hope not Hate",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "hopenothate.org.uk",
+    "searchlightmagazine.com"
+   ]
+  },
+  {
+   "source": "HuffPost",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "huffpost.com",
+    "huffingtonpost.com",
+    "huffingtonpost.co.uk",
+    "huffingtonpost.ca",
+    "huffingtonpost.com.au",
+    "huffpostbrasil.com",
+    "huffingtonpost.de",
+    "huffingtonpost.es",
+    "huffingtonpost.fr",
+    "huffingtonpost.gr",
+    "huffingtonpost.in",
+    "huffingtonpost.it",
+    "huffingtonpost.jp",
+    "huffingtonpost.kr",
+    "huffpostmaghreb.com",
+    "huffingtonpost.com.mx"
+   ]
+  },
+  {
+   "source": "HuffPost (politics)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "huffpost.com",
+    "huffingtonpost.com",
+    "huffingtonpost.co.uk",
+    "huffingtonpost.ca",
+    "huffingtonpost.com.au",
+    "huffpostbrasil.com",
+    "huffingtonpost.de",
+    "huffingtonpost.es",
+    "huffingtonpost.fr",
+    "huffingtonpost.gr",
+    "huffingtonpost.in",
+    "huffingtonpost.it",
+    "huffingtonpost.jp",
+    "huffingtonpost.kr",
+    "huffpostmaghreb.com",
+    "huffingtonpost.com.mx"
+   ]
+  },
+  {
+   "source": "HuffPost contributors",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "huffpost.com",
+    "huffingtonpost.com"
+   ]
+  },
+  {
+   "source": "Human Events",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "humanevents.com"
+   ]
+  },
+  {
+   "source": "Idolator",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2014,
+   "domains": [
+    "idolator.com"
+   ]
+  },
+  {
+   "source": "IGN",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "ign.com"
+   ]
+  },
+  {
+   "source": "IMDb",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "imdb.com"
+   ]
+  },
+  {
+   "source": "iNaturalist",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "inaturalist.org"
+   ]
+  },
+  {
+   "source": "The Independent",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "independent.co.uk"
+   ]
+  },
+  {
+   "source": "Independent Journal Review",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "ijr.com"
+   ]
+  },
+  {
+   "source": "The Indian Express",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "indianexpress.com"
+   ]
+  },
+  {
+   "source": "Indiegogo",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "indiegogo.com"
+   ]
+  },
+  {
+   "source": "Indymedia",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "indymedia.org",
+    "imc-africa.mayfirst.org",
+    "indymedia.ie",
+    "indymedia.nl",
+    "indymedia.no",
+    "indymedia.org.uk",
+    "midiaindependente.org",
+    "indymediapr.org",
+    "bigmuddyimc.org",
+    "phillyimc.org",
+    "rogueimc.org",
+    "indybay.org",
+    "indymedia.us",
+    "ucimc.org",
+    "antwerpen-indymedia.be",
+    "michiganimc.org",
+    "tnimc.org"
+   ]
+  },
+  {
+   "source": "Infowars",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2024,
+   "domains": [
+    "infowars.com",
+    "infowars.net",
+    "infowars.tv",
+    "newswars.com",
+    "banned.video",
+    "nationalfile.com",
+    "prisonplanet.com"
+   ]
+  },
+  {
+   "source": "Inquisitr",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "inquisitr.com"
+   ]
+  },
+  {
+   "source": "Instagram",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "instagram.com"
+   ]
+  },
+  {
+   "source": "Inter Press Service",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2011,
+   "domains": [
+    "ipsnews.net",
+    "ipsnoticias.net",
+    "ipscuba.net"
+   ]
+  },
+  {
+   "source": "The Intercept",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "theintercept.com"
+   ]
+  },
+  {
+   "source": "International Business Times",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "ibtimes.com",
+    "ibtimes.com.au",
+    "ibtimes.com.cn",
+    "ibtimes.co.in",
+    "ibtimes.sg",
+    "ibtimes.co.uk"
+   ]
+  },
+  {
+   "source": "International Fact-Checking Network",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "ifcncodeofprinciples.poynter.org"
+   ]
+  },
+  {
+   "source": "Investopedia",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "investopedia.com"
+   ]
+  },
+  {
+   "source": "IslamQA.info",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "islamqa.info"
+   ]
+  },
+  {
+   "source": "Jacobin",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "jacobinmag.com",
+    "catalyst-journal.com"
+   ]
+  },
+  {
+   "source": "JAMA",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "jamanetwork.com"
+   ]
+  },
+  {
+   "source": "The Jerusalem Post",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "jpost.com"
+   ]
+  },
+  {
+   "source": "The Jewish Chronicle",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "thejc.com"
+   ]
+  },
+  {
+   "source": "Jewish Virtual Library",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "jewishvirtuallibrary.org"
+   ]
+  },
+  {
+   "source": "Jezebel",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "jezebel.com"
+   ]
+  },
+  {
+   "source": "Jihad Watch",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "jihadwatch.org"
+   ]
+  },
+  {
+   "source": "Joshua Project",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "joshuaproject.net"
+   ]
+  },
+  {
+   "source": "Journal of Scientific Exploration",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "journalofscientificexploration.org",
+    "scientificexploration.org"
+   ]
+  },
+  {
+   "source": "JRank",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "jrank.org"
+   ]
+  },
+  {
+   "source": "Kickstarter",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "kickstarter.com"
+   ]
+  },
+  {
+   "source": "Kirkus Reviews",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "kirkusreviews.com"
+   ]
+  },
+  {
+   "source": "Know Your Meme",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "knowyourmeme.com"
+   ]
+  },
+  {
+   "source": "Kommersant",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "kommersant.ru",
+    "kommersant.com",
+    "kommersant.uk"
+   ]
+  },
+  {
+   "source": "LADbible",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "ladbible.com"
+   ]
+  },
+  {
+   "source": "Land Transport Guru",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "landtransportguru.net"
+   ]
+  },
+  {
+   "source": "Last.fm",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "last.fm"
+   ]
+  },
+  {
+   "source": "Lenta.ru",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "lenta.ru"
+   ]
+  },
+  {
+   "source": "LifeSiteNews",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "lifesitenews.com",
+    "lifesite.net"
+   ]
+  },
+  {
+   "source": "LinkedIn",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "linkedin.com"
+   ]
+  },
+  {
+   "source": "LionhearTV",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "lionheartv.net"
+   ]
+  },
+  {
+   "source": "LiveJournal",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "livejournal.com"
+   ]
+  },
+  {
+   "source": "LiveLeak",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "liveleak.com"
+   ]
+  },
+  {
+   "source": "Los Angeles Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "latimes.com"
+   ]
+  },
+  {
+   "source": "Lulu.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "lulu.com"
+   ]
+  },
+  {
+   "source": "LWN.net",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "lwn.net"
+   ]
+  },
+  {
+   "source": "Mail & Guardian",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "mg.co.za"
+   ]
+  },
+  {
+   "source": "The Mail on Sunday",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "mailonsunday.co.uk",
+    "mailonsunday.com"
+   ]
+  },
+  {
+   "source": "Marquis Who's Who",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "marquiswhoswho.com",
+    "whoswhoinamerica.com"
+   ]
+  },
+  {
+   "source": "Mashable",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "mashable.com"
+   ]
+  },
+  {
+   "source": "Mashable (sponsored content)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "mashable.com"
+   ]
+  },
+  {
+   "source": "The Mary Sue",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "themarysue.com"
+   ]
+  },
+  {
+   "source": "MDPI",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "mdpi.com"
+   ]
+  },
+  {
+   "source": "MEAWW",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "meaww.com"
+   ]
+  },
+  {
+   "source": "Media Bias/Fact Check",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "mediabiasfactcheck.com"
+   ]
+  },
+  {
+   "source": "Media Matters for America",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "mediamatters.org"
+   ]
+  },
+  {
+   "source": "Media Research Center",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "mrc.org",
+    "cnsnews.com",
+    "mrctv.org",
+    "newsbusters.org"
+   ]
+  },
+  {
+   "source": "Mediaite",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "mediaite.com"
+   ]
+  },
+  {
+   "source": "Medium",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "medium.com"
+   ]
+  },
+  {
+   "source": "Meduza",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "meduza.io"
+   ]
+  },
+  {
+   "source": "Metacritic",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "metacritic.com",
+    "gamerankings.com"
+   ]
+  },
+  {
+   "source": "metal-experience",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "metal-experience.com"
+   ]
+  },
+  {
+   "source": "MetalSucks",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "metalsucks.net"
+   ]
+  },
+  {
+   "source": "Metro",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "metro.co.uk",
+    "metro.news"
+   ]
+  },
+  {
+   "source": "Metro (soap operas)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "metro.co.uk",
+    "metro.news"
+   ]
+  },
+  {
+   "source": "Middle East Media Research Institute",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "memri.org",
+    "memritv.org"
+   ]
+  },
+  {
+   "source": "Middle East Monitor",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "middleeastmonitor.com"
+   ]
+  },
+  {
+   "source": "MintPress News",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "mintpressnews.com",
+    "mintpressnews.cn",
+    "mintpressnews.ru",
+    "mintpressnews.es"
+   ]
+  },
+  {
+   "source": "Le Monde diplomatique",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "monde-diplomatique.fr",
+    "mondediplo.com"
+   ]
+  },
+  {
+   "source": "Mondoweiss",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "mondoweiss.net"
+   ]
+  },
+  {
+   "source": "Morning Star",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "morningstaronline.co.uk"
+   ]
+  },
+  {
+   "source": "Mother Jones",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "motherjones.com"
+   ]
+  },
+  {
+   "source": "MS NOW",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "msnbc.com"
+   ]
+  },
+  {
+   "source": "MyLife",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "mylife.com",
+    "reunion.com"
+   ]
+  },
+  {
+   "source": "The Nation",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "thenation.com"
+   ]
+  },
+  {
+   "source": "National Enquirer",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "nationalenquirer.com"
+   ]
+  },
+  {
+   "source": "National Geographic",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "nationalgeographic.com"
+   ]
+  },
+  {
+   "source": "National Post",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "nationalpost.com"
+   ]
+  },
+  {
+   "source": "National Review",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "nationalreview.com"
+   ]
+  },
+  {
+   "source": "Natural News",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "naturalnews.com",
+    "newstarget.com"
+   ]
+  },
+  {
+   "source": "NBC News",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "nbcnews.com"
+   ]
+  },
+  {
+   "source": "The Needle Drop",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "theneedledrop.com"
+   ]
+  },
+  {
+   "source": "The New American",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "thenewamerican.com"
+   ]
+  },
+  {
+   "source": "New Eastern Outlook",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "journal-neo.org"
+   ]
+  },
+  {
+   "source": "The New Republic",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "newrepublic.com"
+   ]
+  },
+  {
+   "source": "New York",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "nymag.com",
+    "vulture.com",
+    "thecut.com",
+    "grubstreet.com"
+   ]
+  },
+  {
+   "source": "New York Daily News",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "nydailynews.com"
+   ]
+  },
+  {
+   "source": "New York Post",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "nypost.com",
+    "pagesix.com"
+   ]
+  },
+  {
+   "source": "New York Post Entertainment",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "nypost.com",
+    "pagesix.com",
+    "decider.com"
+   ]
+  },
+  {
+   "source": "The New York Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "nytimes.com"
+   ]
+  },
+  {
+   "source": "The New Yorker",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2011,
+   "domains": [
+    "newyorker.com"
+   ]
+  },
+  {
+   "source": "The New Zealand Herald",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "nzherald.co.nz"
+   ]
+  },
+  {
+   "source": "News of the World",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "newsoftheworld.co.uk",
+    "newsoftheworld.com"
+   ]
+  },
+  {
+   "source": "NewsBlaze",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "newsblaze.com",
+    "newsblaze.com.au"
+   ]
+  },
+  {
+   "source": "NewsBreak",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "newsbreak.com"
+   ]
+  },
+  {
+   "source": "NewsFront",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "news-front.su",
+    "news-front.info"
+   ]
+  },
+  {
+   "source": "Newslaundry",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "newslaundry.com"
+   ]
+  },
+  {
+   "source": "Newsmax",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "newsmax.com",
+    "newsmaxtv.com"
+   ]
+  },
+  {
+   "source": "NewsNation",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "newsnationnow.com"
+   ]
+  },
+  {
+   "source": "Newsweek (pre–2013)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "newsweek.com"
+   ]
+  },
+  {
+   "source": "Newsweek (2013–present)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "newsweek.com"
+   ]
+  },
+  {
+   "source": "The Next Web",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "thenextweb.com"
+   ]
+  },
+  {
+   "source": "NGO Monitor",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "ngo-monitor.org"
+   ]
+  },
+  {
+   "source": "NME",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "nme.com"
+   ]
+  },
+  {
+   "source": "NNDB",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "nndb.com"
+   ]
+  },
+  {
+   "source": "NPR",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "npr.org"
+   ]
+  },
+  {
+   "source": "Occupy Democrats",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "occupydemocrats.com",
+    "washingtonpress.com"
+   ]
+  },
+  {
+   "source": "Office of Cuba Broadcasting",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "martinoticias.com"
+   ]
+  },
+  {
+   "source": "OKO.press",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "oko.press"
+   ]
+  },
+  {
+   "source": "One America News Network",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "oann.com"
+   ]
+  },
+  {
+   "source": "The Onion",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "theonion.com"
+   ]
+  },
+  {
+   "source": "OpIndia",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "opindia.com",
+    "opindia.in"
+   ]
+  },
+  {
+   "source": "Our Campaigns",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "ourcampaigns.com"
+   ]
+  },
+  {
+   "source": "PanAm Post",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "panampost.com"
+   ]
+  },
+  {
+   "source": "Patheos",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "patheos.com"
+   ]
+  },
+  {
+   "source": "La Patilla",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "lapatilla.com"
+   ]
+  },
+  {
+   "source": "Public Broadcasting Service",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "pbs.org"
+   ]
+  },
+  {
+   "source": "People",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "people.com"
+   ]
+  },
+  {
+   "source": "Pew Research Center",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2012,
+   "domains": [
+    "pewresearch.org",
+    "people-press.org",
+    "journalism.org",
+    "pewsocialtrends.org",
+    "pewforum.org",
+    "pewinternet.org",
+    "pewhispanic.org",
+    "pewglobal.org"
+   ]
+  },
+  {
+   "source": "An Phoblacht",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "anphoblacht.com"
+   ]
+  },
+  {
+   "source": "Pinkvilla",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "pinkvilla.com"
+   ]
+  },
+  {
+   "source": "PinkNews",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "pinknews.co.uk"
+   ]
+  },
+  {
+   "source": "Planespotters",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "planespotters.net"
+   ]
+  },
+  {
+   "source": "Playboy",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2015,
+   "domains": [
+    "playboy.com"
+   ]
+  },
+  {
+   "source": "The Points Guy",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "thepointsguy.com"
+   ]
+  },
+  {
+   "source": "Politico",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "politico.com"
+   ]
+  },
+  {
+   "source": "PolitiFact",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "politifact.com"
+   ]
+  },
+  {
+   "source": "Polygon (pre–May 2025)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "polygon.com"
+   ]
+  },
+  {
+   "source": "Polygon",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "polygon.com"
+   ]
+  },
+  {
+   "source": "Popular Mechanics",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "popularmechanics.com"
+   ]
+  },
+  {
+   "source": "The Post Millennial",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "thepostmillennial.com"
+   ]
+  },
+  {
+   "source": "PR Newswire",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "prnewswire.com",
+    "prnewswire.co.uk"
+   ]
+  },
+  {
+   "source": "Preprints",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2015,
+   "domains": [
+    "arxiv.org",
+    "biorxiv.org",
+    "medrxiv.org"
+   ]
+  },
+  {
+   "source": "Press TV",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "presstv.com",
+    "presstv.ir",
+    "presstv.co.uk",
+    "presstv.tv"
+   ]
+  },
+  {
+   "source": "Pride.com",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "pride.com"
+   ]
+  },
+  {
+   "source": "Project Veritas",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2023,
+   "domains": [
+    "projectveritas.com",
+    "okeefemediagroup.com"
+   ]
+  },
+  {
+   "source": "ProPublica",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "propublica.org"
+   ]
+  },
+  {
+   "source": "Quackwatch",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "quackwatch.org"
+   ]
+  },
+  {
+   "source": "Quadrant",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "quadrant.org.au"
+   ]
+  },
+  {
+   "source": "Quillette",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "quillette.com"
+   ]
+  },
+  {
+   "source": "Quora",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "quora.com"
+   ]
+  },
+  {
+   "source": "Radio Free Asia",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "rfa.org"
+   ]
+  },
+  {
+   "source": "Radio Free Europe/Radio Liberty",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "rferl.org"
+   ]
+  },
+  {
+   "source": "Rappler",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "rappler.com"
+   ]
+  },
+  {
+   "source": "Rate Your Music",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "rateyourmusic.com",
+    "cinemos.com",
+    "glitchwave.com",
+    "sonemic.com"
+   ]
+  },
+  {
+   "source": "Raw Story",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "rawstory.com"
+   ]
+  },
+  {
+   "source": "RealClearPolitics",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "realclearpolitics.com",
+    "realclearinvestigations.com"
+   ]
+  },
+  {
+   "source": "Reason",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "reason.com"
+   ]
+  },
+  {
+   "source": "Reddit",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "reddit.com"
+   ]
+  },
+  {
+   "source": "RedState",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "redstate.com"
+   ]
+  },
+  {
+   "source": "The Register",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "theregister.co.uk",
+    "theregister.com"
+   ]
+  },
+  {
+   "source": "Republic TV",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "republicworld.com",
+    "republicbharat.com"
+   ]
+  },
+  {
+   "source": "Reuters",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "reuters.com"
+   ]
+  },
+  {
+   "source": "RhythmOne",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "allmusic.com",
+    "allmovie.com",
+    "allgame.com"
+   ]
+  },
+  {
+   "source": "RIA Novosti",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "rian.ru",
+    "rian.com.ua"
+   ]
+  },
+  {
+   "source": "Rolling Stone",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "rollingstone.com"
+   ]
+  },
+  {
+   "source": "Rolling Stone (Culture Council)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "council.rollingstone.com"
+   ]
+  },
+  {
+   "source": "Rotten Tomatoes",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "rottentomatoes.com"
+   ]
+  },
+  {
+   "source": "Royal Central",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "royalcentral.co.uk"
+   ]
+  },
+  {
+   "source": "RT",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "rt.com",
+    "russiatoday.com",
+    "russiatoday.ru",
+    "ruptly.tv",
+    "redfish.media",
+    "rt.rs",
+    "actualidad-rt.com",
+    "swentr.site",
+    "viory.video",
+    "gw2ru.com",
+    "rbth.com"
+   ]
+  },
+  {
+   "source": "Salon",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "salon.com"
+   ]
+  },
+  {
+   "source": "Science-Based Medicine",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "sciencebasedmedicine.org"
+   ]
+  },
+  {
+   "source": "ScienceBlogs",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2012,
+   "domains": [
+    "scienceblogs.com"
+   ]
+  },
+  {
+   "source": "Scientific American",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "scientificamerican.com"
+   ]
+  },
+  {
+   "source": "SCOTUSblog",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "scotusblog.com"
+   ]
+  },
+  {
+   "source": "Screen Rant",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "screenrant.com"
+   ]
+  },
+  {
+   "source": "Scribd",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "scribd.com"
+   ]
+  },
+  {
+   "source": "Sherdog",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "sherdog.com"
+   ]
+  },
+  {
+   "source": "Simple Flying",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "simpleflying.com"
+   ]
+  },
+  {
+   "source": "Sixth Tone",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "sixthtone.com"
+   ]
+  },
+  {
+   "source": "Sixth Tone (politics)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "sixthtone.com"
+   ]
+  },
+  {
+   "source": "The Skeptic's Dictionary",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "skepdic.com"
+   ]
+  },
+  {
+   "source": "Skeptical Inquirer",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "skepticalinquirer.org"
+   ]
+  },
+  {
+   "source": "The Skwawkbox",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "skwawkbox.org"
+   ]
+  },
+  {
+   "source": "Sky News Australia",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "skynews.com.au"
+   ]
+  },
+  {
+   "source": "Sky News UK",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "news.sky.com"
+   ]
+  },
+  {
+   "source": "Snopes",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "snopes.com"
+   ]
+  },
+  {
+   "source": "Social Blade",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "socialblade.com"
+   ]
+  },
+  {
+   "source": "SourceWatch",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "sourcewatch.org"
+   ]
+  },
+  {
+   "source": "The South African",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "thesouthafrican.com"
+   ]
+  },
+  {
+   "source": "SCMP",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "scmp.com"
+   ]
+  },
+  {
+   "source": "Southern Poverty Law Center",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "splcenter.org"
+   ]
+  },
+  {
+   "source": "SouthFront",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "southfront.org",
+    "southfront.press"
+   ]
+  },
+  {
+   "source": "Space.com",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "space.com"
+   ]
+  },
+  {
+   "source": "SparkNotes",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "sparknotes.com"
+   ]
+  },
+  {
+   "source": "The Spectator",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "spectator.co.uk",
+    "spectator.us"
+   ]
+  },
+  {
+   "source": "Der Spiegel",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "spiegel.de"
+   ]
+  },
+  {
+   "source": "Spirit of Metal",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2010,
+   "domains": [
+    "spirit-of-metal.com"
+   ]
+  },
+  {
+   "source": "Sports Illustrated (pre-June 2019)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "si.com"
+   ]
+  },
+  {
+   "source": "Sports Illustrated (June 2019–present)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "si.com"
+   ]
+  },
+  {
+   "source": "Sportskeeda",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "sportskeeda.com"
+   ]
+  },
+  {
+   "source": "Sputnik",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "sputniknews.com",
+    "voiceofrussia.com",
+    "sputniknews.ru",
+    "sputnik.by",
+    "armeniasputnik.am",
+    "sputnik.kz",
+    "sputniknews.cn",
+    "sputnik.md",
+    "sputnik-georgia.com",
+    "sputnik-georgia.ru",
+    "sputnik-abkhazia.ru",
+    "sputnik-abkhazia.info",
+    "sputnik-ossetia.com",
+    "sputnik-ossetia.ru",
+    "sputniknewslv.com",
+    "sputniknews.lt",
+    "sputniknews.lat",
+    "latamnews.lat",
+    "sputniknews.gr",
+    "sputniknews-uz.com",
+    "sputniknews.uz",
+    "sputnik-tj.com",
+    "sputnik.az",
+    "sputnik.kg",
+    "sputnikglobe.com",
+    "radiosputnik.ria.ru",
+    "sputniknews.in",
+    "sputniknews.africa",
+    "sputnikportal.rs",
+    "sputnikmediabank.com",
+    "sarabic.ae"
+   ]
+  },
+  {
+   "source": "Stack Exchange",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "stackexchange.com",
+    "stackoverflow.com",
+    "serverfault.com",
+    "superuser.com",
+    "askubuntu.com",
+    "mathoverflow.net"
+   ]
+  },
+  {
+   "source": "starsunfolded.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "starsunfolded.com"
+   ]
+  },
+  {
+   "source": "Statista",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "statista.com"
+   ]
+  },
+  {
+   "source": "The Straits Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "straitstimes.com"
+   ]
+  },
+  {
+   "source": "The Sun",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "thesun.co.uk",
+    "thesun.ie",
+    "thescottishsun.co.uk",
+    "the-sun.com",
+    "thesun.mobi",
+    "sunnation.co.uk",
+    "dreamteamfc.com",
+    "page3.com"
+   ]
+  },
+  {
+   "source": "Swarajya",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2021,
+   "domains": [
+    "swarajyamag.com"
+   ]
+  },
+  {
+   "source": "The Sydney Morning Herald",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "smh.com.au"
+   ]
+  },
+  {
+   "source": "Taki's Magazine",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "takimag.com"
+   ]
+  },
+  {
+   "source": "Tasnim News Agency",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "tasnimnews.com",
+    "tasnimnews.ir",
+    "tn.ai"
+   ]
+  },
+  {
+   "source": "TASS",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "tass.com",
+    "tass.ru"
+   ]
+  },
+  {
+   "source": "TechCrunch",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "techcrunch.com"
+   ]
+  },
+  {
+   "source": "TED",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "ted.com"
+   ]
+  },
+  {
+   "source": "Telesur",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "telesurtv.net",
+    "telesurenglish.net"
+   ]
+  },
+  {
+   "source": "ThinkProgress",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2013,
+   "domains": [
+    "thinkprogress.org"
+   ]
+  },
+  {
+   "source": "TikTok",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "tiktok.com"
+   ]
+  },
+  {
+   "source": "Time",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "time.com"
+   ]
+  },
+  {
+   "source": "The Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "thetimes.com",
+    "thetimes.co.uk",
+    "thesundaytimes.co.uk",
+    "timesonline.co.uk"
+   ]
+  },
+  {
+   "source": "The Times of Israel",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "timesofisrael.com"
+   ]
+  },
+  {
+   "source": "The Times of India",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "timesofindia.com",
+    "timesofindia.indiatimes.com"
+   ]
+  },
+  {
+   "source": "Times Now",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "timesnow.com"
+   ]
+  },
+  {
+   "source": "TMZ",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "tmz.com"
+   ]
+  },
+  {
+   "source": "TorrentFreak",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "torrentfreak.com"
+   ]
+  },
+  {
+   "source": "Townhall",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "townhall.com"
+   ]
+  },
+  {
+   "source": "TRT World",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "trtworld.com"
+   ]
+  },
+  {
+   "source": "The Truth About Guns",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "thetruthaboutguns.com"
+   ]
+  },
+  {
+   "source": "TV.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "tv.com"
+   ]
+  },
+  {
+   "source": "TV Guide",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "tvguide.com",
+    "tvguidemagazine.com"
+   ]
+  },
+  {
+   "source": "TV Tropes",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "tvtropes.org"
+   ]
+  },
+  {
+   "source": "The Unz Review",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "unz.com",
+    "unz.org"
+   ]
+  },
+  {
+   "source": "Universe Guide",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "universeguide.com"
+   ]
+  },
+  {
+   "source": "Urban Dictionary",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "urbandictionary.com"
+   ]
+  },
+  {
+   "source": "U.S. News & World Report",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "usnews.com"
+   ]
+  },
+  {
+   "source": "US Weekly",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "usmagazine.com"
+   ]
+  },
+  {
+   "source": "USA Today",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "usatoday.com"
+   ]
+  },
+  {
+   "source": "Vanity Fair",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "vanityfair.com"
+   ]
+  },
+  {
+   "source": "Variety",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "variety.com"
+   ]
+  },
+  {
+   "source": "VDARE",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "vdare.com"
+   ]
+  },
+  {
+   "source": "Venezuelanalysis",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "venezuelanalysis.com"
+   ]
+  },
+  {
+   "source": "VentureBeat",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "venturebeat.com"
+   ]
+  },
+  {
+   "source": "The Verge",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "theverge.com"
+   ]
+  },
+  {
+   "source": "Veterans Today",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2019,
+   "domains": [
+    "veteranstoday.com",
+    "vtforeignpolicy.com"
+   ]
+  },
+  {
+   "source": "VGChartz",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "vgchartz.com"
+   ]
+  },
+  {
+   "source": "Vice Media",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "vice.com",
+    "refinery29.com",
+    "vicetv.com"
+   ]
+  },
+  {
+   "source": "VoC",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "victimsofcommunism.org"
+   ]
+  },
+  {
+   "source": "The Village Voice",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "villagevoice.com"
+   ]
+  },
+  {
+   "source": "Vogue",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "vogue.com"
+   ]
+  },
+  {
+   "source": "Voice of America",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "voanews.com"
+   ]
+  },
+  {
+   "source": "Voltaire Network",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "voltairenet.org"
+   ]
+  },
+  {
+   "source": "Vox",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "vox.com"
+   ]
+  },
+  {
+   "source": "The Wall Street Journal",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "wsj.com"
+   ]
+  },
+  {
+   "source": "Washington Examiner",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "washingtonexaminer.com"
+   ]
+  },
+  {
+   "source": "The Washington Free Beacon 2012-2018",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "freebeacon.com"
+   ]
+  },
+  {
+   "source": "The Washington Free Beacon 2019-present",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "freebeacon.com"
+   ]
+  },
+  {
+   "source": "The Washington Post",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "washingtonpost.com"
+   ]
+  },
+  {
+   "source": "The Washington Times",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "washingtontimes.com"
+   ]
+  },
+  {
+   "source": "WatchMojo",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "watchmojo.com"
+   ]
+  },
+  {
+   "source": "Weather2Travel",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2012,
+   "domains": [
+    "weather2travel.com"
+   ]
+  },
+  {
+   "source": "The Weekly Standard",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2014,
+   "domains": [
+    "weeklystandard.com"
+   ]
+  },
+  {
+   "source": "The Western Journal",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2019,
+   "domains": [
+    "westernjournal.com"
+   ]
+  },
+  {
+   "source": "We Got This Covered",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "wegotthiscovered.com"
+   ]
+  },
+  {
+   "source": "Wen Wei Po",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "wenweipo.com"
+   ]
+  },
+  {
+   "source": "WhatCulture",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "whatculture.com"
+   ]
+  },
+  {
+   "source": "Who's Who (UK)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "ukwhoswho.com"
+   ]
+  },
+  {
+   "source": "WhoSampled",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2016,
+   "domains": [
+    "whosampled.com"
+   ]
+  },
+  {
+   "source": "Wikidata",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "wikidata.org"
+   ]
+  },
+  {
+   "source": "WikiLeaks",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "wikileaks.org"
+   ]
+  },
+  {
+   "source": "Wikinews",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "wikinews.org"
+   ]
+  },
+  {
+   "source": "Wikipedia",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "wikipedia.org"
+   ]
+  },
+  {
+   "source": "The Wire India",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "thewire.in",
+    "thewirehindi.com",
+    "thewireurdu.com"
+   ]
+  },
+  {
+   "source": "Wired",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "wired.com",
+    "wired.co.uk"
+   ]
+  },
+  {
+   "source": "WordPress.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "wordpress.com"
+   ]
+  },
+  {
+   "source": "WCD-WCE-WRD",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "worldchristiandatabase.org",
+    "worldreligiondatabase.org"
+   ]
+  },
+  {
+   "source": "WorldNetDaily",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2018,
+   "domains": [
+    "wnd.com",
+    "worldnetdaily.com"
+   ]
+  },
+  {
+   "source": "Worldometer",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "worldometers.info"
+   ]
+  },
+  {
+   "source": "World Socialist Web Site",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "wsws.org"
+   ]
+  },
+  {
+   "source": "TheWrap",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2017,
+   "domains": [
+    "thewrap.com"
+   ]
+  },
+  {
+   "source": "X",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "twitter.com",
+    "x.com"
+   ]
+  },
+  {
+   "source": "XBIZ",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "xbiz.com"
+   ]
+  },
+  {
+   "source": "Xinhua News Agency",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "xinhuanet.com",
+    "news.cn"
+   ]
+  },
+  {
+   "source": "Yahoo News",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "news.yahoo.com"
+   ]
+  },
+  {
+   "source": "YouTube",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "youtube.com"
+   ]
+  },
+  {
+   "source": "ZDNet (pre–October 2020)",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "zdnet.com"
+   ]
+  },
+  {
+   "source": "ZDNet (October 2020–present)",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "zdnet.com"
+   ]
+  },
+  {
+   "source": "Zero Hedge",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2020,
+   "domains": [
+    "zerohedge.com"
+   ]
+  },
+  {
+   "source": "ZoomInfo",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": true,
+   "last_discussed": 2020,
+   "domains": [
+    "zoominfo.com"
+   ]
+  },
+  {
+   "source": "Hello!",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "hellomagazine.com"
+   ]
+  },
+  {
+   "source": "WION",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "wionews.com"
+   ]
+  },
+  {
+   "source": "Firstpost",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "firstpost.com"
+   ]
+  },
+  {
+   "source": "Pirate_Wires",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "piratewires.com"
+   ]
+  },
+  {
+   "source": "CityPopulation.de",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "citypopulation.de"
+   ]
+  },
+  {
+   "source": "UnHerd.com",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "unherd.com"
+   ]
+  },
+  {
+   "source": "Olympedia",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "olympedia.org"
+   ]
+  },
+  {
+   "source": "behindthename.com",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "behindthename.com"
+   ]
+  },
+  {
+   "source": "andasian.com",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "andasian.com"
+   ]
+  },
+  {
+   "source": "marxists.org",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "marxists.org"
+   ]
+  },
+  {
+   "source": "afr.com",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": null,
+   "domains": [
+    "afr.com"
+   ]
+  },
+  {
+   "source": "Nikkei",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": null,
+   "domains": [
+    "nikkei.com",
+    "nikkei.asia.com"
+   ]
+  },
+  {
+   "source": "Zee News",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "zeenews.com",
+    "zeenews.india.com",
+    "zeebiz.com",
+    "dnaindia.com"
+   ]
+  },
+  {
+   "source": "Omniglot",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "omniglot.com"
+   ]
+  },
+  {
+   "source": "Quartz",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "qz.com"
+   ]
+  },
+  {
+   "source": "Quartz",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "qz.com"
+   ]
+  },
+  {
+   "source": "Political Graveyard",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "politicalgraveyard.com"
+   ]
+  },
+  {
+   "source": "Tghat",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2021,
+   "domains": [
+    "tghat.com"
+   ]
+  },
+  {
+   "source": "ARY News",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "arynews.tv"
+   ]
+  },
+  {
+   "source": "Iran International News",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "iranintl.com"
+   ]
+  },
+  {
+   "source": "IranWire",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "iranwire.com"
+   ]
+  },
+  {
+   "source": "+972 Magazine",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "972mag.com"
+   ]
+  },
+  {
+   "source": "Wafa",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "wafa.ps"
+   ]
+  },
+  {
+   "source": "/Film",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "slashfilm.com"
+   ]
+  },
+  {
+   "source": "NHK World-Japan",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2022,
+   "domains": [
+    "nhk.or.jp",
+    "news.web.nhk"
+   ]
+  },
+  {
+   "source": "Sankei Shimbun",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "sankei.com",
+    "japan-forward.com"
+   ]
+  },
+  {
+   "source": "EU Reporter",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "eureporter.co"
+   ]
+  },
+  {
+   "source": "The Sun (Malaysia)",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2023,
+   "domains": [
+    "thesundaily.my"
+   ]
+  },
+  {
+   "source": "The Express Tribune",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "tribune.com.pk"
+   ]
+  },
+  {
+   "source": "ProPakistani.pk",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2024,
+   "domains": [
+    "propakistani.pk"
+   ]
+  },
+  {
+   "source": "Greek City Times",
+   "statuses": [
+    "generally_unreliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "greekcitytimes.com"
+   ]
+  },
+  {
+   "source": "The Irish Times",
+   "statuses": [
+    "generally_reliable"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "irishtimes.com"
+   ]
+  },
+  {
+   "source": "Dawn",
+   "statuses": [
+    "no_consensus"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2025,
+   "domains": [
+    "dawn.com"
+   ]
+  },
+  {
+   "source": "Fars News Agency",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "farsnews.ir"
+   ]
+  },
+  {
+   "source": "Azerbaijan State News Agency",
+   "statuses": [
+    "deprecated"
+   ],
+   "blacklisted": false,
+   "last_discussed": 2026,
+   "domains": [
+    "azertag.az"
+   ]
+  }
+ ]
+}

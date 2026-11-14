@@ -1,0 +1,16 @@
+# SITE_ADDRESS=:80 -> plain HTTP (local). SITE_ADDRESS=example.com -> Caddy gets a certificate automatically.
+{$SITE_ADDRESS::80} {
+	# API first: no compression and no buffering, so the SSE stream (/api/analyses/*/events) arrives live.
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode gzip
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

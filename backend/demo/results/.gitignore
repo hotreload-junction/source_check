@@ -1,0 +1,4 @@
+# Precomputed results contain full third-party article text: never committed by accident.
+# For the FINAL demo cases (team decision): git add -f backend/demo/results/<key>.json
+*.json
+!.gitkeep

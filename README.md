@@ -1,8 +1,8 @@
-# CiteTrace
+# Source Check
 
-> Propaganda borrows credibility. CiteTrace checks the receipts.
+> Propaganda borrows credibility. Source Check checks the receipts.
 
-CiteTrace takes a news article URL, extracts its central claims and follows every citation. For each claim
+Source Check takes a news article URL, extracts its central claims and follows every citation. For each claim
 it checks whether the cited source actually supports it (supported / distorted / contradicted / not
 mentioned / unsourced / not checkable) and shows the verbatim evidence passage. It fingerprints the
 infrastructure behind each source (shared analytics/AdSense IDs, domain age) to reveal when "independent"

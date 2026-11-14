@@ -27,6 +27,7 @@
         "source_ids": [
           "s1"
         ],
+        "found_source_ids": [],
         "verdict": "not_mentioned",
         "subtype": null,
         "evidence": {
@@ -36,7 +37,9 @@
           "language": "ru",
           "fuzzy_score": 97.0
         },
-        "explanation": "The cited page reports the attacks but says nothing about officials calling them staged."
+        "explanation": "The cited page reports the attacks but says nothing about officials calling them staged.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c2",
@@ -46,6 +49,7 @@
         "source_ids": [
           "s2"
         ],
+        "found_source_ids": [],
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -55,7 +59,9 @@
           "language": "en",
           "fuzzy_score": 100.0
         },
-        "explanation": "The ministry statement says the same thing."
+        "explanation": "The ministry statement says the same thing.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c3",
@@ -65,6 +71,7 @@
         "source_ids": [
           "s3"
         ],
+        "found_source_ids": [],
         "verdict": "distorted",
         "subtype": null,
         "evidence": {
@@ -74,7 +81,9 @@
           "language": "en",
           "fuzzy_score": 94.5
         },
-        "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'."
+        "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'.",
+        "central": true,
+        "focus": false
       },
       {
         "id": "c4",
@@ -82,10 +91,13 @@
         "char_start": 449,
         "char_end": 486,
         "source_ids": [],
+        "found_source_ids": [],
         "verdict": "unsourced",
         "subtype": null,
         "evidence": null,
-        "explanation": "No source is given for this claim."
+        "explanation": "No source is given for this claim.",
+        "central": true,
+        "focus": false
       }
     ],
     "sources": [
@@ -98,7 +110,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "context_dev"
+        "fetched_via": "context_dev",
+        "source_type": "news",
+        "source_type_reason": "news-site URL pattern (mock)"
       },
       {
         "id": "s2",
@@ -109,7 +123,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "context_dev"
+        "fetched_via": "context_dev",
+        "source_type": "press_release",
+        "source_type_reason": "press-release section of the site (/press/)"
       },
       {
         "id": "s3",
@@ -120,7 +136,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "trafilatura"
+        "fetched_via": "trafilatura",
+        "source_type": "blog",
+        "source_type_reason": "blog platform path (mock)"
       }
     ],
     "domains": [
@@ -133,7 +151,14 @@
         ],
         "adsense_ids": [],
         "cluster_id": "k1",
-        "is_article_domain": true
+        "is_article_domain": true,
+        "known_network": null,
+        "wikipedia_rsp": [],
+        "tranco_rank": null,
+        "first_archived_at": null,
+        "reputation_notes": [
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+        ]
       },
       {
         "domain": "news-front.example.net",
@@ -144,7 +169,27 @@
         ],
         "adsense_ids": [],
         "cluster_id": "k1",
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null,
+        "wikipedia_rsp": [
+          {
+            "source": "News Front (mock)",
+            "statuses": [
+              "generally_unreliable"
+            ],
+            "blacklisted": false,
+            "last_discussed": 2022,
+            "snapshot": "2026-11-14"
+          }
+        ],
+        "tranco_rank": null,
+        "first_archived_at": "2014-03-02",
+        "reputation_notes": [
+          "Wikipedia Perennial Sources rates \"News Front (mock)\" generally unreliable, last discussed 2022 (snapshot 2026-11-14)",
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)",
+          "First captured by the Wayback Machine on 2014-03-02",
+          "Archived pages predate the current registration (2026-09-20) by 12 year(s) or more: the domain existed before and was registered again"
+        ]
       },
       {
         "domain": "ministry.example.gov",
@@ -155,7 +200,15 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null,
+        "wikipedia_rsp": [],
+        "tranco_rank": 41210,
+        "first_archived_at": "2001-06-14",
+        "reputation_notes": [
+          "Rank 41,210 among the most visited sites (Tranco list Y897G, 2026-11-13); popularity, not reliability",
+          "First captured by the Wayback Machine on 2001-06-14"
+        ]
       },
       {
         "domain": "daily-truth.example.org",
@@ -166,7 +219,26 @@
           "ca-pub-0000000000000001"
         ],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null,
+        "wikipedia_rsp": [
+          {
+            "source": "Daily Truth (mock)",
+            "statuses": [
+              "deprecated"
+            ],
+            "blacklisted": false,
+            "last_discussed": 2023,
+            "snapshot": "2026-11-14"
+          }
+        ],
+        "tranco_rank": null,
+        "first_archived_at": null,
+        "reputation_notes": [
+          "Wikipedia Perennial Sources rates \"Daily Truth (mock)\" deprecated, last discussed 2023 (snapshot 2026-11-14)",
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)",
+          "Never captured by the Wayback Machine"
+        ]
       }
     ],
     "graph": {
@@ -363,19 +435,26 @@
       "circle": {
         "fired": false,
         "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
       }
     },
     "verdict": {
       "label": "propaganda_pattern",
       "summary": "Three of four central claims are not backed by the cited sources, and the main 'independent' source shares an analytics ID with the article's own site and is 55 days old."
     },
+    "focus": null,
     "audit": {
       "model_extract": "EXAMPLE-cheap-model",
       "model_verify": "EXAMPLE-strong-model",
       "prompt_version": "v1",
       "fuzzy_threshold": 90,
       "depth": 1,
-      "duration_s": 74.2
+      "duration_s": 74.2,
+      "focus_prompt_version": null
     }
   }
 }

@@ -1,0 +1,293 @@
+{
+  "_note": "F6 mock: the reader asked about a sentence that is NOT a central claim (c3, central false). Fictional fixture data from backend/tests/test_focus.py.",
+  "job_id": "f6demo1",
+  "status": "done",
+  "progress": {
+    "step": "verdict",
+    "message": "Done",
+    "pct": 100
+  },
+  "error": null,
+  "created_at": "2026-11-14T18:00:00Z",
+  "finished_at": "2026-11-14T18:00:42Z",
+  "result": {
+    "article": {
+      "url": "https://www.pravda-mirror.com/2026/11/story",
+      "domain": "pravda-mirror.com",
+      "title": "Officials confirm the drone attacks were staged",
+      "published_at": "2026-11-12T08:00:00Z",
+      "text_markdown": "# Officials confirm the drone attacks were staged\n\nWestern officials have privately admitted that the drone attacks were staged, according to [a report](https://news-front.net/report-123) seen by our editors.\n\nThe ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, [the official report](https://ministry.gov.uk/report) states.\n\nLocal residents saw no damage at all in the district after the alleged attack last week."
+    },
+    "claims": [
+      {
+        "id": "c1",
+        "text": "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, [the official report](https://ministry.gov.uk/report) states.",
+        "char_start": 210,
+        "char_end": 369,
+        "source_ids": [
+          "s1"
+        ],
+        "found_source_ids": [],
+        "verdict": "supported",
+        "subtype": null,
+        "evidence": {
+          "source_id": "s1",
+          "quote_original": "the new programme will expand coverage to 40 districts by 2027",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 100.0
+        },
+        "explanation": "The source states exactly this.",
+        "central": true,
+        "focus": false
+      },
+      {
+        "id": "c2",
+        "text": "Local residents saw no damage at all in the district after the alleged attack last week.",
+        "char_start": 371,
+        "char_end": 459,
+        "source_ids": [],
+        "found_source_ids": [],
+        "verdict": "unsourced",
+        "subtype": null,
+        "evidence": null,
+        "explanation": "The article gives no source for this claim.",
+        "central": true,
+        "focus": false
+      },
+      {
+        "id": "c3",
+        "text": "Western officials have privately admitted that the drone attacks were staged, according to [a report](https://news-front.net/report-123) seen by our editors.",
+        "char_start": 51,
+        "char_end": 208,
+        "source_ids": [
+          "s2"
+        ],
+        "found_source_ids": [],
+        "verdict": "not_mentioned",
+        "subtype": null,
+        "evidence": null,
+        "explanation": "The source never says officials admitted this.",
+        "central": false,
+        "focus": true
+      }
+    ],
+    "sources": [
+      {
+        "id": "s1",
+        "url": "https://ministry.gov.uk/report",
+        "domain": "ministry.gov.uk",
+        "kind": "link",
+        "attribution_text": "the official report",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev",
+        "source_type": "official",
+        "source_type_reason": "official domain ending .gov.uk"
+      },
+      {
+        "id": "s2",
+        "url": "https://news-front.net/report-123",
+        "domain": "news-front.net",
+        "kind": "link",
+        "attribution_text": "a report",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev",
+        "source_type": "unknown",
+        "source_type_reason": "no rule matched"
+      }
+    ],
+    "domains": [
+      {
+        "domain": "pravda-mirror.com",
+        "created_at": "2026-09-20T00:00:00Z",
+        "age_days": 1000,
+        "analytics_ids": [
+          "G-SAME0001"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": true,
+        "known_network": null,
+        "wikipedia_rsp": [],
+        "tranco_rank": null,
+        "first_archived_at": null,
+        "reputation_notes": [
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+        ]
+      },
+      {
+        "domain": "ministry.gov.uk",
+        "created_at": "2026-09-20T00:00:00Z",
+        "age_days": 3000,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false,
+        "known_network": null,
+        "wikipedia_rsp": [],
+        "tranco_rank": null,
+        "first_archived_at": null,
+        "reputation_notes": [
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+        ]
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "a",
+          "type": "article",
+          "label": "Officials confirm the drone attacks were staged",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c1",
+          "type": "claim",
+          "label": "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, the officia…",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c2",
+          "type": "claim",
+          "label": "Local residents saw no damage at all in the district after the alleged attack last week.",
+          "verdict": "unsourced",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c3",
+          "type": "claim",
+          "label": "Western officials have privately admitted that the drone attacks were staged, according to a report seen by o…",
+          "verdict": "not_mentioned",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "s1",
+          "type": "source",
+          "label": "ministry.gov.uk",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s2",
+          "type": "source",
+          "label": "news-front.net",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:pravda-mirror.com",
+          "type": "domain",
+          "label": "pravda-mirror.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "d:ministry.gov.uk",
+          "type": "domain",
+          "label": "ministry.gov.uk",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-a-c1",
+          "source": "a",
+          "target": "c1",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c1-s1",
+          "source": "c1",
+          "target": "s1",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c2",
+          "source": "a",
+          "target": "c2",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-a-c3",
+          "source": "a",
+          "target": "c3",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c3-s2",
+          "source": "c3",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-s1-host",
+          "source": "s1",
+          "target": "d:ministry.gov.uk",
+          "type": "hosted_on"
+        },
+        {
+          "id": "e-a-host",
+          "source": "a",
+          "target": "d:pravda-mirror.com",
+          "type": "hosted_on"
+        }
+      ]
+    },
+    "signals": {
+      "evidence": {
+        "fired": false,
+        "claim_ids": [],
+        "detail": "1 of 2 central claims are distorted, contradicted, not mentioned in their source or unsourced (threshold: 2)."
+      },
+      "infrastructure": {
+        "fired": false,
+        "reasons": []
+      },
+      "circle": {
+        "fired": false,
+        "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
+      }
+    },
+    "verdict": {
+      "label": "well_sourced",
+      "summary": "No two independent warning signals fired; the checkable claims hold up."
+    },
+    "focus": {
+      "question": "Did officials really admit the attacks were staged?",
+      "status": "found",
+      "claim_ids": [
+        "c3"
+      ],
+      "note": "Your question matches one sentence of the article, highlighted below. It is checked like every claim but is not one of the article's central claims, so it does not change the article verdict."
+    },
+    "audit": {
+      "model_extract": "mx",
+      "model_verify": "mv",
+      "prompt_version": "vT",
+      "fuzzy_threshold": 90.0,
+      "depth": 1,
+      "duration_s": 4.2,
+      "focus_prompt_version": "f1"
+    }
+  }
+}
