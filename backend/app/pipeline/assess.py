@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -71,33 +72,64 @@ class ClaimAssessment:
 
 
 class _FetchCache:
-    """Same URL cited by several claims is fetched once (rate limit + cost)."""
+    """Same URL cited by several claims is fetched once (rate limit + cost).
 
-    def __init__(self, fetcher: Fetcher, article_url: str):
+    Verification only needs the TEXT. The raw HTML (infra signals, B5) is fetched in the background while the
+    LLM verifies, and joined at the end: it used to sit in front of every verify call (AP: 87 s summed)."""
+
+    def __init__(self, fetcher: Fetcher, article_url: str, html_workers: int = 6):
         self.fetcher, self.article_url = fetcher, article_url
         self._data: dict[str, FetchResult] = {}
         self._locks: dict[str, threading.Lock] = {}
         self._guard = threading.Lock()
+        self._html_pool = ThreadPoolExecutor(max_workers=html_workers, thread_name_prefix="html")
+        self._html: dict[str, object] = {}
 
     def get(self, url: str) -> FetchResult:
         with self._guard:
             lock = self._locks.setdefault(url, threading.Lock())
         with lock:
             if url not in self._data:
-                self._data[url] = self.fetcher.fetch_source(url, self.article_url)
+                res = self.fetcher.fetch_source(url, self.article_url, with_html=False)
+                self._data[url] = res
+                if res.status == "ok" and res.html is None:
+                    self._html[url] = self._html_pool.submit(self.fetcher.fetch_html, url)
             return self._data[url]
+
+    def join_html(self, timeout: float = 10.0) -> None:
+        """Wait (bounded) for the background HTML fetches and attach the result to the shared FetchResults."""
+        end = time.monotonic() + timeout
+        for url, fut in list(self._html.items()):
+            try:
+                self._data[url].html = fut.result(timeout=max(end - time.monotonic(), 0.0))
+            except Exception as exc:   # slow or failed: that domain is simply skipped by the infra signals
+                log.info("html fetch skipped for %s: %s", url, type(exc).__name__)
+        self._html_pool.shutdown(wait=False)
 
 
 def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fetcher, llm: LLMClient,
                   settings: Settings | None = None, exa_client: httpx.Client | None = None,
-                  max_workers: int = 3, published_at: datetime | None = None) -> list[ClaimAssessment]:
+                  max_workers: int | None = None, published_at: datetime | None = None) -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
-                   published_at=published_at)
-                   for c in claims]
-        return [f.result() for f in futures]
+    deadline = time.monotonic() + s.claim_deadline_s
+    # claims are independent and almost all wait on the network: run them all at once (max 6 by contract)
+    pool = ThreadPoolExecutor(max_workers=max_workers or max(len(claims), 1), thread_name_prefix="claim")
+    futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
+                           published_at=published_at) for c in claims]
+    results: list[ClaimAssessment] = []
+    for claim, fut in zip(claims, futures):
+        try:
+            results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
+        except FutureTimeout:
+            # Bounded latency beats completeness for a live demo: neutral, never evidence against the article.
+            log.warning("claim %s not finished within %.0fs, marking not_checkable", claim.id, s.claim_deadline_s)
+            fut.cancel()
+            results.append(ClaimAssessment(claim, "not_checkable", None,
+                                           "Checking the sources took too long, so this claim was left unverified."))
+    pool.shutdown(wait=False)      # stragglers finish in the background and are ignored
+    cache.join_html(timeout=max(min(deadline - time.monotonic(), 10.0), 1.0))
+    return results
 
 
 def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache, llm: LLMClient,
@@ -140,17 +172,28 @@ def is_contemporary(published: str | None, article_date: datetime | None) -> boo
 
 
 def _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at):
-    """Official-site hits first (model-suggested domains), then the general ranked search; deduplicated."""
+    """Official-site hits first (model-suggested domains), then the general ranked search; deduplicated.
+
+    The three network steps that do not depend on each other run together: the general Exa search starts at
+    once, next to the (Haiku) domain suggestion, and the two official-site phrasings are searched in parallel.
+    Candidates that do not look first-hand are dropped unless settings.verify_secondary: another outlet can
+    only corroborate, never decide, and verifying it costs an LLM call."""
     kw = dict(api_key=settings.exa_api_key, client=exa_client, exclude_url=article_url, around=published_at)
-    domains, query = suggest_official_search(attribution, claim.text, llm=llm, model=settings.model_extract)
-    hits: list = []
-    if domains:   # two phrasings: the model's keywords, and the claim itself (keyword guesses can miss, e.g. Starlink/Starshield)
-        for q in dict.fromkeys(x for x in (query, f"{attribution} {claim.text}"[:160]) if x):
-            hits += [h for h in find_candidates(attribution, claim.text, include_domains=domains, query=q, limit=2, **kw)
-                     if h.url not in {x.url for x in hits}]
-    seen = {h.url for h in hits}
-    hits += [h for h in find_candidates(attribution, claim.text, **kw) if h.url not in seen]
-    return [h for h in hits if is_contemporary(h.published, published_at)]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        general_future = pool.submit(find_candidates, attribution, claim.text, **kw)
+        domains, query = suggest_official_search(attribution, claim.text, llm=llm, model=settings.model_extract)
+        official: list = []
+        if domains:   # two phrasings: the model's keywords, and the claim itself (keyword guesses can miss)
+            queries = list(dict.fromkeys(x for x in (query, f"{attribution} {claim.text}"[:160]) if x))
+            with ThreadPoolExecutor(max_workers=len(queries)) as qpool:
+                lists = list(qpool.map(lambda q: find_candidates(attribution, claim.text, include_domains=domains,
+                                                                 query=q, limit=2, **kw), queries))
+            for hits in lists:
+                official += [h for h in hits if h.url not in {x.url for x in official}]
+        general = general_future.result()
+    seen = {h.url for h in official}
+    rest = [h for h in general if h.url not in seen and (settings.verify_secondary or h.primary_hint >= 1)]
+    return [h for h in official + rest if is_contemporary(h.published, published_at)]
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,

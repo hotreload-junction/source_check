@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 
 import httpx
@@ -48,22 +49,49 @@ def parse_json_loose(content: str) -> dict:
 
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, *, timeout: float = 90.0, retries: int = 2,
-                 backoff_s: float = 2.0, client: httpx.Client | None = None):
+                 backoff_s: float = 2.0, client: httpx.Client | None = None, hedge_after: float | None = None):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
         self.retries = retries
         self.backoff_s = backoff_s
         self.client = client or httpx.Client(timeout=timeout)
+        self.hedge_after = hedge_after
 
     @classmethod
     def from_settings(cls, settings=None) -> "LLMClient":
         from .config import get_settings
 
         s = settings or get_settings()
-        return cls(s.ai_router_base_url, s.ai_router_api_key)
+        return cls(s.ai_router_base_url, s.ai_router_api_key,
+                   hedge_after=s.llm_hedge_after_s or None)
 
     def chat_json(self, model: str, system: str, user: str, *, max_tokens: int = 2000) -> LLMResult:
+        """One JSON completion. With `hedge_after` set, a request still unanswered after that many seconds is
+        sent a second time and the first answer wins. Measured live: verify median 5 s but p90 16 s / max 69 s, and
+        a claim waits for its slowest candidate, so the tail is the critical path; this costs ~10% extra calls."""
+        if not self.hedge_after:
+            return self._chat_json(model, system, user, max_tokens)
+        pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="llm-hedge")
+        try:
+            first = pool.submit(self._chat_json, model, system, user, max_tokens)
+            done, _ = wait([first], timeout=self.hedge_after)
+            if done:
+                return first.result()
+            second = pool.submit(self._chat_json, model, system, user, max_tokens)
+            pending = {first, second}
+            error: Exception | None = None
+            while pending:
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for f in done:
+                    if f.exception() is None:
+                        return f.result()
+                    error = f.exception()
+            raise error  # both failed
+        finally:
+            pool.shutdown(wait=False)   # the slower request finishes in the background; its result is dropped
+
+    def _chat_json(self, model: str, system: str, user: str, max_tokens: int) -> LLMResult:
         if not (self.base_url and self.api_key and model):
             raise LLMError("AI router not configured (AI_ROUTER_BASE_URL / AI_ROUTER_API_KEY / model)")
         MAX_BUDGET = 8000

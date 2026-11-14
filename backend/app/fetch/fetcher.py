@@ -12,6 +12,7 @@ import re
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 import httpx
@@ -85,13 +86,14 @@ class FetchResult:
 class Fetcher:
     def __init__(self, *, context_dev_key: str = "", timeout: float = 20.0,
                  client: httpx.Client | None = None, retries: int = 2, backoff_s: float = 1.0,
-                 limiter: RateLimiter | None = None, article_wait_s: float = 45.0):
+                 limiter: RateLimiter | None = None, article_wait_s: float = 45.0, source_timeout_s: float | None = None):
         self.key = context_dev_key
         self.timeout = timeout
         self.retries = retries
         self.backoff_s = backoff_s
         self.limiter = limiter or RateLimiter()
         self.article_wait_s = article_wait_s
+        self.source_timeout_s = source_timeout_s or timeout
         self.client = client or httpx.Client(
             timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}
         )
@@ -102,19 +104,26 @@ class Fetcher:
 
         s = settings or get_settings()
         return cls(context_dev_key=s.context_dev_api_key, timeout=s.fetch_timeout_s,
-                   limiter=RateLimiter(s.context_dev_rpm))
+                   limiter=RateLimiter(s.context_dev_rpm), source_timeout_s=s.source_timeout_s)
 
     # ------------------------------------------------------------------ public
     def fetch_article(self, url: str) -> FetchResult:
-        """The analysed article itself: always fetched, raw HTML kept for infra signals."""
-        res = self._fetch_web(url, kind="link", wait=self.article_wait_s)
-        if res.html is None:
-            res.html = self._raw_html(url)
-            if res.html is None and self.key:  # blocked for direct GET: one full-page Context.dev call
-                res.html = self._context_full_html(url, self.article_wait_s)
+        """The analysed article itself: always fetched, raw HTML kept for infra signals.
+
+        Markdown (Context.dev) and the raw HTML GET are independent, so they run side by side; measured live,
+        doing them one after the other put 40 s on the critical path for AP."""
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            html_future = pool.submit(self._raw_html, url)
+            res = self._fetch_web(url, kind="link", wait=self.article_wait_s)
+            if res.html is None:
+                res.html = html_future.result()
+        if res.html is None and self.key:  # blocked for direct GET: one full-page Context.dev call
+            res.html = self._context_full_html(url, self.article_wait_s)
         return res
 
-    def fetch_source(self, url: str, article_url: str) -> FetchResult:
+    def fetch_source(self, url: str, article_url: str, *, with_html: bool = True) -> FetchResult:
+        """`with_html=False`: skip the raw-HTML GET (only infra signals need it; fetch it later with
+        `fetch_html`, off the critical path of verification)."""
         kind = classify_url(url, article_url)
         if kind == "self":
             return FetchResult(url, "self", "not_fetched", subtype="self_citation")
@@ -122,15 +131,20 @@ class Fetcher:
             return FetchResult(url, "social", "not_fetched", subtype="social_media")
         if kind == "telegram":
             return self._fetch_telegram(url)
-        res = self._fetch_web(url, kind="link")
-        if res.status == "ok" and res.html is None:
+        # sources: no 5xx retries (3 attempts stacked to 25 s in a live run); the direct GET below is the fallback
+        res = self._fetch_web(url, kind="link", ctx_timeout=self.source_timeout_s, retries=0)
+        if with_html and res.status == "ok" and res.html is None:
             res.html = self._raw_html(url)  # full HTML for infra signals (B5); None if blocked -> neutral
         return res
 
+    def fetch_html(self, url: str) -> str | None:
+        return self._raw_html(url)
+
     # --------------------------------------------------------------- web pages
-    def _fetch_web(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
+    def _fetch_web(self, url: str, kind: str, wait: float = 0.0, ctx_timeout: float | None = None,
+                   retries: int | None = None) -> FetchResult:
         if self.key:
-            res = self._context_dev(url, kind, wait)
+            res = self._context_dev(url, kind, wait, ctx_timeout, retries)
             if res.status == "ok":
                 return res
             log.warning("context.dev failed for %s (%s), falling back", url, res.error)
@@ -139,13 +153,16 @@ class Fetcher:
             if fallback.status != "ok" and res.error and "Timeout" in res.error:
                 # Sites that block direct requests (president.gov.ua) and are slow for Context.dev: once its
                 # server finished, the page sits in its cache and a retry answers in <1s (measured: 73s -> 0.4s).
-                retry = self._context_dev(url, kind, wait)
+                retry = self._context_dev(url, kind, wait, ctx_timeout, retries)
                 if retry.status == "ok":
                     return retry
             return fallback
         return self._trafilatura(url, kind)
 
-    def _context_dev(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
+    def _context_dev(self, url: str, kind: str, wait: float = 0.0, timeout: float | None = None,
+                     retries: int | None = None) -> FetchResult:
+        timeout = timeout or self.timeout
+        retries = self.retries if retries is None else retries
         body = {
             "url": url,
             "formats": {"markdown": True},
@@ -154,7 +171,7 @@ class Fetcher:
         }
         r: httpx.Response | None = None
         err = ""
-        for attempt in range(self.retries + 1):
+        for attempt in range(retries + 1):
             if attempt:
                 time.sleep(self.backoff_s * attempt)
             if not self.limiter.acquire(wait):
@@ -162,7 +179,7 @@ class Fetcher:
             try:
                 r = self.client.post(
                     CONTEXT_DEV_URL, json=body, headers={"Authorization": f"Bearer {self.key}"},
-                    timeout=self.timeout + 5,
+                    timeout=timeout + 5,
                 )
             except httpx.TimeoutException as exc:
                 # A timeout already cost the full timeout; retrying costs it again (3x25s seen live on

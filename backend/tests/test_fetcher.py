@@ -255,3 +255,67 @@ def test_no_retry_when_fallback_succeeded_or_error_was_not_a_timeout():
         return httpx.Response(200, text=fx("article.html"), headers={"content-type": "text/html"})
     assert make(handler, key="k").fetch_source("https://example.org/report", ART).via == "trafilatura"
     assert len(cd_calls) == 1
+
+
+def test_article_markdown_and_html_are_fetched_concurrently():
+    import threading
+    import time
+    started, order = {}, []
+
+    def handler(request):
+        started[request.url.host] = time.time()
+        if request.url.host == "api.context.dev":
+            time.sleep(0.3)
+            order.append("ctx")
+            return httpx.Response(200, json=json.loads(fx("contextdev_ok.json")))
+        order.append("html")
+        return httpx.Response(200, text=fx("article.html"))
+    r = make(handler, key="k").fetch_article(ART)
+    assert r.status == "ok" and "G-ABC123" in r.html
+    assert order == ["html", "ctx"]                                   # the quick GET finished while Context.dev was busy
+    assert abs(started["api.context.dev"] - started[ART.split("/")[2]]) < 0.2   # both started together
+
+
+def test_fetch_source_without_html_skips_the_raw_get():
+    gets = []
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            return httpx.Response(200, json=json.loads(fx("contextdev_ok.json")))
+        gets.append(1)
+        return httpx.Response(200, text=fx("article.html"))
+    f = make(handler, key="k")
+    assert f.fetch_source("https://example.org/report", ART, with_html=False).html is None and gets == []
+    assert f.fetch_html("https://example.org/report") is not None and gets == [1]
+
+
+def test_sources_use_the_shorter_context_dev_timeout_articles_do_not():
+    seen = []
+    ok = json.loads(fx("contextdev_ok.json"))
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            seen.append(request.extensions["timeout"]["read"])
+            return httpx.Response(200, json=ok)
+        return httpx.Response(200, text=fx("article.html"))
+    f = Fetcher(context_dev_key="k", timeout=30, source_timeout_s=8, backoff_s=0,
+                client=httpx.Client(transport=httpx.MockTransport(handler)))
+    f.fetch_source("https://example.org/report", ART, with_html=False)
+    f.fetch_article(ART)
+    assert seen == [13, 35]        # source: 8+5, article: 30+5
+
+
+def test_sources_do_not_retry_5xx_but_articles_still_do():
+    cd = []
+    ok = json.loads(fx("contextdev_ok.json"))
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            cd.append(1)
+            return httpx.Response(503) if len(cd) % 3 != 0 else httpx.Response(200, json=ok)
+        return httpx.Response(200, text=fx("article.html"), headers={"content-type": "text/html"})
+    f = make(handler, key="k")
+    assert f.fetch_source("https://example.org/report", ART, with_html=False).via == "trafilatura"
+    assert len(cd) == 1                                                  # one try, then the direct GET
+    cd.clear()
+    assert f.fetch_article(ART).via == "context_dev" and len(cd) == 3   # 503, 503, 200

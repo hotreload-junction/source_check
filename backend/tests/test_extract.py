@@ -211,3 +211,54 @@ def test_llm_truncation_never_loops_forever():
 def test_too_broad_suggested_domains_are_dropped():
     payload = json.dumps({"domains": ["president.gov.ua", "gov.ua", "co.uk"], "query": "q"})
     assert suggest_official_search("Z", "c", llm=llm_returning(payload), model="m")[0] == ["president.gov.ua"]
+
+
+def _hedge_client(handler, **kw):
+    return LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, hedge_after=0.1,
+                     client=httpx.Client(transport=httpx.MockTransport(handler)), **kw)
+
+
+def test_hedge_second_request_wins_when_first_is_slow():
+    import threading
+    import time
+    n, lock = [0], threading.Lock()
+
+    def handler(request):
+        with lock:
+            n[0] += 1
+            me = n[0]
+        if me == 1:
+            time.sleep(1.0)                      # the tail: first request hangs
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"who": me})}}]})
+    t = time.time()
+    assert _hedge_client(handler).chat_json("m", "s", "u").data == {"who": 2}
+    assert time.time() - t < 0.7 and n[0] == 2
+
+
+def test_no_second_request_when_first_answers_quickly():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}]})
+    _hedge_client(handler).chat_json("m", "s", "u")
+    assert len(calls) == 1
+
+
+def test_hedge_survives_one_failed_request_and_raises_when_both_fail():
+    import time
+    n = [0]
+
+    def flaky(request):
+        n[0] += 1
+        if n[0] == 1:
+            time.sleep(0.3)
+            return httpx.Response(500)           # first one finally errors ...
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": '{"ok": 1}'}}]})
+    assert _hedge_client(flaky).chat_json("m", "s", "u").data == {"ok": 1}
+
+    def always_slow_500(request):
+        time.sleep(0.3)
+        return httpx.Response(500)
+    with pytest.raises(LLMError):
+        _hedge_client(always_slow_500).chat_json("m", "s", "u")
