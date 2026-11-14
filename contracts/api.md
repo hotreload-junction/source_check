@@ -127,6 +127,12 @@ source_type: "official" | "press_release" | "academic" | "reference" | "news" | 
    # first match wins. Not a reliability rating: kremlin.ru is official, TASS is news. null = no URL (named stub).
    # Context for the reader only, never a verdict signal. Absent in results computed before Q1: treat as null.
 source_type_reason: str|null  # the rule that fired, e.g. "press-release distribution service (prnewswire.com)"
+check: {verdict: ClaimVerdict, quote_original: str|null, fuzzy_score: float|null, explanation: str,
+        model: str, prompt_version: str} | absent
+   # additive: only on depth >= 2 sources that were read (fetch_status "ok"). The page is judged against the claim it is
+   # cited for, quote first (same verify step + fuzzy match as claims; a quote that is not in the page -> not_checkable).
+   # DISPLAY ONLY: never read by verdict.py, so a depth-2 page neither condemns nor rescues the article. Absent = not
+   # checked (unreachable, social, self, LLM failed or late). Depth-1 sources have no `check`: their verdict is the claim's.
 ```
 
 ### Domain
@@ -168,6 +174,10 @@ Multi-hop source tracing (default `MAX_DEPTH=3`; range 1..5, `MAX_DEPTH=1` switc
 `kind: "self"`, `fetch_status: "not_fetched"` source. `cites_back` goes from the cited source (article domain or a
 domain in the article's operator cluster) to the article node `a`; `signals.circle.path` =
 `["a", "<claim>", "<depth-1 source>", ..., "<cited source>", "a"]`.
+Which links a depth-N source offers (`pipeline/depth2.py`): the links in the sentence / paragraph of the passage the claim
+rests on; if there are none or the passage cannot be located, links elsewhere on the page whose anchor text / URL slug share
+words with the claim (>= 2 words; 1 in the paragraphs next to the passage; click-tracker redirects are unwrapped). Every
+depth >= 2 page that was read is then judged against the claim (`Source.check`, display only).
 
 ### Signals
 ```

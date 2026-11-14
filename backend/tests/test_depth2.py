@@ -343,3 +343,79 @@ def test_expand_sources_preserves_quote_after_none_and_expands_found_sources():
     assert by_url["https://d2b.example/hop2"]["parent_source_id"] == "s2"
     assert by_url["https://d3b.example/primary"]["depth"] == 3
     assert by_url["https://d3b.example/primary"]["parent_source_id"] == by_url["https://d2b.example/hop2"]["id"]
+
+
+# ------------------------------------------------------------------ relevant links when the passage has none
+PAGE_LINKS = ("[Home](https://www.news.example/) | [Sport](https://www.news.example/sport) | "
+              "[Share on X](https://x.com/intent/tweet?text=hello)\n\n")
+
+
+def test_relevant_link_elsewhere_on_the_page_is_found_when_the_passage_is_not_located():
+    text = (PAGE_LINKS + "A paragraph about something else entirely, mostly weather and football.\n\n"
+            "Related: [Healthcare reach to grow in forty districts](https://other.example/2027/healthcare-reach-districts-pledge)\n\n"
+            "Footer: [Imprint](https://other.example/imprint) [Careers](https://other.example/careers)")
+    claim = "Officials pledged broader healthcare reach across forty districts through 2027"
+    links = passage_links(text, None, claim, "https://m.example/p")
+    assert [l.url for l in links] == ["https://other.example/2027/healthcare-reach-districts-pledge"]
+    assert links[0].scope == "relevant"
+
+
+def test_unrelated_page_links_are_never_followed():
+    text = PAGE_LINKS + "Weather today is sunny. [Contact us](https://m.example/contact) [Terms](https://t.example/terms)"
+    assert passage_links(text, None, "The ministry said the programme will expand coverage to 40 districts by 2027", "https://m.example/p") == []
+
+
+def test_one_shared_word_is_enough_next_to_the_passage_but_not_far_from_it():
+    claim = "The ministry said the programme will expand coverage to 40 districts by 2027"
+    near = ("Intro.\n\nSee the [coverage figures](https://data.example/figures) for details.\n\n"
+            f"The ministry said on Tuesday that {QUOTE}, and nothing else.\n\n" + "Filler paragraph. \n\n" * 6 +
+            "Far away: [coverage tips](https://far.example/tips)")
+    links = passage_links(near, QUOTE, claim, "https://m.example/p")
+    assert [l.url for l in links] == ["https://data.example/figures"]
+
+
+# ------------------------------------------------------------------ the depth-2 source is checked
+CHILD_URL = "https://independent.org/doc"
+
+
+def run_checked(child_text, verifier_fn=None):
+    def v(user):
+        if "CHILD" in user.split("SOURCE:")[-1]:
+            if verifier_fn:
+                return verifier_fn(user)
+            return {"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported",
+                    "explanation": "The cited page states it.", "source_type": "original"}
+        return verifier(user)
+    pages = pages_with(CHILD_URL, {CHILD_URL: src(CHILD_URL, child_text, CLEAN)})
+    return analyze(ARTICLE_URL, fetcher=FakeFetcher(art(html=CLEAN), pages), llm=router(EXTRACT, v), settings=S2,
+                   rdap=FakeRdap({"independent.org": 4000})).result
+
+
+def test_depth_2_source_is_checked_quote_first_and_never_changes_the_label():
+    r = run_checked(f"CHILD page. The district office confirmed that {QUOTE} in its statement.")
+    child = next(s for s in r["sources"] if s["depth"] == 2)
+    ck = child["check"]
+    assert ck["verdict"] == "supported" and ck["quote_original"] == QUOTE and ck["fuzzy_score"] >= 90
+    assert ck["model"] and ck["prompt_version"]
+    assert all("check" not in s for s in r["sources"] if s["depth"] == 1)
+    assert r["verdict"]["label"] == run_checked("CHILD " + "Original document. " * 30)["verdict"]["label"]
+
+
+def test_depth_2_quote_that_is_not_in_the_page_is_not_checkable():
+    r = run_checked("CHILD page about something unrelated, nothing about districts or coverage.")
+    ck = next(s for s in r["sources"] if s["depth"] == 2)["check"]
+    assert ck["verdict"] == "not_checkable" and ck["quote_original"] == QUOTE
+
+
+def test_failed_depth_2_check_leaves_no_check_and_the_run_survives():
+    r = run_checked("CHILD page.", verifier_fn=lambda user: {"verdict": "banana"})
+    child = next(s for s in r["sources"] if s["depth"] == 2)
+    assert "check" not in child and child["fetch_status"] == "ok"
+    assert r["verdict"]["label"]
+
+
+def test_click_tracker_redirects_are_unwrapped_to_the_page_they_cite():
+    wrapped = "https://track.example.com/L0/https:%2F%2Fwww.cnbc.com%2F2026%2F11%2F13%2Ftariffs-coverage-districts.html/1/abc"
+    text = f"Nothing here.\n\n[Watch](<{wrapped}>)\n\nMore."
+    links = passage_links(text, None, "Officials said tariffs coverage districts grew", "https://m.example/p")
+    assert links and links[0].url.startswith("https://www.cnbc.com/2026/11/13/tariffs-coverage-districts.html")

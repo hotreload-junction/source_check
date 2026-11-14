@@ -20,13 +20,19 @@ import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 from typing import Callable
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
+import re
+
+from ..config import Settings
 from ..fetch import Fetcher
 from ..fetch.urls import registrable_domain
+from ..llm import LLMClient
 from ..signals import SourcePage
 from ..signals.circles import Citation
-from .textutil import LinkRef, attach_links, build_plain, locate, sentence_units, to_markdown_span
+from .textutil import (LINK_RE, LinkRef, attach_links, build_plain, is_navigation_link, locate, paragraph_bounds,
+                       plain_anchor, sentence_units, to_markdown_span)
+from .verify import verify_claim
 
 log = logging.getLogger("citetrace.depth2")
 
@@ -36,6 +42,11 @@ MAX_FETCHES_TOTAL = 14         # total deeper-hop fetches across all depths (cos
 QUOTE_ALIGN_THRESHOLD = 85.0   # locating the verified evidence quote in the source
 CLAIM_ALIGN_THRESHOLD = 70.0   # no quote: locating the claim itself; weaker, so stricter than "anything similar"
 DEADLINE_S = 25.0              # wall clock for the fetches of ONE hop; the rest is "unreachable" (neutral)
+MIN_RELEVANCE = 2              # a page link far from the passage needs this many claim words in its anchor / URL slug
+MIN_RELEVANCE_NEAR = 1         # ... one is enough in the paragraph just before / after the passage
+MAX_RELEVANT_POOL = 6          # best-ranked relevant links offered per source (the per-source cap still applies)
+CHECK_DEADLINE_S = 40.0        # wall clock for the checks (LLM) of ONE hop; a check that does not finish is simply absent
+MAX_CHECK_WORKERS = 4
 Emit = Callable[[str, dict], None]
 
 
@@ -60,7 +71,12 @@ class _Candidate:
 
 def passage_links(source_text: str, quote: str | None, claim_text: str, source_url: str,
                   alt_quote: str | None = None) -> list[LinkRef]:
-    """Links in the sentence/paragraph of the passage the claim rests on in a source. [] when it cannot be located."""
+    """Links the passage a claim rests on in a source points to.
+
+    1. the links in the located passage's sentence, else its paragraph (what the source cites for exactly this);
+    2. none there, or the passage cannot be located: links elsewhere on the page whose anchor text / URL slug share
+       words with the claim (`relevant_links`), nearest paragraphs first. Navigation, footer and share links share
+       none, so a page full of links does not turn into a crawl of the whole page."""
     plain = build_plain(source_text)
     loc = locate(plain, quote, QUOTE_ALIGN_THRESHOLD) if quote else None
     if loc is None:
@@ -74,10 +90,68 @@ def passage_links(source_text: str, quote: str | None, claim_text: str, source_u
                     loc = locate(plain, s_plain, CLAIM_ALIGN_THRESHOLD)
                     if loc is not None:
                         break
-    if loc is None:
+    span = None
+    if loc is not None:
+        span = to_markdown_span(source_text, plain, loc[0], loc[1])
+        links = attach_links(source_text, span[0], span[1], source_url)
+        if links:
+            return links
+    return relevant_links(source_text, [claim_text, quote, alt_quote], source_url, span)
+
+
+_STOP = frozenset("""about above after again also another because been before being between both could does done down
+during each from have here into just like more most much must only other over said same should since some such than that
+their them then there these they this those through under until upon very were what when where which while will with
+would your according read more news story article latest video click share view link links page pages today
+aber auch dass dazu denn doch durch eine einem einen einer eines euch haben hatte hier ihre kann mehr nach noch nur oder
+sein sich sind über unter viel wann warum weil wenn werden wird wurde zum zur""".split())
+
+
+def _stems(text: str) -> set[str]:
+    """Content words as crude 6-letter stems ("districts"/"district", "expands"/"expand"); digits never count (URL dates)."""
+    return {w[:6] for w in re.findall(r"[^\W\d_]{4,}", text.lower()) if w not in _STOP}
+
+
+def _unwrap(url: str) -> str:
+    """Newsletter / click-tracker redirects (`track.example/L0/https:%2F%2Fwww.cnbc.com%2F...`) cite the wrapped page."""
+    m = re.search(r"https?(?::|%3[Aa])(?://|%2[Ff]%2[Ff])", url[8:])
+    if not m:
+        return url
+    inner = unquote(url[8:][m.start():]).split("&", 1)[0].split("?utm_", 1)[0]
+    return inner if re.match(r"https?://[^/\s]+\.[^/\s]+", inner) else url
+
+
+def relevant_links(md: str, texts: list[str | None], source_url: str,
+                   near: tuple[int, int] | None = None) -> list[LinkRef]:
+    """Body links of a page that talk about the claim, best first (decided by code, no LLM).
+
+    A link counts when its anchor text plus URL slug share >= MIN_RELEVANCE words with the claim (and the quote /
+    the parent's quote); one shared word is enough in the paragraph just before or after the located passage. The
+    domain is not matched, so "whitehouse.gov" cannot match a claim only because it says "white house"."""
+    claim = _stems(" ".join(build_plain(x).text for x in texts if x))
+    if not claim:
         return []
-    start, end = to_markdown_span(source_text, plain, loc[0], loc[1])
-    return attach_links(source_text, start, end, source_url)
+    lo = hi = None
+    if near is not None:
+        p0, p1 = paragraph_bounds(md, near[0], near[1])
+        lo = paragraph_bounds(md, max(p0 - 2, 0), max(p0 - 2, 0))[0] if p0 > 1 else p0
+        nxt = min(p1 + 2, len(md))
+        hi = paragraph_bounds(md, nxt, nxt)[1]
+    scored: list[tuple[int, int, LinkRef]] = []
+    seen: set[str] = set()
+    for m in LINK_RE.finditer(md):
+        url, anchor = _unwrap(m.group(2)), plain_anchor(m.group(1))
+        key = url.split("#")[0].rstrip("/")
+        if key in seen or key == source_url.split("#")[0].rstrip("/") or is_navigation_link(url, source_url):
+            continue
+        seen.add(key)
+        slug = " ".join(p for p in re.split(r"[/_\-.?=&]+", urlsplit(url).path) if p)
+        shared = len(claim & _stems(f"{anchor} {slug}"))
+        need = MIN_RELEVANCE_NEAR if lo is not None and lo <= m.start() <= hi else MIN_RELEVANCE
+        if shared >= need:
+            scored.append((-shared, m.start(), LinkRef(url, anchor, "relevant")))
+    scored.sort(key=lambda x: (x[0], x[1]))
+    return [r for _, _, r in scored[:MAX_RELEVANT_POOL]]
 
 
 def _is_homepage(url: str) -> bool:
@@ -103,11 +177,14 @@ def _is_search_page(url: str) -> bool:
 
 def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher: Fetcher, article_url: str,
                    article_domain: str, max_depth: int = 2, emit: Emit | None = None,
-                   deadline_s: float = DEADLINE_S) -> Depth2Result:
+                   deadline_s: float = DEADLINE_S, llm: LLMClient | None = None,
+                   settings: Settings | None = None) -> Depth2Result:
     """Add depth-2..max_depth sources to `rows` (mutated: ids continue after the last source).
 
     `rows` are the initial contract Source dicts; `assessments` the ClaimAssessments they came from (fetched text
     and verified quotes live there); `claims` the contract Claim dicts (which claim cites which source).
+    With `llm` + `settings`, every newly read depth >= 2 source is CHECKED against the claim it is cited for (quote
+    first, like every verdict) and gets `Source.check`; without them the structure is recorded but nothing is judged.
     """
     res = Depth2Result()
     if max_depth < 2:
@@ -191,6 +268,7 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
 
         # 3. rows, edges, citations
         next_depth = cur_depth + 1
+        to_check: list[tuple[dict, str, str]] = []
         for c in cands:
             child = c.existing or known.get(c.link.url)
             if child is None:
@@ -208,6 +286,8 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
                 child = {"id": f"s{len(rows) + 1}", "url": c.link.url, "domain": c.domain, "kind": kind,
                          "attribution_text": c.link.anchor_text or None, "depth": next_depth,
                          "parent_source_id": c.parent["id"], "fetch_status": status, "fetched_via": via}
+                if f is not None and f.text and status == "ok":
+                    to_check.append((child, c.claim_text, f.text))
                 rows.append(child)
                 known[c.link.url] = child
                 res.rows.append(child)
@@ -224,7 +304,34 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
                 out("edge", edge)
             res.citations.append(Citation(c.claim_id, c.parent["id"], child["id"], c.domain,
                                           chain=chain_by_source[c.parent["id"]]))
+        if llm is not None and settings is not None:
+            _check_sources(to_check, llm, settings)
     return res
+
+
+def _check_sources(items: list[tuple[dict, str, str]], llm: LLMClient, settings: Settings) -> None:
+    """Judge each newly read source against the claim it is cited for and store `Source.check` (display only: it
+    never reaches `verdict.py`, so a depth-2 page can neither condemn nor rescue an article). A failed or late check
+    leaves the key out, which means "not checked"."""
+    if not items:
+        return
+    end = time.monotonic() + CHECK_DEADLINE_S
+    pool = ThreadPoolExecutor(max_workers=min(len(items), MAX_CHECK_WORKERS), thread_name_prefix="d2check")
+    futures = [(row, pool.submit(verify_claim, claim_text, text, llm=llm, settings=settings, factcheck=True))
+               for row, claim_text, text in items]
+    for row, fut in futures:
+        try:
+            v = fut.result(timeout=max(end - time.monotonic(), 0.0))
+        except FutureTimeout:
+            log.warning("depth check of %s did not finish before deadline", row["url"])
+            fut.cancel()
+            continue
+        except Exception as exc:       # LLM down / bad output: no check, never a failed analysis
+            log.warning("depth check of %s failed: %s", row["url"], type(exc).__name__)
+            continue
+        row["check"] = {"verdict": v.verdict, "quote_original": v.quote_original, "fuzzy_score": v.fuzzy_score,
+                        "explanation": v.explanation, "model": v.model, "prompt_version": v.prompt_version}
+    pool.shutdown(wait=False)
 
 
 def rows_quote_map(rows: list[dict], quote_by_url: dict[str, str | None]) -> dict[str, str]:

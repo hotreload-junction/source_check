@@ -272,7 +272,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     if s.max_depth >= 2 and reg.rows:
         progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
-                            article_domain=article_domain, max_depth=s.max_depth, emit=out)
+                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s)
         depth = s.max_depth
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
         searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
