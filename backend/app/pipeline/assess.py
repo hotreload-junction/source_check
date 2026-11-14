@@ -110,14 +110,14 @@ class _FetchCache:
 def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fetcher, llm: LLMClient,
                   settings: Settings | None = None, exa_client: httpx.Client | None = None,
                   max_workers: int | None = None, published_at: datetime | None = None,
-                  on_claim: Callable[[int, "ClaimAssessment"], None] | None = None) -> list[ClaimAssessment]:
+                  on_claim: Callable[[int, "ClaimAssessment"], None] | None = None, step_cache=None) -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
     deadline = time.monotonic() + s.claim_deadline_s
     # claims are independent and almost all wait on the network: run them all at once (max 6 by contract)
     pool = ThreadPoolExecutor(max_workers=max_workers or max(len(claims), 1), thread_name_prefix="claim")
     futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
-                           published_at=published_at) for c in claims]
+                           published_at=published_at, step_cache=step_cache) for c in claims]
     results: list[ClaimAssessment] = []
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
@@ -137,7 +137,7 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
 
 def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache, llm: LLMClient,
                  settings: Settings, exa_client: httpx.Client | None = None,
-                 published_at: datetime | None = None) -> ClaimAssessment:
+                 published_at: datetime | None = None, step_cache=None) -> ClaimAssessment:
     if claim.links:
         sources = [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
                                   loose_link=(l.scope == "paragraph"))
@@ -148,7 +148,7 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
 
     hits: list[tuple[str, str]] = []                      # (url, attribution), official-site hits first
     for attribution in claim.attributions[:MAX_ATTRIBUTIONS]:
-        for hit in _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at):
+        for hit in _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at, step_cache):
             if hit.url not in {u for u, _ in hits}:
                 hits.append((hit.url, attribution))
     hits = hits[:MAX_NAMED_VERIFY]
@@ -175,14 +175,14 @@ def is_contemporary(published: str | None, article_date: datetime | None) -> boo
     return -FUTURE_TOLERANCE_DAYS <= delta <= STALE_AFTER_DAYS
 
 
-def _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at):
+def _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at, step_cache=None):
     """Official-site hits first (model-suggested domains), then the general ranked search; deduplicated.
 
     The three network steps that do not depend on each other run together: the general Exa search starts at
     once, next to the (Haiku) domain suggestion, and the two official-site phrasings are searched in parallel.
     Candidates that do not look first-hand are dropped unless settings.verify_secondary: another outlet can
     only corroborate, never decide, and verifying it costs an LLM call."""
-    kw = dict(api_key=settings.exa_api_key, client=exa_client, exclude_url=article_url, around=published_at)
+    kw = dict(api_key=settings.exa_api_key, client=exa_client, exclude_url=article_url, around=published_at, cache=step_cache)
     with ThreadPoolExecutor(max_workers=2) as pool:
         general_future = pool.submit(find_candidates, attribution, claim.text, **kw)
         domains, query = suggest_official_search(attribution, claim.text, llm=llm, model=settings.model_extract)

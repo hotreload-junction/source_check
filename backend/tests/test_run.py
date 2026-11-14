@@ -60,14 +60,27 @@ class FakeRdap:
         return RdapResult(domain, "2026-09-20T00:00:00Z" if age is not None else None, age)
 
 
+def ids_for(user, items):
+    """The new extraction protocol: the model answers with SENTENCE NUMBERS. Map our fixture claim texts to the
+    numbered sentences in the prompt (a fixture claim may be a clause of a longer sentence)."""
+    import re
+    lines = {int(m.group(1)): m.group(2) for m in re.finditer(r"^\[(\d+)\] (.*)$", user, re.M)}
+    out = []
+    for it in items:
+        hit = next((i for i, t in lines.items() if it["text"] in t), None)
+        if hit is not None:
+            out.append({"id": hit, "attributions": it.get("attributions", [])})
+    return out
+
+
 def router(extract_claims, verifier):
-    """One fake AI router: extraction call -> claims JSON; verify call -> verifier(claim, source)."""
+    """One fake AI router: extraction call -> sentence ids; verify call -> verifier(claim, source)."""
     def handler(request):
         body = json.loads(request.content)
         sysmsg = body["messages"][0]["content"]
         user = body["messages"][1]["content"]
-        if "CENTRAL FACTUAL CLAIMS" in sysmsg:
-            content = json.dumps({"claims": extract_claims})
+        if "CHECKABLE FACTUAL CLAIMS" in sysmsg:
+            content = json.dumps({"claims": ids_for(user, extract_claims)})
         elif "check whether a SOURCE" in sysmsg:
             content = json.dumps(verifier(user))
         else:

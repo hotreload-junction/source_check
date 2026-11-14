@@ -49,7 +49,7 @@ def primary_hint(url: str, attribution: str) -> int:
 def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: httpx.Client | None = None,
                     timeout: float = 20.0, exclude_url: str | None = None,
                     around: datetime | None = None, limit: int = 3,
-                    include_domains: list[str] | None = None, query: str | None = None) -> list[NamedSourceHit]:
+                    include_domains: list[str] | None = None, query: str | None = None, cache=None) -> list[NamedSourceHit]:
     """Up to `limit` candidates for the attribution, first-hand-looking ones first. Never raises.
 
     The article itself and everything on its domain are excluded (a self-citation is not a source).
@@ -69,15 +69,23 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
     if around and not include_domains:
         body["startPublishedDate"] = (around - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00.000Z")
         body["endPublishedDate"] = (around + timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000Z")
-    try:
-        r = (client or httpx).post(EXA_URL, json=body, headers={"x-api-key": api_key}, timeout=timeout)
-        if r.status_code != 200:
-            log.warning("exa http %s", r.status_code)
+    from .. import cache as cachemod
+
+    step_cache = cache if cache is not None else cachemod.get_default()
+    ckey = cachemod.make_key("exa", body)       # the search index moves: freeze what a finished analysis saw
+    results = step_cache.get("exa", ckey)
+    if results is None:
+        try:
+            r = (client or httpx).post(EXA_URL, json=body, headers={"x-api-key": api_key}, timeout=timeout)
+            if r.status_code != 200:
+                log.warning("exa http %s", r.status_code)
+                step_cache.put("exa", ckey, [], cachemod.FAILURE_TTL_S // 12)   # 30 min: replay the failure, retry soon
+                return []
+            results = [{k: it.get(k) for k in ("url", "title", "publishedDate")} for it in (r.json().get("results") or [])]
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("exa failed: %s", type(exc).__name__)
             return []
-        results = r.json().get("results") or []
-    except (httpx.HTTPError, ValueError) as exc:
-        log.warning("exa failed: %s", type(exc).__name__)
-        return []
+        step_cache.put("exa", ckey, results)
     own = normalize_url(exclude_url) if exclude_url else None
     hits: list[NamedSourceHit] = []
     for item in results:

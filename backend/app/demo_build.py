@@ -22,9 +22,13 @@ def _write(key: str, result: dict, settings) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m app.demo_build", description=__doc__)
     ap.add_argument("--only", help="build just this case key")
+    ap.add_argument("--refresh", action="store_true", help="ignore the step cache and recompute (the result will usually differ)")
     ap.add_argument("--import", dest="imp", nargs=2, metavar=("KEY", "FILE"), help="store the JSON written by `python -m app.cli -o`")
     args = ap.parse_args(argv)
     s = get_settings()
+    if s.step_cache:      # a case that was analysed before is rebuilt from the cache: same inputs, same result
+        from . import cache
+        cache.set_default(cache.DbCache(ttl_hours=s.step_cache_ttl_h or None))
     cases = json.loads((demo.demo_dir(s) / "cases.json").read_text(encoding="utf-8"))
     if args.imp:
         key, path = args.imp
@@ -45,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(f"{c['key']}: analysing {c['url']} ...", file=sys.stderr, flush=True)
         try:
-            out = analyze(c["url"], settings=s)
+            out = analyze(c["url"], settings=s, refresh=args.refresh)
         except AnalysisError as exc:
             print(f"{c['key']}: FAILED ({exc})", file=sys.stderr)
             failed += 1

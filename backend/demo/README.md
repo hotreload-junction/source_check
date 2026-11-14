@@ -14,6 +14,9 @@ Build or refresh (real network + LLM calls, manual only):
     python -m app.demo_build --only pravda            # one case
     python -m app.demo_build --import pravda out.json # use the output of `python -m app.cli <url> -o out.json`
 
+`demo_build` and `app.cli` use the persistent step cache (database): rebuilding an article that was analysed before replays
+the stored LLM answers / pages / search results, so you get the SAME result; `--refresh` recomputes everything.
+
 Results are frozen on purpose: re-running the pipeline can give a different verdict (LLM/search are not deterministic).
 At startup the backend copies them into the database as jobs `demo-<key>`, so `POST /api/analyses` with a demo URL is
 answered from the cache too. If the database is down, `GET /api/analyses/demo-<key>` is served from these files.

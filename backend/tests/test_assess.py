@@ -132,38 +132,18 @@ def test_original_found_after_secondary_candidates_decides():
 
     def exa_handler(request):
         return httpx.Response(200, json={"results": [{"url": u} for u in urls]})
-    pages = {u: page(u) for u in urls}
-    types = iter(["secondary", "original"])
+    # candidates are verified in parallel: tell original from secondary by the PAGE, never by call order
+    pages = {urls[0]: page(urls[0]), urls[1]: page(urls[1], text=TEXT + " ORIGINAL-MARKER")}
 
     def handler(request):
+        user = json.loads(request.content)["messages"][1]["content"]
         c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported",
-                        "explanation": "ok.", "source_type": next(types)})
+                        "explanation": "ok.", "source_type": "original" if "ORIGINAL-MARKER" in user else "secondary"})
         return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
     llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
     (a,), _ = run([claim(1, attrs=["Org"])], pages, llm=llm, exa=httpx.Client(transport=httpx.MockTransport(exa_handler)),
                   settings=SETTINGS_ALL)
     assert a.verdict == "supported" and a.best.url == "https://org.test/statement" and len(a.sources) == 2
-
-
-def test_named_candidates_capped_to_bound_cost():
-    urls = [f"https://n{i}.test/a" for i in range(8)]
-    calls = []
-    res, _ = run([claim(1, attrs=["A", "B"])], {u: page(u) for u in urls},
-                 llm=make_llm("supported", QUOTE, calls, source_type="secondary"),
-                 exa=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": u} for u in urls]}))),
-                 settings=SETTINGS_ALL)
-    assert len(calls) <= 4 and res[0].verdict == "not_checkable"
-
-
-def test_named_source_not_found_is_neutral_not_unsourced():
-    (a,), _ = run([claim(1, attrs=["Zelenskyy"])], {}, exa=exa_client(None))
-    assert a.verdict == "not_checkable" and "Zelenskyy" in a.explanation
-
-
-def test_named_source_that_does_not_mention_claim_is_neutral():
-    (a,), _ = run([claim(1, attrs=["X"])], {"https://www.orig.gov.test/interview": page("https://www.orig.gov.test/interview")},
-                  llm=make_llm("not_mentioned", ""), exa=exa_client())
-    assert a.verdict == "not_checkable"     # an Exa guess proves nothing about the article
 
 
 def test_guessed_original_that_differs_is_neutral_not_distorted():
@@ -330,3 +310,24 @@ def test_paragraph_scope_link_can_confirm_but_never_count_against():
     assert a.verdict == "supported"
     (a,), _ = run([claim(1, [url])], {url: page(url)}, llm=make_llm("not_mentioned", ""))   # sentence-scope: still counts
     assert a.verdict == "not_mentioned"
+
+
+def test_named_candidates_capped_to_bound_cost():
+    urls = [f"https://n{i}.test/a" for i in range(8)]
+    calls = []
+    res, _ = run([claim(1, attrs=["A", "B"])], {u: page(u) for u in urls},
+                 llm=make_llm("supported", QUOTE, calls, source_type="secondary"),
+                 exa=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": u} for u in urls]}))),
+                 settings=SETTINGS_ALL)
+    assert len(calls) <= 4 and res[0].verdict == "not_checkable"
+
+
+def test_named_source_not_found_is_neutral_not_unsourced():
+    (a,), _ = run([claim(1, attrs=["Zelenskyy"])], {}, exa=exa_client(None))
+    assert a.verdict == "not_checkable" and "Zelenskyy" in a.explanation
+
+
+def test_named_source_that_does_not_mention_claim_is_neutral():
+    (a,), _ = run([claim(1, attrs=["X"])], {"https://www.orig.gov.test/interview": page("https://www.orig.gov.test/interview")},
+                  llm=make_llm("not_mentioned", ""), exa=exa_client())
+    assert a.verdict == "not_checkable"     # an Exa guess proves nothing about the article

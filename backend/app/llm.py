@@ -6,7 +6,7 @@ import logging
 import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import httpx
 
@@ -24,6 +24,7 @@ class LLMResult:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     credits: float = 0.0
+    cached: bool = False        # replayed from our step cache: no call, no cost
 
 
 def parse_json_loose(content: str) -> dict:
@@ -49,7 +50,8 @@ def parse_json_loose(content: str) -> dict:
 
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, *, timeout: float = 90.0, retries: int = 2,
-                 backoff_s: float = 2.0, client: httpx.Client | None = None, hedge_after: float | None = None):
+                 backoff_s: float = 2.0, client: httpx.Client | None = None, hedge_after: float | None = None,
+                 cache=None):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
@@ -57,19 +59,32 @@ class LLMClient:
         self.backoff_s = backoff_s
         self.client = client or httpx.Client(timeout=timeout)
         self.hedge_after = hedge_after
+        self.cache = cache          # None = the process-wide default (cache.get_default()), looked up per call
 
     @classmethod
-    def from_settings(cls, settings=None) -> "LLMClient":
+    def from_settings(cls, settings=None, cache=None) -> "LLMClient":
         from .config import get_settings
 
         s = settings or get_settings()
         return cls(s.ai_router_base_url, s.ai_router_api_key,
-                   hedge_after=s.llm_hedge_after_s or None)
+                   hedge_after=s.llm_hedge_after_s or None, cache=cache)
 
     def chat_json(self, model: str, system: str, user: str, *, max_tokens: int = 2000) -> LLMResult:
         """One JSON completion. With `hedge_after` set, a request still unanswered after that many seconds is
         sent a second time and the first answer wins. Measured live: verify median 5 s but p90 16 s / max 69 s, and
         a claim waits for its slowest candidate, so the tail is the critical path; this costs ~10% extra calls."""
+        from . import cache as cachemod
+
+        cache = self.cache if self.cache is not None else cachemod.get_default()
+        key = cachemod.make_key("llm", model, system, user)
+        hit = cache.get("llm", key)
+        if hit is not None:
+            return LLMResult(**{**hit, "credits": 0.0, "cached": True})
+        result = self._chat_json_hedged(model, system, user, max_tokens)
+        cache.put("llm", key, {k: v for k, v in asdict(result).items() if k != "cached"})
+        return result
+
+    def _chat_json_hedged(self, model: str, system: str, user: str, max_tokens: int) -> LLMResult:
         if not self.hedge_after:
             return self._chat_json(model, system, user, max_tokens)
         pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="llm-hedge")

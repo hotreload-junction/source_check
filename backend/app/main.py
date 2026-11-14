@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from . import db, demo
+from . import cache, db, demo
 from .api import router
 from .config import get_version
 from .jobs import JobManager
@@ -17,6 +17,8 @@ log = logging.getLogger("citetrace")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.jobs = JobManager()
+    if app.state.jobs.settings.step_cache:
+        cache.set_default(cache.DbCache(ttl_hours=app.state.jobs.settings.step_cache_ttl_h or None))
     try:
         db.init_db()
         stale = app.state.jobs.recover_stale()

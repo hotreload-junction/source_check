@@ -194,7 +194,7 @@ def test_demo_build_import_and_build_write_result_files(demo_dir, tmp_path, monk
 
     class Out:
         result = fake_result("well_sourced")
-    monkeypatch.setattr(demo_build, "analyze", lambda url, settings=None: Out())
+    monkeypatch.setattr(demo_build, "analyze", lambda url, settings=None, **kw: Out())
     assert demo_build.main(["--only", "wire"]) == 0
     assert "well_sourced" in capsys.readouterr().out
     assert demo.load_result("wire", get_settings())["verdict"]["label"] == "well_sourced"

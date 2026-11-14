@@ -19,6 +19,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("url", help="article URL")
     ap.add_argument("-o", "--out", help="write the JSON here instead of stdout")
     ap.add_argument("--compact", action="store_true", help="single-line JSON")
+    ap.add_argument("--refresh", action="store_true", help="ignore the step cache: re-fetch, re-ask the models, re-search (and store the new result)")
+    ap.add_argument("--no-cache", action="store_true", help="do not use the database step cache at all")
     ap.add_argument("-q", "--quiet", action="store_true", help="no progress on stderr")
     ap.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     args = ap.parse_args(argv)
@@ -31,6 +33,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: missing in .env: {', '.join(missing)}", file=sys.stderr)
         return 2
 
+    if s.step_cache and not args.no_cache:
+        from . import cache
+        cache.set_default(cache.DbCache(ttl_hours=s.step_cache_ttl_h or None))
     created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     last = {"pct": 0, "message": ""}
 
@@ -41,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[{data['pct']:3d}%] {data['message']}", file=sys.stderr, flush=True)
 
     try:
-        out = analyze(args.url, settings=s, emit=emit)
+        out = analyze(args.url, settings=s, emit=emit, refresh=args.refresh)
     except AnalysisError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

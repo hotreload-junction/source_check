@@ -34,48 +34,96 @@ def claims_json(*items):
     return json.dumps({"claims": [{"text": t, "attributions": a} for t, a in items]})
 
 
-def test_extracts_verbatim_claim_with_link_and_exact_offsets():
-    # the model drops the markdown, as it sees the plain view
-    text = "This is exactly what filmmaker Andrey Medvedev's film «Betrayal. Expendable Material» is about."
+def votes_returning(per_reading, seen=None):
+    """A router whose K readings answer differently: reading i returns per_reading[i] (a list of (id, attributions))."""
+    def handler(request):
+        body = json.loads(request.content)
+        user = body["messages"][1]["content"]
+        if seen is not None:
+            seen.append(user)
+        i = int(user.split("Reading ")[1].split(" of")[0]) - 1
+        claims = [{"id": cid, "attributions": attrs} for cid, attrs in per_reading[i % len(per_reading)]]
+        return httpx.Response(200, json={"model": "test-model", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"claims": claims})}}],
+                                         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "credits_charged": 0.01}})
+    return LLMClient("https://router.test/v1", "key", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+MD = ("# Headline of the article about the ministry\n\n"
+      "[X](https://x.com/share) [LinkedIn](https://linkedin.com/share) [Reddit](https://reddit.com/share)\n\n"
+      "The ministry said on Tuesday that the programme will cover 40 districts by 2027, [the report](https://gov.example/r) states. "
+      "Critics doubt that this is realistic given the budget.\n\n"
+      "Officials in the region confirmed that 12 schools were closed last week after the storm.\n\n"
+      "Many residents say they feel left alone by the authorities in these difficult weeks.\n\n"
+      "The prime minister told reporters on Friday that no further cuts are planned this year.")
+
+
+def unit_ids():
+    from app.pipeline.textutil import sentence_units
+    return {t[:20]: i for i, (_, _, t) in enumerate(sentence_units(MD))}, sentence_units(MD)
+
+
+def test_units_are_markdown_sentences_with_exact_offsets_and_share_rows_stay_separate():
+    ids, units = unit_ids()
+    assert [MD[a:b] == t or "](" in MD[a:b] for a, b, t in units] and all(MD[a:b].strip() for a, b, _ in units)
+    assert not any("LinkedIn" in t for _, _, t in units)        # a share-button row is no sentence (and is not glued to the lede)
+    lede = next(t for _, _, t in units if t.startswith("The ministry said"))
+    assert lede.startswith("The ministry said on Tuesday") and "Reddit" not in lede
+
+
+def test_majority_vote_selects_claims_in_document_order_with_exact_slices_and_links():
+    ids, units = unit_ids()
+    a, b, c, d = (ids["The ministry said on"], ids["Critics doubt that t"], ids["Officials in the reg"], ids["The prime minister t"])
+    # 5 readings: a x5, c x4, d x3 (majority), b x2 (minority)
+    readings = [[(a, ["the ministry"]), (c, []), (d, [])], [(a, ["the ministry"]), (c, []), (d, [])], [(a, []), (c, []), (b, [])],
+                [(a, ["the ministry"]), (b, []), (d, [])], [(a, ["the ministry"]), (c, [])]]
     seen = []
-    res = extract_claims(PRAVDA, PRAVDA_URL, llm=llm_returning(claims_json((text, ["Andrey Medvedev"])), seen=seen), settings=SETTINGS)
-    (c,) = res.claims
-    assert c.id == "c1" and PRAVDA[c.char_start:c.char_end] == c.text
-    assert "[«Betrayal. Expendable Material»](https://t.me/smotrim_ru/34791)" in c.text   # verbatim markdown slice
-    assert [(l.url, l.scope) for l in c.links] == [("https://t.me/smotrim_ru/34791", "sentence")]
-    assert c.attributions == ["Andrey Medvedev"]
-    assert res.credits == 0.01 and res.model == "test-model"
-    req = seen[0]
-    assert req["temperature"] == 0 and req["model"] == "test-model"
-    assert "https://t.me" not in req["messages"][1]["content"]       # LLM sees the plain view, not URLs
+    res = extract_claims(MD, "https://news.test/a", llm=votes_returning(readings, seen), settings=SETTINGS)
+    assert [x.text[:20] for x in res.claims] == ["The ministry said on", "Officials in the reg", "The prime minister t"]
+    assert [x.votes for x in res.claims] == [5, 4, 3] and res.n_votes == 5
+    for cl in res.claims:
+        assert MD[cl.char_start:cl.char_end] == cl.text and cl.locate_score == 100.0
+    first = res.claims[0]
+    assert "[the report](https://gov.example/r)" in first.text and [(l.url, l.scope) for l in first.links] == [("https://gov.example/r", "sentence")]
+    assert first.attributions == ["the ministry"]                         # the list most readings agree on
+    assert len(set(seen)) == 5 and all(u.startswith("Reading ") for u in seen)    # five DIFFERENT requests (router cache cannot merge them)
+    assert res.credits == pytest.approx(0.05) and res.model == "test-model"
 
 
-def test_paraphrased_claim_is_dropped_not_trusted():
-    res = extract_claims(PRAVDA, PRAVDA_URL, settings=SETTINGS, llm=llm_returning(claims_json(
-        ("A documentary was released that follows several saboteurs and their reasons.", []),
-        ("They created a chatbot posing as Ukrainian recruiters and identified everyone willing to carry out a «task».", []),
-    )))
-    assert len(res.claims) == 1 and len(res.dropped) == 1
-    assert res.claims[0].links and res.claims[0].links[0].url == "https://t.me/rybar/75718"
+def test_exactly_half_is_not_a_majority_and_the_cap_keeps_the_first_in_document_order():
+    ids, units = unit_ids()
+    everything = [(i, []) for i in range(len(units))]
+    s = Settings(_env_file=None, model_extract="m", max_claims=2, extract_votes=4)
+    res = extract_claims(MD, "", llm=votes_returning([everything, everything, [], []]), settings=s)     # 2 of 4 = half
+    assert res.claims == []
+    res = extract_claims(MD, "", llm=votes_returning([everything, everything, everything, []]), settings=s)
+    assert len(res.claims) == 2 and res.claims[0].char_start < res.claims[1].char_start              # capped, in order
 
 
-def test_max_claims_and_overlap_dedupe():
-    sents = ["A similar method was used in the US after 9/11 to find terrorists through front organizations.",
-             "They created a chatbot posing as Ukrainian recruiters and identified everyone willing to carry out a «task».",
-             "The film features a girl who directed a Ukrainian missile strike on a ferry in Crimea and on camera reasons that the dead captain «brought it on himself»."]
-    s = Settings(_env_file=None, model_extract="m", max_claims=2)
-    res = extract_claims(PRAVDA, PRAVDA_URL, settings=s, llm=llm_returning(claims_json(
-        (sents[0], []), (sents[0], []), (sents[1], []), (sents[2], []))))
-    assert [c.text[:20] for c in res.claims] == [sents[0][:20], sents[1][:20]]   # dup skipped, capped at 2
+def test_garbage_votes_are_ignored_and_failures_do_not_sink_the_extraction():
+    ids, units = unit_ids()
+    a = ids["The ministry said on"]
+    good = [(a, [])]
+    s = Settings(_env_file=None, model_extract="m", extract_votes=3)
+    calls = [0]
+
+    def handler(request):
+        calls[0] += 1
+        if calls[0] == 1:
+            return httpx.Response(500)                                                     # one reading fails outright
+        claims = [{"id": a, "attributions": []}, {"id": 999}, {"id": "x"}, "nonsense", {"id": -1}]
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"claims": claims})}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    res = extract_claims(MD, "", llm=llm, settings=s)
+    assert [c.text[:12] for c in res.claims] == ["The ministry"] and res.n_votes == 2          # 2 usable readings, both agree
 
 
-def test_bad_output_raises_llm_error():
-    with pytest.raises(LLMError):
-        extract_claims(PRAVDA, PRAVDA_URL, settings=SETTINGS, llm=llm_returning(json.dumps({"nope": 1})))
-    with pytest.raises(LLMError):
-        extract_claims(PRAVDA, PRAVDA_URL, settings=SETTINGS, llm=llm_returning("not json", 200))
-    with pytest.raises(LLMError):
-        extract_claims(PRAVDA, PRAVDA_URL, settings=SETTINGS, llm=llm_returning("x", 500))
+def test_no_usable_reading_raises_and_an_empty_article_is_not_an_error():
+    s = Settings(_env_file=None, model_extract="m", extract_votes=3)
+    for llm in (llm_returning(json.dumps({"nope": 1})), llm_returning("not json", 200), llm_returning("x", 500)):
+        with pytest.raises(LLMError):
+            extract_claims(MD, "", llm=llm, settings=s)
+    res = extract_claims("short", "", llm=llm_returning("x", 500), settings=s)
+    assert res.claims == []
 
 
 def test_unconfigured_router_fails_loudly():
@@ -262,3 +310,15 @@ def test_hedge_survives_one_failed_request_and_raises_when_both_fail():
         return httpx.Response(500)
     with pytest.raises(LLMError):
         _hedge_client(always_slow_500).chat_json("m", "s", "u")
+
+
+def test_attributions_need_a_strict_majority_per_name_and_are_order_stable():
+    ids, units = unit_ids()
+    a = ids["The ministry said on"]
+    readings = [[(a, ["the ministry", "Reuters"])], [(a, ["the ministry"])], [(a, ["the ministry", "Reuters"])], [(a, [])], [(a, ["the ministry"])]]
+    res = extract_claims(MD, "", llm=votes_returning(readings), settings=SETTINGS.model_copy(update={"extract_votes": 5}))
+    assert res.claims[0].attributions == ["the ministry"]                # 4/5 vs Reuters 2/5
+    # disagreement about whether the sentence names a source at all: no strict majority -> none
+    readings = [[(a, ["the ministry"])], [(a, [])], [(a, ["the ministry"])], [(a, [])]]
+    res = extract_claims(MD, "", llm=votes_returning(readings), settings=SETTINGS.model_copy(update={"extract_votes": 4}))
+    assert res.claims[0].attributions == []

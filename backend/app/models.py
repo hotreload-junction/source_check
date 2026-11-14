@@ -124,3 +124,15 @@ class DomainRecord(Base):
     analytics_ids: Mapped[list] = mapped_column(JSON, default=list)
     adsense_ids: Mapped[list] = mapped_column(JSON, default=list)
     checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class StepCacheRecord(Base):
+    """Persistent step cache (app/cache.py): LLM completions, fetched pages, Exa results. A finished article replays
+    from here byte for byte, independent of the AI router's own (short-lived) cache."""
+
+    __tablename__ = "step_cache"
+
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)        # sha256 hex of the request
+    value: Mapped[str] = mapped_column(Text().with_variant(Text(length=2**32 - 1), "mysql"))   # JSON text
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

@@ -69,7 +69,7 @@ def start_analysis(body: StartBody, request: Request) -> JSONResponse:
             active = jobs.find_active(norm)       # same article already being analysed: join it, do not start a twin
             if active:
                 return JSONResponse(status_code=202, content={"job_id": active, "status": "running", "cached": False})
-        job_id = jobs.submit(body.url.strip(), norm)
+        job_id = jobs.submit(body.url.strip(), norm, refresh=body.force)   # force = recompute every step, not a replay
     except Busy as exc:
         return JSONResponse(status_code=429, content={
             "error": "busy", "detail": f"{exc.running} analyses running, try again in a minute"})

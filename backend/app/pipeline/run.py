@@ -16,11 +16,13 @@ from datetime import datetime, timezone
 from typing import Callable
 from urllib.parse import urlsplit
 
+from .. import cache as cachemod
 from ..config import Settings, get_settings
 from ..fetch import Fetcher
 from ..fetch.urls import registrable_domain
 from ..llm import LLMClient, LLMError
 from ..signals import RdapClient, SourcePage, analyze_infrastructure
+from ..signals.rdap import RdapResult
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .extract import ExtractedClaim, extract_claims
@@ -39,6 +41,24 @@ class AnalysisOutput:
     result: dict
     assessments: list[ClaimAssessment]
     source_rows: list[dict] = field(default_factory=list)   # contract Source + the SourceAssessment behind it
+
+
+class _CachedRdap:
+    """RDAP lookups through the step cache: slow (rdap.org redirects to the registry, ~7 s measured) and a finished
+    analysis must replay with the SAME ages. Only answers that contain a registration date are stored."""
+
+    def __init__(self, inner, cache):
+        self.inner, self.cache = inner, cache
+
+    def lookup(self, domain: str) -> RdapResult:
+        key = cachemod.make_key("rdap", registrable_domain(domain))
+        hit = self.cache.get("rdap", key)
+        if hit is not None:
+            return RdapResult(**hit)
+        res = self.inner.lookup(domain)
+        if res.created_at is not None:
+            self.cache.put("rdap", key, {"domain": res.domain, "created_at": res.created_at, "age_days": res.age_days, "error": res.error})
+        return res
 
 
 def _host(url: str | None) -> str | None:
@@ -79,11 +99,14 @@ class _Registry:
 
 
 def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None = None, settings: Settings | None = None,
-            rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None) -> AnalysisOutput:
+            rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None,
+            refresh: bool = False) -> AnalysisOutput:
+    """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results."""
     s = settings or get_settings()
-    fetcher = fetcher or Fetcher.from_settings(s)
-    llm = llm or LLMClient.from_settings(s)
-    rdap = rdap if rdap is not None else RdapClient()
+    sc = cachemod.for_run(refresh)
+    fetcher = fetcher or Fetcher.from_settings(s, cache=sc)
+    llm = llm or LLMClient.from_settings(s, cache=sc)
+    rdap = _CachedRdap(rdap if rdap is not None else RdapClient(), sc)
     out = emit or (lambda event, data: None)
     t0 = time.monotonic()
 
@@ -136,7 +159,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         progress("verify_claims", f"Verified {done[0]} of {len(claims)} claims", 25 + int(55 * done[0] / max(len(claims), 1)))
 
     assessments = assess_claims(claims, url, fetcher=fetcher, llm=llm, settings=s, exa_client=exa_client,
-                                published_at=published, on_claim=finalize) if claims else []
+                                published_at=published, on_claim=finalize, step_cache=sc) if claims else []
 
     # 4. infrastructure --------------------------------------------------------------------------------------
     progress("infra_signals", "Looking at the infrastructure behind the sources", 85)

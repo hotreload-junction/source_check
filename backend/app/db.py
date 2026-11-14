@@ -1,6 +1,7 @@
 """Engine/session handling. `create_all` is idempotent, so it doubles as our migration for the hackathon."""
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .config import get_settings
 from .models import Base
 
+_init_lock = threading.RLock()     # init_db can be reached from several threads at once (first requests, job threads)
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
@@ -26,15 +28,19 @@ def make_engine(url: str) -> Engine:
 def init_db(url: str | None = None) -> Engine:
     """(Re)bind the global engine and create missing tables."""
     global _engine, _session_factory
-    _engine = make_engine(url or get_settings().database_url)
-    Base.metadata.create_all(_engine)
-    _session_factory = sessionmaker(_engine, expire_on_commit=False)
-    return _engine
+    with _init_lock:
+        engine = make_engine(url or get_settings().database_url)
+        Base.metadata.create_all(engine)
+        _engine = engine
+        _session_factory = sessionmaker(engine, expire_on_commit=False)
+        return engine
 
 
 def get_engine() -> Engine:
     if _engine is None:
-        init_db()
+        with _init_lock:
+            if _engine is None:
+                init_db()
     assert _engine is not None
     return _engine
 
@@ -42,7 +48,9 @@ def get_engine() -> Engine:
 @contextmanager
 def session_scope() -> Iterator[Session]:
     if _session_factory is None:
-        init_db()
+        with _init_lock:
+            if _session_factory is None:      # another thread may have finished the init while we waited
+                init_db()
     assert _session_factory is not None
     session = _session_factory()
     try:

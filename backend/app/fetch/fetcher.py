@@ -6,11 +6,13 @@ network problems; callers get a FetchResult.
 """
 from __future__ import annotations
 
+import base64
 import html as htmllib
 import logging
 import re
 import threading
 import time
+import zlib
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -18,10 +20,12 @@ from dataclasses import dataclass, field
 import httpx
 
 from .meta import parse_published
-from .urls import classify_url
+from .urls import InvalidURL, classify_url, normalize_url
 
 log = logging.getLogger("citetrace.fetch")
 
+# bump when the way we READ pages changes (text cleaning, extraction): old cached pages are then ignored
+FETCH_CACHE_VERSION = 2          # 2: invisible characters are stripped from page text
 CONTEXT_DEV_URL = "https://api.context.dev/v1/web/scrape"
 MAX_TEXT_CHARS = 200_000
 MIN_TEXT_CHARS = 200
@@ -30,6 +34,26 @@ PAYWALL_MARKERS = (
     "subscribe to read", "subscribe to continue", "subscription required", "sign in to read",
     "become a member to", "register to continue", "for subscribers only", "already a subscriber",
 )
+
+
+def _pack_html(html_text: str) -> str:
+    return base64.b64encode(zlib.compress(html_text.encode("utf-8"), 6)).decode("ascii")
+
+
+def _unpack_html(packed: str) -> str:
+    return zlib.decompress(base64.b64decode(packed)).decode("utf-8")
+
+
+def _result_to_cache(r: "FetchResult") -> dict:
+    d = {k: getattr(r, k) for k in ("url", "kind", "status", "via", "text", "title", "final_url", "subtype", "error", "published_at", "extra")}
+    d["html"] = _pack_html(r.html) if r.html else None
+    return d
+
+
+def _result_from_cache(d: dict) -> "FetchResult":
+    d = dict(d)
+    d["html"] = _unpack_html(d["html"]) if d.get("html") else None
+    return FetchResult(**d)
 
 
 class RateLimiter:
@@ -88,28 +112,61 @@ class FetchResult:
 class Fetcher:
     def __init__(self, *, context_dev_key: str = "", timeout: float = 20.0,
                  client: httpx.Client | None = None, retries: int = 2, backoff_s: float = 1.0,
-                 limiter: RateLimiter | None = None, article_wait_s: float = 45.0, source_timeout_s: float | None = None):
+                 limiter: RateLimiter | None = None, article_wait_s: float = 45.0, source_timeout_s: float | None = None,
+                 cache=None):
         self.key = context_dev_key
         self.timeout = timeout
         self.retries = retries
         self.backoff_s = backoff_s
         self.limiter = limiter or RateLimiter()
         self.article_wait_s = article_wait_s
+        self.cache = cache          # None = process-wide default step cache
         self.source_timeout_s = source_timeout_s or timeout
         self.client = client or httpx.Client(
             timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}
         )
 
     @classmethod
-    def from_settings(cls, settings=None) -> "Fetcher":
+    def from_settings(cls, settings=None, cache=None) -> "Fetcher":
         from ..config import get_settings
 
         s = settings or get_settings()
         return cls(context_dev_key=s.context_dev_api_key, timeout=s.fetch_timeout_s,
-                   limiter=RateLimiter(s.context_dev_rpm), source_timeout_s=s.source_timeout_s)
+                   limiter=RateLimiter(s.context_dev_rpm), source_timeout_s=s.source_timeout_s, cache=cache)
 
     # ------------------------------------------------------------------ public
+    # ----------------------------------------------------------------- step cache
+    def _cache(self):
+        from .. import cache as cachemod
+
+        return self.cache if self.cache is not None else cachemod.get_default()
+
+    @staticmethod
+    def _ckey(role: str, url: str) -> str:
+        from .. import cache as cachemod
+
+        try:
+            url = normalize_url(url)
+        except InvalidURL:
+            pass
+        return cachemod.make_key("fetch", FETCH_CACHE_VERSION, role, url)
+
+    def _cached_fetch(self, role: str, url: str, compute) -> FetchResult:
+        from .. import cache as cachemod
+
+        cache, key = self._cache(), self._ckey(role, url)
+        hit = cache.get("fetch", key)
+        if hit is not None:
+            return _result_from_cache(hit)
+        res = compute()
+        # successes are kept; failures only briefly (FAILURE_TTL_S) so a replay is identical but a later retry can win
+        cache.put("fetch", key, _result_to_cache(res), None if res.status == "ok" else cachemod.FAILURE_TTL_S)
+        return res
+
     def fetch_article(self, url: str) -> FetchResult:
+        return self._cached_fetch("article", url, lambda: self._fetch_article(url))
+
+    def _fetch_article(self, url: str) -> FetchResult:
         """The analysed article itself: always fetched, raw HTML kept for infra signals.
 
         Markdown (Context.dev) and the raw HTML GET are independent, so they run side by side; measured live,
@@ -125,6 +182,15 @@ class Fetcher:
         return res
 
     def fetch_source(self, url: str, article_url: str, *, with_html: bool = True) -> FetchResult:
+        kind = classify_url(url, article_url)
+        if kind in ("self", "social"):                       # never fetched: nothing to cache
+            return self._fetch_source(url, article_url, with_html=with_html)
+        res = self._cached_fetch("source", url, lambda: self._fetch_source(url, article_url, with_html=False))
+        if with_html and res.status == "ok" and res.html is None:
+            res.html = self.fetch_html(url)
+        return res
+
+    def _fetch_source(self, url: str, article_url: str, *, with_html: bool = True) -> FetchResult:
         """`with_html=False`: skip the raw-HTML GET (only infra signals need it; fetch it later with
         `fetch_html`, off the critical path of verification)."""
         kind = classify_url(url, article_url)
@@ -141,7 +207,18 @@ class Fetcher:
         return res
 
     def fetch_html(self, url: str) -> str | None:
-        return self._raw_html(url)
+        cache, key = self._cache(), self._ckey("html", url)
+        hit = cache.get("html", key)
+        if hit is not None:
+            return _unpack_html(hit) if hit else None
+        from .. import cache as cachemod
+
+        html_text = self._raw_html(url)
+        if html_text:
+            cache.put("html", key, _pack_html(html_text))
+        else:      # "no HTML" (blocked) is an answer too: replay it, retry after FAILURE_TTL_S
+            cache.put("html", key, "", cachemod.FAILURE_TTL_S)
+        return html_text
 
     # --------------------------------------------------------------- web pages
     def _fetch_web(self, url: str, kind: str, wait: float = 0.0, ctx_timeout: float | None = None,
@@ -328,9 +405,18 @@ def ends_cut_off(text: str) -> bool:
     return any(m in tail for m in CUTOFF_MARKERS)
 
 
+# Zero-width and byte-order characters some sites sprinkle into their text (DW: U+2060, U+200B). They are invisible but
+# make the same sentence differ between two fetches, which made the claim extraction pick different sentences.
+_INVISIBLE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
+
+
+def clean_text(text: str) -> str:
+    return _INVISIBLE.sub("", text.replace("\u00a0", " "))
+
+
 def _finish(url: str, kind: str, text: str, via: str, *, html: str | None, title: str | None,
             final_url: str | None) -> FetchResult:
-    text = (text or "").strip()
+    text = clean_text(text or "").strip()
     low = text.lower()
     if len(text) < MIN_TEXT_CHARS:
         status = "paywall" if any(p in low for p in PAYWALL_MARKERS) else "blocked"

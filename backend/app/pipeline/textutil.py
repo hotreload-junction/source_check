@@ -149,3 +149,37 @@ def attach_links(md: str, start: int, end: int, article_url: str = "") -> list[L
 
 def plain_anchor(text: str) -> str:
     return build_plain(text).text.strip()
+
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])[\"”’»)\]]*\s+(?=[\"“‘«(\[]?[A-ZА-ЯЁ0-9])")
+MIN_UNIT_CHARS = 30
+
+
+def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110) -> list[tuple[int, int, str]]:
+    """Sentences of the article as (md_start, md_end, plain_text), in document order.
+
+    Lines come from the MARKDOWN (a share-button row or a byline stays its own unit instead of being glued to the
+    lede), and the offsets are exact: the claim is a slice of the markdown, never fuzzy-located."""
+    units: list[tuple[int, int, str]] = []
+    total = 0
+    offset = 0
+    for line in md.split("\n"):
+        line_start = offset
+        offset += len(line) + 1
+        if not line.strip():
+            continue
+        view = build_plain(line)
+        if len(view.text) < MIN_UNIT_CHARS:
+            continue
+        pos = 0
+        for part in _SENTENCE_SPLIT.split(view.text):
+            i = view.text.find(part, pos)
+            pos = i + len(part)
+            if len(part) < MIN_UNIT_CHARS:
+                continue
+            a, b = to_markdown_span(line, view, i, i + len(part))
+            units.append((line_start + a, line_start + b, part))
+            total += len(part)
+            if total > max_chars or len(units) >= max_units:
+                return units
+    return units

@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import cache, db
 from app.config import get_settings
 
 
@@ -17,10 +17,12 @@ def _never_a_real_database(monkeypatch, tmp_path):
     monkeypatch.setenv("METRICS_PATH", str(tmp_path / "no-metrics.json"))
     get_settings.cache_clear()
     db._engine, db._session_factory = None, None
+    cache.set_default(cache.NullCache())       # a test opts in to caching explicitly
     yield
     if db._engine is not None:
         db._engine.dispose()
     db._engine, db._session_factory = None, None
+    cache.set_default(cache.NullCache())
     get_settings.cache_clear()
 
 

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v4"
+    prompt_version: str = "v5"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # Detection (start values from DECISIONS.md; tune only on eval data)
     fuzzy_threshold: float = 90.0
     max_claims: int = 6
+    # independent readings of the article for claim selection; a sentence needs a strict majority (see extract.py)
+    extract_votes: int = 5
     max_depth: int = 1
 
     # Also LLM-verify Exa candidates that do not look first-hand (other outlets). They can only ever corroborate
@@ -54,6 +56,10 @@ class Settings(BaseSettings):
     # Demo cache + methodology data (both must work with every external API down)
     demo_dir: str = ""          # default: backend/demo
     metrics_path: str = ""      # default: eval/results/metrics.json (repo root, or mounted at /app/eval/results)
+
+    # Step cache (app/cache.py): a finished article replays byte for byte. 0 = never expires.
+    step_cache: bool = True
+    step_cache_ttl_h: float = 0.0
 
     # Runtime
     max_concurrent_analyses: int = 2

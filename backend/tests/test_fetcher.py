@@ -327,3 +327,11 @@ def test_text_cut_off_at_a_continuation_marker_is_paywall_not_ok():
     assert r.status == "paywall" and "cut off" in r.error
     full = body.replace("Story Continues", "The outlook remains positive.")
     assert make(lambda req: httpx.Response(200, text=full, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART).status == "ok"
+
+
+def test_invisible_characters_are_removed_from_page_text():
+    from app.fetch.fetcher import clean_text
+    assert clean_text("Would \u2060Ukraine \u200bwithdraw\ufeff from\u00a0Donbas?\u00ad") == "Would Ukraine withdraw from Donbas?"
+    body = "<html><body><article><p>" + ("The ministry said \u2060on Tuesday that the programme will expand\u200b coverage to forty districts. " * 8) + "</p></article></body></html>"
+    r = make(lambda req: httpx.Response(200, text=body, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART)
+    assert r.status == "ok" and "\u2060" not in r.text and "\u200b" not in r.text and "said on Tuesday" in r.text
