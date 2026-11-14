@@ -36,6 +36,16 @@ export interface Focus {
   note: string;
 }
 
+export type SourceType = 'official' | 'press_release' | 'academic' | 'reference' | 'news' | 'blog' | 'social' | 'unknown';
+
+export interface RspEntry {
+  source: string;
+  statuses: ('generally_reliable' | 'no_consensus' | 'generally_unreliable' | 'deprecated')[];
+  blacklisted: boolean;
+  last_discussed: number | null;
+  snapshot: string;
+}
+
 export interface Source {
   id: string;
   url: string | null;
@@ -46,6 +56,8 @@ export interface Source {
   parent_source_id: string | null;
   fetch_status: 'ok' | 'unreachable' | 'paywall' | 'blocked' | 'not_fetched';
   fetched_via: 'context_dev' | 'trafilatura' | 'telegram' | null;
+  source_type?: SourceType | null; // PLAN Q1; absent in older results = null
+  source_type_reason?: string | null;
 }
 
 export interface Domain {
@@ -57,6 +69,10 @@ export interface Domain {
   cluster_id: string | null;
   is_article_domain: boolean;
   known_network?: string | null; // on a published influence-network list (e.g. VIGINUM Portal Kombat)
+  wikipedia_rsp?: RspEntry[];    // PLAN Q2 reputation badges; absent in older results = []
+  tranco_rank?: number | null;
+  first_archived_at?: string | null;
+  reputation_notes?: string[];
 }
 
 export interface GraphNode {
