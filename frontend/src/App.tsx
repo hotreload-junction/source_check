@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { api } from './api';
+import { Wordmark } from './Brand';
 import { Canvas, graphSize, type CanvasHandle, type Ctx } from './Canvas';
 import { Logo } from './Logo';
 import { Panel } from './Panel';
@@ -221,12 +222,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   const brand = (
     <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: compact ? 0 : 6, textDecoration: 'none', color: TH.ink, minHeight: compact ? 40 : undefined }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20 }}>
-        <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.35 }} />
-        <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.65, width: '80%' }} />
-        <div style={{ height: 4, background: TH.ink, borderRadius: 1, width: '60%' }} />
-      </div>
-      Source Trace
+      <Wordmark />
     </a>
   );
   const demoPills = demos.map((d) => (

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api } from './api';
+import { Wordmark } from './Brand';
 import { useCompact, useTouch } from './responsive';
 import { CL, MONO, TH } from './theme';
 import type { DemoCase } from './types';
@@ -86,7 +87,7 @@ export function Landing() {
       <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: compact ? 6 : 14, background: BAR }} />
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) 24px' : '28px 32px 36px 56px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
-          Source Trace
+          <Wordmark />
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 

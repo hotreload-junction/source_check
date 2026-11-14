@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from './api';
+import { Wordmark } from './Brand';
 import { hasRun, label, pct, total } from './evalstats';
 import { useCompact } from './responsive';
 import { CL, MONO, TH } from './theme';
@@ -65,7 +66,7 @@ export function Methodology() {
     <div style={{ minHeight: '100dvh', background: TH.bg, color: TH.ink, fontFamily: TH.font, backgroundImage: `radial-gradient(${TH.dot} ${TH.dr}px, transparent ${TH.dr}px)`, backgroundSize: `${TH.ds}px ${TH.ds}px` }}>
       <div style={{ maxWidth: 880, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left))' : '28px 20px 80px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <a href="#/" style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink }}>Source Trace</a>
+          <a href="#/" style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink }}><Wordmark /></a>
           <span style={{ color: TH.mut }}>/</span>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Methodology</span>
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
