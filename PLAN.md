@@ -61,9 +61,9 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 |---|---|---|---|---|
 | F1 | skeleton against `contracts/examples/*.json` mocks; pick stack, log it in DECISIONS.md | louis-fe | done | Vite+React+TS; `npm run dev` / `npm run dev:mock` |
 | F2 | input page: URL field + 3 demo buttons | louis-fe | done | UI done (top bar of the result view). Demo buttons call `GET /api/demo` (B9 pending, 404 today); full flow only in `dev:mock` until then |
-| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | doing | Source Trace design (DECISIONS Sat 13:45), own renderer instead of Cytoscape. Open: article-verdict bar on top (`bar.ts` started, not shipped), operator-cluster box (now only panel + orange flag), click claim in article text, test on real result data |
+| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | doing | Source Trace design (DECISIONS Sat 13:45), own renderer instead of Cytoscape. Done: operator-cluster dashed box ("same operator as the article · <shared ID>"), click claim in article text (root panel). Open: article-verdict bar on top (`bar.ts` helpers on dev, component not built), test on real result data (B8) |
 | F4 | live progress via SSE (fallback polling every 2 s), graph builds incrementally | louis-fe | doing | built, untested against real backend (B8 pending) |
-| F5 | methodology page: precision, recall, FPR, confusion matrix, error cases, thresholds | louis-fe | todo | **never cut** |
+| F5 | methodology page: precision, recall, FPR, confusion matrix, error cases, thresholds | louis-fe | doing | **never cut.** `Methodology.tsx` built on `GET /api/methodology` (mock in `dev:mock`), empty state until E4 produces `metrics.json`. Open: route `#/methodology` + nav link (main.tsx/Landing, parallel session), real numbers from E4/B9 |
 
 ### Deploy
 | id | task | owner | status | notes |

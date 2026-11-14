@@ -2,10 +2,11 @@
 // Demo buttons load cached results; any other URL replays the Pravda example as a live SSE run.
 import demo from '../../contracts/examples/demo.json';
 import pravda from '../../contracts/examples/analysis_done.json';
+import methodology from '../../contracts/examples/methodology.json';
 import blog from './mocks/blog.json';
 import wire from './mocks/wire.json';
 import type { Api } from './api';
-import type { Analysis, DemoCase } from './types';
+import type { Analysis, DemoCase, Methodology } from './types';
 
 const JOBS: Record<string, Analysis> = {
   'example-job-1': pravda as unknown as Analysis,
@@ -23,6 +24,7 @@ export const mockApi: Api = {
     return wait(d ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
   },
   get: (id) => wait(JOBS[id] ?? JOBS['example-job-1']),
+  methodology: () => wait(methodology as Methodology),
   events(_id, h) {
     const a = JOBS['example-job-1'];
     const r = a.result!;

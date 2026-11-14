@@ -1,6 +1,6 @@
 // API client for contracts/api.md. `npm run dev:mock` swaps in mockApi (no backend).
 import { mockApi } from './mock';
-import type { Analysis, Claim, DemoCase, GraphEdge, GraphNode, Progress, StartResponse } from './types';
+import type { Analysis, Claim, DemoCase, GraphEdge, GraphNode, Methodology, Progress, StartResponse } from './types';
 
 export interface Handlers {
   progress: (p: Progress) => void;
@@ -16,6 +16,7 @@ export interface Api {
   demo(): Promise<DemoCase[]>;
   start(url: string): Promise<StartResponse>;
   get(jobId: string): Promise<Analysis>;
+  methodology(): Promise<Methodology>;
   events(jobId: string, h: Handlers): () => void; // returns close()
 }
 
@@ -36,6 +37,7 @@ const realApi: Api = {
   start: (url) =>
     fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, force: false }) }).then((r) => json<StartResponse>(r)),
   get: (id) => fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r)),
+  methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {
     let finished = false;
     let poll: ReturnType<typeof setInterval> | null = null;

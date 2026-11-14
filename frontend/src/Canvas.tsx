@@ -275,6 +275,23 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     };
   });
 
+  // Operator clusters (docs/graph-view.md): sources whose domains share an analytics/AdSense ID sit in a dashed box.
+  const domOf = (n: TNode) => ctx.view.domains.find((d) => d.domain === n.source?.domain);
+  const clusterIds = [...new Set(tree.nodes.map((n) => domOf(n)?.cluster_id).filter((k): k is string => !!k))];
+  const boxes = clusterIds.flatMap((k) => {
+    const ns = tree.nodes.filter((n) => domOf(n)?.cluster_id === k && ctx.vis(n) && inF(n));
+    if (!ns.length) return [];
+    const members = ctx.view.domains.filter((d) => d.cluster_id === k);
+    const counts = new Map<string, number>();
+    members.forEach((d) => [...d.analytics_ids, ...d.adsense_ids].forEach((i) => counts.set(i, (counts.get(i) ?? 0) + 1)));
+    const shared = [...counts].filter(([, c]) => c > 1).map(([i]) => i);
+    const P = 18;
+    const x0 = Math.min(...ns.map((n) => pos(n)[0] - wd(n) / 2)) - P, x1 = Math.max(...ns.map((n) => pos(n)[0] + wd(n) / 2)) + P;
+    const y0 = Math.min(...ns.map((n) => pos(n)[1] - hh(n))) - P, y1 = Math.max(...ns.map((n) => pos(n)[1] + hh(n))) + P;
+    const text = `same operator${members.some((d) => d.is_article_domain) ? ' as the article' : ''}${shared.length ? ' · ' + shared.join(', ') : ''}`;
+    return [{ k, x0, y0, w: x1 - x0, h: y1 - y0, text }];
+  });
+
   return (
     <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
       <div
@@ -289,6 +306,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
         }}
       >
         <div ref={cEl} style={{ position: 'absolute', left: 0, top: 0, width: gw, height: gh, transform: `translate(${tx.current}px,${ty.current}px) scale(${zoom})`, transformOrigin: '0 0', willChange: 'transform' }}>
+          {boxes.map((b) => (
+            <div key={b.k} style={{ position: 'absolute', left: f1(b.x0) + 'px', top: f1(b.y0) + 'px', width: b.w, height: b.h, border: `2px dashed ${CL.o}`, borderRadius: TH.rad + 8, background: CL.o + '12', pointerEvents: 'none', zIndex: 1 }}>
+              <span style={{ position: 'absolute', left: 14, bottom: -11, padding: '1px 9px', borderRadius: 99, background: TH.bg, border: `1.5px solid ${CL.o}`, fontFamily: MONO, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{b.text}</span>
+            </div>
+          ))}
           <svg width={gw} height={gh} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>{edges.map((x) => x.path)}</svg>
           {edges.filter((x) => !x.cm).map(({ e, c, cl, sh, open, up, mx, lx }) => (
             <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: 'translate(-50%,-50%)', opacity: sh ? 1 : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : 2 }}>

@@ -100,3 +100,17 @@ export interface Analysis {
 export interface DemoCase { key: string; label: string; url: string; job_id: string; expected_verdict: ArticleVerdict }
 
 export interface StartResponse { job_id: string; status: Analysis['status']; cached: boolean }
+
+export interface Confusion { tp: number; fp: number; fn: number; tn: number }
+
+export interface Methodology {
+  generated_at: string;
+  verify_model: string;
+  prompt_version: string;
+  pairs: { n: number; n_cross_language: number; precision: number; recall: number; confusion: Confusion };
+  articles: { n_network: number; n_wire: number; fpr_wire: number; tpr_network: number; confusion: Confusion };
+  thresholds: Record<string, number>;
+  tuned_on: string;
+  measured_on: string;
+  error_cases: { kind: 'fp' | 'fn'; url_or_pair_id: string; expected: string; got: string; note: string }[];
+}
