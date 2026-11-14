@@ -162,24 +162,29 @@ error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
 
 ## Attributed claims without a link ("X said ...", "in a May interview with Fox Business, he ...")
 
-The article gives no URL, so the backend searches for the statement (plan -> Exa search -> verify) and hangs what it
-finds below the named person. Additive, no new fields; the shapes are the ones above:
+The article gives no URL, so the backend searches for the statement (plan -> Exa search -> verify). The named person or
+outlet is only the **attribution**, not a source: the page the search found IS the claim's source (depth 1), and what that
+page cites follows as depth 2 (`MAX_DEPTH=2`, same as for linked sources). Additive, no new fields:
 
 ```
-claim  --cites-->  Source{kind:"named", depth:1, url:null, domain:null, attribution_text:"Jensen Huang"}     # the stub: the person
-                     \--cites-->  Source{kind:"named", depth:2, parent_source_id:<stub id>, url:"https://www.foxbusiness.com/...", fetch_status:"ok"}
-claim.source_ids = [stub id, found page id ...]        # up to MAX_EVIDENCE_LINKS found pages
-claim.evidence.source_id = the FOUND page id           # the page that carries the verbatim quote (fuzzy_score checked)
-edges: claim -> stub, claim -> found page, stub -> found page   (all `cites`)
+claim  --cites-->  Source{kind:"named", depth:1, url:"https://www.foxbusiness.com/...", attribution_text:"Jensen Huang", fetch_status:"ok"}
+                     \--cites-->  Source{depth:2, parent_source_id:<found page id>, ...}   # what that page cites (M1)
+claim.source_ids = [found page id ...]                 # up to MAX_EVIDENCE_LINKS found pages
+claim.evidence.source_id = the found page id           # the page that carries the verbatim quote (fuzzy_score checked)
+edges: claim -> found page (`cites`), found page -> its own sources (`cites`, depth 2)
 ```
+Nothing found: ONE stub Source `{kind:"named", depth:1, url:null, domain:null, attribution_text:"Jensen Huang"}` says
+who the article attributes it to (no page, `not_checkable`). Several claims about the same person share the stub.
+
 - Found and verified as the original (the venue's own page, transcript, official site): `verdict: "supported"`.
-- Only an independent report of the quote (not the original): the page is linked below the person, but the verdict stays
+- Only an independent report of the quote (not the original): the page is the claim's source, but the verdict stays
   `not_checkable` with the explanation "Independent reporting confirms the quote, but the original ... could not be found."
   (`CORROBORATION_COUNTS=true` makes such a claim `supported`).
 - Nothing found: only the stub; `verdict: "not_checkable"`, explanation starts with "Quote could not be verified".
 - A found page that does not contain the quote is not linked and never counts against the article.
-- Depth-2 `named` rows are NOT cited by the article: they are excluded from the infrastructure signal (no domain node,
-  no `hosted_on` edge) and from M1's depth-2 expansion. Several claims about the same person share one stub.
+- Found pages (`kind:"named"` with a `url`) and everything below them are NOT cited by the article: they are excluded from
+  the infrastructure, known-network and citation-circle signals (no domain node, no `hosted_on` edge). They are shown in
+  the graph; their depth-2 sources are followed by M1 like any other.
 
 ## Self-citation chain ("source of the source") and sources found for unsourced claims
 

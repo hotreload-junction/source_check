@@ -25,14 +25,13 @@
         "char_start": 19,
         "char_end": 132,
         "source_ids": [
-          "s1",
-          "s2"
+          "s1"
         ],
         "found_source_ids": [],
         "verdict": "supported",
         "subtype": null,
         "evidence": {
-          "source_id": "s2",
+          "source_id": "s1",
           "quote_original": "cutting the country off from technology would speed up its push for independence",
           "quote_translation": null,
           "language": "en",
@@ -46,7 +45,7 @@
         "char_start": 0,
         "char_end": 0,
         "source_ids": [
-          "s3"
+          "s2"
         ],
         "found_source_ids": [],
         "verdict": "not_checkable",
@@ -58,28 +57,17 @@
     "sources": [
       {
         "id": "s1",
-        "url": null,
-        "domain": null,
-        "kind": "named",
-        "attribution_text": "The CEO",
-        "depth": 1,
-        "parent_source_id": null,
-        "fetch_status": "not_fetched",
-        "fetched_via": null
-      },
-      {
-        "id": "s2",
         "url": "https://www.examplebusiness.com/interview/ceo-warns",
         "domain": "examplebusiness.com",
         "kind": "named",
         "attribution_text": "The CEO",
-        "depth": 2,
-        "parent_source_id": "s1",
+        "depth": 1,
+        "parent_source_id": null,
         "fetch_status": "ok",
         "fetched_via": "context_dev"
       },
       {
-        "id": "s3",
+        "id": "s2",
         "url": null,
         "domain": null,
         "kind": "named",
@@ -131,21 +119,13 @@
         {
           "id": "s1",
           "type": "source",
-          "label": "The CEO",
+          "label": "examplebusiness.com",
           "verdict": null,
           "cluster_id": null,
           "depth": 1
         },
         {
           "id": "s2",
-          "type": "source",
-          "label": "examplebusiness.com",
-          "verdict": null,
-          "cluster_id": null,
-          "depth": 2
-        },
-        {
-          "id": "s3",
           "type": "source",
           "label": "Anonymous officials",
           "verdict": null,
@@ -181,21 +161,9 @@
           "type": "cites"
         },
         {
-          "id": "e-c1-s2",
-          "source": "c1",
-          "target": "s2",
-          "type": "cites"
-        },
-        {
-          "id": "e-s1-s2",
-          "source": "s1",
-          "target": "s2",
-          "type": "cites"
-        },
-        {
-          "id": "e-c2-s3",
+          "id": "e-c2-s2",
           "source": "c2",
-          "target": "s3",
+          "target": "s2",
           "type": "cites"
         },
         {

@@ -190,20 +190,20 @@ def run(settings=SETTINGS, **router_kw):
                    settings=settings, rdap=tr.FakeRdap({}), exa_client=exa_router([]))
 
 
-def test_the_may_interview_is_found_verified_and_hung_below_the_named_person():
+def test_the_may_interview_is_found_verified_and_is_the_claims_source_not_the_person():
     verify_seen = []
     out = run(found_type="secondary", verify_seen=verify_seen)        # the model calls Fox's own report "secondary": the venue wins
     r = out.result
     (claim,) = r["claims"]
     assert claim["verdict"] == "supported" and claim["evidence"]["quote_original"].startswith("cutting Beijing off")
-    stub = next(s for s in r["sources"] if s["url"] is None)
-    found = next(s for s in r["sources"] if s["url"] == FOX)
-    assert (stub["kind"], stub["depth"], stub["attribution_text"]) == ("named", 1, "Jensen Huang")       # resolved from the paragraph by the plan
-    assert (found["kind"], found["depth"], found["parent_source_id"], found["domain"]) == ("named", 2, stub["id"], "foxbusiness.com")
-    assert claim["source_ids"][0] == stub["id"] and found["id"] in claim["source_ids"]
+    assert all(x["url"] and x["depth"] == 1 and x["parent_source_id"] is None for x in r["sources"])   # the person is only the attribution: no stub node
+    found = next(x for x in r["sources"] if x["url"] == FOX)
+    assert (found["kind"], found["domain"]) == ("named", "foxbusiness.com")
+    assert found["attribution_text"] == "Jensen Huang"                  # resolved from the paragraph by the plan
+    assert found["id"] in claim["source_ids"] and set(claim["source_ids"]) == {x["id"] for x in r["sources"]}
     assert claim["evidence"]["source_id"] == found["id"]
     edges = {(e["source"], e["target"], e["type"]) for e in r["graph"]["edges"]}
-    assert ("c1", stub["id"], "cites") in edges and ("c1", found["id"], "cites") in edges and (stub["id"], found["id"], "cites") in edges
+    assert ("c1", found["id"], "cites") in edges and not any(e[2] == "cites" and e[0].startswith("s") for e in edges)   # no stub -> page edge
     assert not any(e["source"] == found["id"] and e["type"] == "hosted_on" for e in r["graph"]["edges"])     # found pages are no cited source
     assert "foxbusiness.com" not in {d["domain"] for d in r["domains"]}                                       # ... and not in the infrastructure analysis
     assert all(e["source"] in {n["id"] for n in r["graph"]["nodes"]} and e["target"] in {n["id"] for n in r["graph"]["nodes"]} for e in r["graph"]["edges"])
@@ -212,7 +212,7 @@ def test_the_may_interview_is_found_verified_and_hung_below_the_named_person():
                and "ARTICLE DATE: 2026-11-13" in u for u in verify_seen)
 
 
-def test_independent_report_of_the_quote_is_linked_but_stays_neutral_unless_switched_on():
+def test_independent_report_of_the_quote_is_a_source_but_stays_neutral_unless_switched_on():
     only_copy = Settings(**{**SETTINGS.model_dump(), "max_evidence_candidates": 5})
     pages_router = pipeline_router(found_type="secondary")
     # drop the venue page from the search results: only another outlet with the exact quote remains
@@ -226,7 +226,7 @@ def test_independent_report_of_the_quote_is_linked_but_stays_neutral_unless_swit
     (claim,) = out.result["claims"]
     assert claim["verdict"] == "not_checkable" and claim["evidence"] is None and "Independent reporting confirms the quote" in claim["explanation"]
     linked = [s for s in out.result["sources"] if s["url"] == QUOTE_COPY]
-    assert linked and linked[0]["depth"] == 2 and linked[0]["id"] in claim["source_ids"]            # shown below the person anyway
+    assert linked and linked[0]["depth"] == 1 and linked[0]["id"] in claim["source_ids"]            # shown as the claim's source anyway
     counting = Settings(**{**SETTINGS.model_dump(), "corroboration_counts": True})
     out = analyze("https://news.example/a", fetcher=tr.FakeFetcher(article_result(), pages), llm=pipeline_router(found_type="secondary"), settings=counting,
                   rdap=tr.FakeRdap({}), exa_client=exa_without_fox())
@@ -313,4 +313,31 @@ def test_a_syndicated_copy_is_not_linked_as_independent_reporting():
                   rdap=tr.FakeRdap({}), exa_client=exa_copy())
     (claim,) = out.result["claims"]
     assert claim["verdict"] == "not_checkable" and "copy or syndication of the article itself" in claim["explanation"]
-    assert [s["depth"] for s in out.result["sources"]] == [1]                  # no link below the person
+    assert [s["depth"] for s in out.result["sources"]] == [1]                  # only the unresolved person, no found page
+
+
+def test_what_a_found_page_cites_is_depth_2_but_never_feeds_the_signals():
+    """claim -> found page (depth 1) -> what that page cites (depth 2). The article cites neither, so a link back to the
+    article's own site (a would-be citation circle) and the cited domain's infrastructure stay out of the signals."""
+    linked = FOX_PAGE.replace("independence.", "independence, [a report](https://backlink.example/report) "
+                              "and [our earlier piece](https://news.example/earlier) say.", 1)
+    pages = {u: FetchResult(u, "link", "ok", via="context_dev", text=FOX_PAGE, html="<html></html>") for u in (QUOTE_COPY, CNBC)}
+    pages |= {FOX: FetchResult(FOX, "link", "ok", via="context_dev", text=linked, html="<html></html>"),
+             "https://backlink.example/report": FetchResult("https://backlink.example/report", "link", "ok", via="context_dev",
+                                                            text="x" * 300, html="<html><script>ga('G-FOUND0001')</script></html>")}
+    settings = Settings(**{**SETTINGS.model_dump(), "max_depth": 2})
+    out = analyze("https://news.example/a", fetcher=tr.FakeFetcher(article_result(), pages), llm=pipeline_router(found_type="secondary"),
+                  settings=settings, rdap=tr.FakeRdap({}), exa_client=exa_router([]))
+    r = out.result
+    by_url = {s["url"]: s for s in r["sources"]}
+    found, child, back = by_url[FOX], by_url["https://backlink.example/report"], by_url["https://news.example/earlier"]
+    assert (found["depth"], found["parent_source_id"]) == (1, None)
+    assert (child["depth"], child["parent_source_id"]) == (2, found["id"])
+    assert (back["depth"], back["kind"], back["parent_source_id"]) == (2, "self", found["id"])     # the candidate circle IS in the graph ...
+    assert r["audit"]["depth"] == 2 and r["signals"]["circle"]["fired"] is False                  # ... but it is not a circle of the article
+    assert not any(e["type"] == "cites_back" for e in r["graph"]["edges"])
+    assert {d["domain"] for d in r["domains"]} == {"news.example"}                               # no domain node for either page
+    assert not any(e["type"] == "hosted_on" and e["source"] in (found["id"], child["id"]) for e in r["graph"]["edges"])
+    assert r["signals"]["infrastructure"]["fired"] is False
+    ids = [e["id"] for e in r["graph"]["edges"]]
+    assert len(ids) == len(set(ids))                                                              # claim, parent and M1 edges never double up

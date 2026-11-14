@@ -171,7 +171,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     rdap_pool.shutdown(wait=True)
     # Pages the search FOUND for an attributed claim are not sources the article cites: their infrastructure must not
     # feed the infrastructure signal (a shared ID between two search results would be a coincidence, not a finding).
-    pages = [SourcePage(domain=r["domain"], html=r.get("_html")) for r in reg.rows if r["domain"] and not _is_found_evidence(r)]
+    searched = _search_ids(reg.rows)
+    pages = [SourcePage(domain=r["domain"], html=r.get("_html")) for r in reg.rows if r["domain"] and r["id"] not in searched]
     for r in reg.rows:
         r.pop("_html", None)
     infra = analyze_infrastructure(article_host, art.html, pages, rdap.lookup)
@@ -185,10 +186,14 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
                             article_domain=article_domain, emit=out)
         depth = 2
-        if d2.rows:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
-            infra = analyze_infrastructure(article_host, art.html, pages + d2.pages, rdap.lookup)
+        # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
+        searched = _search_ids(reg.rows, d2.citations)
+        signal_pages = [p for r, p in zip(d2.rows, d2.pages) if r["id"] not in searched]
+        signal_cites = [c for c in d2.citations if c.parent_id not in searched]
+        if signal_pages:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
+            infra = analyze_infrastructure(article_host, art.html, pages + signal_pages, rdap.lookup)
         d2_edges = d2.edges
-        circles = find_circles(d2.citations, article_domain, article_cluster_domains(infra.domains, article_domain))
+        circles = find_circles(signal_cites, article_domain, article_cluster_domains(infra.domains, article_domain))
         back = {c.closing_edge for c in circles}      # one closing edge per cited source, however many paths reach it
         d2_edges += [{"id": f"e-{src}-back", "source": src, "target": dst, "type": "cites_back"} for src, dst in sorted(back)]
     domain_cluster = {d["domain"]: d["cluster_id"] for d in infra.domains}
@@ -196,13 +201,13 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     # 5. verdict ---------------------------------------------------------------------------------------------
     progress("verdict", "Deciding", 95)
     # documented networks (published lists) for the article and every source the article (or a source) cites
-    net_reasons = _network_reasons(art.final_url or url, url, reg.rows, infra.domains)
+    net_reasons = _network_reasons(art.final_url or url, url, reg.rows, infra.domains, searched)
     channel_ids, linked = channel_sourced_claims(claim_dicts, reg.rows)
     decision = decide([ClaimInput(c["id"], c["verdict"]) for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
                       circle_path(circles), network_reasons=net_reasons,
                       declared_reposts=[d.line for d in declared_reposts(text_md)],
                       channel_claim_ids=channel_ids, linked_claims=linked)
-    nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges)
+    nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges, searched)
     for n in nodes:
         if n["type"] in ("domain", "source"):
             out("node", n)
@@ -226,7 +231,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     return AnalysisOutput(result, assessments, reg.rows)
 
 
-def _network_reasons(article_final_url: str, article_url: str, rows: list[dict], domains: list[dict]) -> list[str]:
+def _network_reasons(article_final_url: str, article_url: str, rows: list[dict], domains: list[dict],
+                     searched: set[str] = frozenset()) -> list[str]:
     """Plain-English reasons for hosts on a published network list; sets `known_network` on the matching Domain[].
     Pages a SEARCH found for an attributed claim are not the article's citations and are skipped."""
     hits: list[tuple[str, NetworkMatch]] = []
@@ -235,7 +241,7 @@ def _network_reasons(article_final_url: str, article_url: str, rows: list[dict],
         hits.append(("the article", art))
     seen = {art.host} if art else set()
     for r in rows:
-        if not r.get("url") or _is_found_evidence(r) or r.get("kind") == "self":   # own-site links say nothing new
+        if not r.get("url") or r["id"] in searched or r.get("kind") == "self":   # own-site links say nothing new
             continue
         m = match_network(r["url"])
         if m and m.host not in seen:
@@ -253,17 +259,21 @@ def _network_reasons(article_final_url: str, article_url: str, rows: list[dict],
     return reasons
 
 
-def _is_found_evidence(row: dict) -> bool:
-    """A page the SEARCH found for a claim (attributed: depth 2 below the named person; unsourced: next to the claim).
-    The article does not cite it, so it is no part of the infrastructure analysis and M1 does not follow it."""
-    return row["kind"] == "named" and bool(row["url"])
+def _search_ids(rows: list[dict], citations=()) -> set[str]:
+    """Ids of the pages the SEARCH found for an attributed claim (kind named WITH a url; the unresolved person stub has
+    none) and of the pages below them. The article cites neither, so they never feed the infrastructure, network or
+    circle signals. A page below one is only kept in the signals when a source the article does cite leads there too."""
+    found = {r["id"] for r in rows if r["kind"] == "named" and r["url"]}
+    cited_elsewhere = {c.child_id for c in citations if c.parent_id not in found}
+    return found | {r["id"] for r in rows if r.get("parent_source_id") in found and r["id"] not in cited_elsewhere}
 
 
 def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 2) -> dict:
     """Contract `Claim`; registers the sources this claim cites (and emits their graph pieces).
 
-    Attributed claim ("Person X said ..." without a link):  claim -> stub Source (the named person, depth 1, no URL)
-    -> the pages the search found for it (depth 2, parent = the stub). `claim.source_ids` lists both, and
+    Attributed claim ("Person X said ..." without a link): the person is only the attribution, not a source. The
+    pages the search found for the statement ARE the claim's sources (depth 1, `attribution_text` = who said it); what
+    those pages cite follows as depth 2 (M1). Nothing found: one stub Source (the named person, no URL) says so.
     `evidence.source_id` points at the found page that carries the quote, so the UI shows the verdict on that link."""
     c = a.claim
     source_ids: list[str] = []
@@ -300,14 +310,15 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
             cite(sa, None, "named", into=found_ids)
     elif c.attributions:
         who = (a.plan.speaker if a.plan and a.plan.speaker else c.attributions[0]).strip()
-        # one node per attributed party: three claims "according to X" cite the same X, not three sources
-        stub = cite(SourceAssessment(None, "named", who, None, None, "not_checkable"), who, "named", stub_key=f"stub:{who.lower()}")
         found = [sa for sa in a.sources if sa.verdict == "supported" or sa.corroborated]
         found.sort(key=lambda sa: (sa.verdict != "supported", not sa.venue_hosted, -(sa.verify.fuzzy_score or 0) if sa.verify else 0))
         for sa in found[:max_links]:
-            row = cite(sa, None, "named", depth=2, parent=stub)
+            row = cite(sa, who, "named")
             if a.best is not None and sa.url == a.best.url:
                 evidence_row = row
+        if not found:
+            # one node per attributed party: three claims "according to X" cite the same X, not three sources
+            cite(SourceAssessment(None, "named", who, None, None, "not_checkable"), who, "named", stub_key=f"stub:{who.lower()}")
 
     ev = a.evidence
     evidence = None
@@ -321,7 +332,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
 
 
 def _graph(title: str, article_domain: str, claims: list[dict], sources: list[dict], infra, domain_cluster: dict,
-           depth2_edges: list[dict] = ()) -> tuple[list, list]:
+           depth2_edges: list[dict] = (), searched: set[str] = frozenset()) -> tuple[list, list]:
     nodes = [{"id": "a", "type": "article", "label": title, "verdict": None,
               "cluster_id": domain_cluster.get(article_domain), "depth": 0}]
     edges: list[dict] = []
@@ -333,16 +344,16 @@ def _graph(title: str, article_domain: str, claims: list[dict], sources: list[di
     for sr in sources:
         nodes.append({"id": sr["id"], "type": "source", "label": sr["domain"] or sr["attribution_text"] or "unknown",
                       "verdict": None, "cluster_id": domain_cluster.get(sr["domain"]), "depth": sr["depth"]})
-        if sr["domain"] and not _is_found_evidence(sr):
+        if sr["domain"] and sr["id"] not in searched:     # search-found pages have no domain node (not cited by the article)
             edges.append({"id": f"e-{sr['id']}-host", "source": sr["id"], "target": f"d:{sr['domain']}", "type": "hosted_on"})
-        if sr["parent_source_id"]:                                  # stub -> found page, self-cited page -> its source
+        if sr["parent_source_id"]:                                  # page -> the sources it cites (depth 2: found page, self-cited page)
             edges.append({"id": f"e-{sr['parent_source_id']}-{sr['id']}", "source": sr["parent_source_id"], "target": sr["id"], "type": "cites"})
     for c in claims:                                                # claim -> pages found for it (unsourced claims)
         for sid in c.get("found_source_ids", []):
             edges.append({"id": f"e-{c['id']}-{sid}", "source": c["id"], "target": sid, "type": "cites"})
     first_depth: dict[str, int] = {}      # a domain is as deep as the shallowest source hosted on it
     for sr in sources:
-        if sr["domain"] and not _is_found_evidence(sr):
+        if sr["domain"] and sr["id"] not in searched:
             first_depth[sr["domain"]] = min(first_depth.get(sr["domain"], 2), sr["depth"])
     for d in infra.domains:
         nodes.append({"id": f"d:{d['domain']}", "type": "domain", "label": d["domain"], "verdict": None,
