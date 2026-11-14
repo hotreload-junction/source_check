@@ -181,10 +181,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
 
   const nodes = tree.nodes.map((n) => {
     const [x, y] = pos(n);
-    const vs = ctx.vis(n), sh = vs && inF(n), cl = ctx.cld(n);
+    const vs = ctx.vis(n), sh = vs, fd = !inF(n), cl = ctx.cld(n);
     const root = n.kind === 'root', cm = n.kind === 'claim', stub = n.kind === 'nosrc', src = n.kind === 'source';
     const c = !cl ? CL.p : root ? ctx.articleColor : cm ? CLAIM_V[ctx.claimVerdict(n)].c : sourceColor(ctx, n);
-    const load = !root && vs && !cl;
+    const load = !root && !cm && vs && !cl;
     const isSel = sel === n.id || (stub && sel === n.fc);
     let badge = '…';
     if (cl) {
@@ -207,13 +207,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
         onClick={() => pick(n)}
         style={{
           position: 'absolute', left: f1(x) + 'px', top: f1(y) + 'px', width: wd(n), height: hh(n) * 2, boxSizing: 'border-box',
-          transform: `translate(-50%,-50%) scale(${vs ? 1 : 0.85})`, opacity: sh ? 1 : 0, pointerEvents: sh && cl ? 'auto' : 'none',
+          transform: `translate(-50%,-50%) scale(${vs ? 1 : 0.85})`, opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none',
           cursor: 'pointer', background: root ? TH.ink : TH.card, color: root ? TH.bg : TH.ink,
-          border: `${TH.bw}px ${load || stub ? 'dashed' : 'solid'} ${c}`, borderRadius: TH.rad,
+          border: `${TH.bw}px ${load || stub || (cm && !cl) ? 'dashed' : 'solid'} ${c}`, borderRadius: TH.rad,
           padding: col ? '16px 12px 12px' : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
           display: 'flex', flexDirection: col ? 'column' : 'row', gap: col ? 8 : 12, alignItems: 'center', textAlign: col ? 'center' : 'left',
           boxShadow: isSel ? `0 0 0 4px ${c}66, 0 6px 18px #0002` : TH.sh,
-          transition: 'opacity .5s, transform .5s, border-color .4s, box-shadow .2s', zIndex: 3,
+          transition: 'opacity .5s, transform .5s, border-color .4s, box-shadow .2s, scale .15s', zIndex: 3,
         }}
       >
         {!load ? (
@@ -247,7 +247,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
   const edges = tree.edges.map((e) => {
     const a = pos(e.from), b = pos(e.to);
     const vs = ctx.vis(e.from) && ctx.vis(e.to);
-    const sh = vs && inF(e.to) && inF(e.from) && (!focus || !e.extra || e.from.id === focus || e.from.fcs.has(focus));
+    const sh = vs, fd = !(inF(e.to) && inF(e.from) && (!focus || !e.extra || e.from.id === focus || e.from.fcs.has(focus)));
     const cl = ctx.cld(e.to) && (e.type !== 'cites' || ctx.view.done);
     const cm = e.type === 'claim';
     const c = cm || !cl ? CL.p : edgeColor(ctx, e);
@@ -258,7 +258,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const w = cm ? 3 : e.type === 'back' ? 6 : e.evidence ? 8 : 3;
     const dashed = e.type === 'nosrc' || (e.extra && e.type !== 'back');
     return {
-      e, c, cm, cl, sh, mx, open: dd === e.id, up: mx > gh * 0.55, lx: (a[0] + b[0]) / 2,
+      e, c, cm, cl, sh, fd, mx, open: dd === e.id, up: mx > gh * 0.55, lx: (a[0] + b[0]) / 2,
       path: (
         <path
           key={e.id}
@@ -267,7 +267,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
           style={{
             fill: 'none', stroke: c, strokeWidth: w, strokeLinejoin: 'round', strokeLinecap: dashed ? 'round' : undefined,
             strokeDasharray: dashed ? '0.015 0.03' : 1, strokeDashoffset: dashed || vs ? 0 : 1,
-            strokeOpacity: sh ? (cl ? 0.85 : 0.5) : 0, animation: cl || cm ? 'none' : 'stPulse 1.2s ease-in-out infinite',
+            strokeOpacity: sh ? (cl ? 0.85 : 0.5) * (fd ? 0.5 : 1) : 0, animation: cl || cm ? 'none' : 'stPulse 1.2s ease-in-out infinite',
             transition: 'stroke-dashoffset .9s ease, stroke .4s, stroke-width .4s, stroke-opacity .5s',
           }}
         />
@@ -312,8 +312,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
             </div>
           ))}
           <svg width={gw} height={gh} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>{edges.map((x) => x.path)}</svg>
-          {edges.filter((x) => !x.cm).map(({ e, c, cl, sh, open, up, mx, lx }) => (
-            <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: 'translate(-50%,-50%)', opacity: sh ? 1 : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : 2 }}>
+          {edges.filter((x) => !x.cm).map(({ e, c, cl, sh, fd, open, up, mx, lx }) => (
+            <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: 'translate(-50%,-50%)', opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : 2 }}>
               <div
                 onClick={(ev) => { stop(ev); setDd(open ? null : e.id); }}
                 title={e.evidence && e.claim?.evidence ? `Quote match ${Math.round(e.claim.evidence.fuzzy_score)}` : ''}
@@ -321,7 +321,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: cl ? TH.card : skg, backgroundSize: '400px 100%',
                   animation: cl ? 'none' : 'stShimmer 1.3s linear infinite', minWidth: cl ? 0 : 46, border: `2px solid ${c}`, borderRadius: 99,
                   padding: '1px 7px 1px 9px', fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: cl ? TH.ink : 'transparent', whiteSpace: 'nowrap',
-                  transition: 'border-color .4s', boxShadow: open ? `0 0 0 3px ${c}55` : 'none',
+                  transition: 'border-color .4s, scale .15s', boxShadow: open ? `0 0 0 3px ${c}55` : 'none',
                 }}
               >
                 {cl ? edgeLabel(ctx, e) : '…'}

@@ -16,7 +16,7 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
   return next;
 };
 
-export default function App() {
+export default function App({ initial }: { initial: { url?: string; demo?: string } }) {
   const [demos, setDemos] = useState<DemoCase[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [url, setUrl] = useState('');
@@ -116,9 +116,15 @@ export default function App() {
 
   useEffect(() => {
     api.demo().then(
-      (ds) => { setDemos(ds); if (ds[0]) pickDemo(ds[0]); },
-      (e) => setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`),
+      (ds) => {
+        setDemos(ds);
+        if (initial.url) return;
+        const d = ds.find((x) => x.key === initial.demo) ?? ds[0];
+        if (d) pickDemo(d);
+      },
+      (e) => { if (!initial.url) setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`); },
     );
+    if (initial.url) { setInput(initial.url); startUrl(initial.url, false); }
     return () => closeEvents.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -191,14 +197,14 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: TH.bg, color: TH.ink, fontFamily: TH.font, fontSize: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap', flex: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: 6 }}>
+        <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: 6, textDecoration: 'none', color: TH.ink }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20 }}>
             <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.35 }} />
             <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.65, width: '80%' }} />
             <div style={{ height: 4, background: TH.ink, borderRadius: 1, width: '60%' }} />
           </div>
           Source Trace
-        </div>
+        </a>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {demos.map((d) => (
             <div key={d.key} onClick={() => pickDemo(d)} style={{ cursor: 'pointer', padding: '6px 13px', borderRadius: 99, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: active === d.key ? TH.ink : 'transparent', color: active === d.key ? TH.bg : TH.ink }}>{d.label}</div>
