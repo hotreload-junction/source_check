@@ -171,3 +171,18 @@ def test_article_body_filter_keeps_the_article_and_drops_the_sidebar():
 def test_article_body_filter_without_usable_html_is_no_filter():
     assert article_body_filter(None) is None
     assert article_body_filter("<html><body><p>Hi.</p></body></html>") is None
+
+
+def test_article_body_filter_falls_back_to_the_default_extraction_when_precision_loses_the_article(monkeypatch):
+    """workinfinland.com: precision mode kept 795 of 5,274 characters (the first block of a page made of component
+    sections), so every sentence below it was 'not the article'. Pages where both modes agree are unchanged."""
+    import trafilatura
+    first = "Finland is a stable, safe, and progressive country with strong social welfare programs, and we emphasize work-life balance for everyone. " * 2
+    later = "Even in urban areas, green space is never far away, and Helsinki is recognized as one of Europe's greenest cities by many rankings."
+    rest = " ".join(f"Another sentence number {i} about green space and clean air in Finland today." for i in range(12))
+    modes = {True: first, None: first + later + " " + rest}
+    monkeypatch.setattr(trafilatura, "extract", lambda html, **kw: modes[kw.get("favor_precision")])
+    keep = article_body_filter("<html>x</html>")
+    assert keep(later) and keep(first.strip())
+    modes[None] = first                                    # both modes agree: nothing changes, the later sentence is not the article
+    assert not article_body_filter("<html>x</html>")(later)

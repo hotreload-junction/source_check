@@ -355,6 +355,8 @@ def looks_like_copy(article_md: str, page_md: str, claim_text: str) -> bool:
 # ---- article body (DECISIONS: extraction scope) --------------------------------------------------------------------
 BODY_MATCH = 90.0          # partial_ratio of a sentence against the extracted main text
 MIN_BODY_CHARS = 150       # less than this is a failed extraction, not a short article: no filter then
+PRECISION_MIN_SHARE = 0.3  # precision extraction shorter than this share of the default one = it lost the article: use the default
+                           # (AP, Pravda, ACX: both identical; workinfinland.com: 0.15; calibrated on that one page, not on eval/)
 
 
 def _ws(s: str) -> str:
@@ -374,8 +376,13 @@ def article_body_filter(html: str | None) -> Callable[[str], bool] | None:
     try:
         import trafilatura
         body = trafilatura.extract(html, include_comments=False, include_tables=False, favor_precision=True) or ""
+        # Precision mode can keep only the first block of a page built from component sections (workinfinland.com: 795
+        # of 5,274 characters, so 5 of 56 sentences were "the article"). Then the default extraction is the main text.
+        wide = trafilatura.extract(html, include_comments=False, include_tables=False) or ""
     except Exception:      # a parser failure must never stop an analysis
         return None
+    if len(body) < PRECISION_MIN_SHARE * len(wide):
+        body = wide
     body = _ws(body)
     if len(body) < MIN_BODY_CHARS:
         return None
