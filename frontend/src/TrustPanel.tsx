@@ -18,16 +18,12 @@ const IconWarn = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
 );
 
-/** One cell: the whole column carries a light tint, the argument's strength deepens it. Icon + side label sit at the start of the cell. */
-function Td({ c, cell, icon, label }: { c: string; cell: Cell; icon: JSX.Element; label: string }) {
+/** One cell: the whole column carries a light tint, the argument's strength deepens it. Side labels and icons sit once in the table header. */
+function Td({ c, cell }: { c: string; cell: Cell }) {
   return (
     <td style={{ verticalAlign: 'top', padding: '10px 12px', background: c + hex(0.07 + cell.strength * 0.33), borderTop: `1px solid ${TH.line}`, borderLeft: `1px solid ${TH.line}`, fontSize: 12.5, lineHeight: 1.45 }}>
       {cell.items.length ? (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: c }}>
-            <span style={{ width: 18, height: 18, borderRadius: 6, background: c, color: '#fff', display: 'inline-grid', placeItems: 'center', flex: 'none' }}>{icon}</span>
-            {label}
-          </div>
           {cell.items.map((t) => <div key={t} style={{ overflowWrap: 'anywhere', marginTop: 4 }}>{t}</div>)}
           <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: c }}>{WORD(cell.strength)}</div>
         </>
@@ -79,6 +75,23 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
               <col style={{ width: '35%' }} />
               <col style={{ width: '35%' }} />
             </colgroup>
+            <thead>
+              <tr>
+                <th style={{ background: TH.card }} />
+                <th style={{ textAlign: 'left', padding: '10px 12px', background: CL.g + hex(0.07), borderLeft: `1px solid ${TH.line}`, fontSize: 11.5, fontWeight: 700, color: CL.g }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: 6, background: CL.g, color: '#fff', display: 'inline-grid', placeItems: 'center', flex: 'none' }}><IconOk /></span>
+                    Objectivity
+                  </span>
+                </th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', background: CL.r + hex(0.07), borderLeft: `1px solid ${TH.line}`, fontSize: 11.5, fontWeight: 700, color: CL.r }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: 6, background: CL.r, color: '#fff', display: 'inline-grid', placeItems: 'center', flex: 'none' }}><IconWarn /></span>
+                    Propaganda
+                  </span>
+                </th>
+              </tr>
+            </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.key}>
@@ -86,8 +99,8 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
                     <div style={{ fontWeight: 700 }}>{r.label}</div>
                     <div style={{ marginTop: 3, fontSize: 11, fontWeight: 400, color: TH.mut }}>{r.basis}</div>
                   </th>
-                  <Td c={CL.g} cell={r.pro} icon={<IconOk />} label="Objectivity" />
-                  <Td c={CL.r} cell={r.con} icon={<IconWarn />} label="Propaganda" />
+                  <Td c={CL.g} cell={r.pro} />
+                  <Td c={CL.r} cell={r.con} />
                 </tr>
               ))}
             </tbody>
