@@ -78,6 +78,38 @@ describe('criteria', () => {
     expect(r.pro.items).toEqual([]);
   });
 
+  it('variety: only sources under a SUPPORTED claim count as breadth (contradicted / distorted / not_mentioned add nothing)', () => {
+    const src = ['a', 'b', 'c', 'd', 'e'].map((x, i) => source(x, { source_type: i % 2 ? 'official' : 'news' }));
+    const bad = setup(src, { verdicts: ['contradicted', 'distorted', 'not_mentioned', 'contradicted', 'distorted'] }).row('variety');
+    expect(bad.pro.items).toEqual([]);
+    expect(bad.pro.strength).toBe(0);
+    expect(bad.basis).toContain('0 independent operators');
+    const mixed = setup(src, { verdicts: ['supported', 'contradicted', 'supported', 'contradicted', 'not_checkable'] }).row('variety');
+    expect(mixed.pro.items[0]).toContain('2 independent operators');      // a and c only
+    const good = setup(src, {}).row('variety');
+    expect(good.pro.items[0]).toContain('5 independent operators');
+  });
+
+  it('variety: pages the search found (kind named / found_source_ids) are not breadth, even under a supported claim', () => {
+    const a = source('a', { source_type: 'news' });
+    const named = source('b', { source_type: 'official', kind: 'named' });
+    const found = source('c', { source_type: 'academic' });
+    const c1: Claim = { ...claim('c0', ['a']), }, c2: Claim = { ...claim('c1', ['b']) }, c3: Claim = { ...claim('c2', []), found_source_ids: ['c'] };
+    const v: View = { articleId: 'a', article: { title: 't', url: 'u', domain: 'article.example', text: '', published_at: null },
+      claims: [c1, c2, c3], sources: [a, named, found], domains: [], edges: [{ id: 'e', source: 'c2', target: 'c', type: 'cites' }], signals: calm,
+      verdict: { label: 'well_sourced', summary: '' }, audit: null, focus: null, done: true };
+    const r = criteria(v, buildTree(v, new Map())).find((x) => x.key === 'variety')!;
+    expect(r.pro.items).toEqual([]);                  // only `a` is a cited, supporting source: one operator is no breadth
+  });
+
+  it('variety: a domain with a bad AND a good source counts through the good one', () => {
+    const bad = source('x1', { domain: 'x.example', source_type: 'news' });
+    const good = source('x2', { domain: 'x.example', source_type: 'news' });
+    const other = source('y', { source_type: 'official' });
+    const r = setup([bad, good, other], { verdicts: ['contradicted', 'supported', 'supported'] }).row('variety');
+    expect(r.pro.items[0]).toContain('2 independent operators');
+  });
+
   it('variety: sources of the article\'s own operator are not independent', () => {
     const r = setup([source('a', { source_type: 'news' }), source('b', { source_type: 'official' })], {
       domains: [domain('article.example', { is_article_domain: true, cluster_id: 'k1' }), domain('a.example', { cluster_id: 'k1' })],

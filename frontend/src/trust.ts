@@ -3,7 +3,7 @@
 // the table restates backend facts per criterion. Cell strength (0..1) only sets the colour intensity.
 
 import { markerPos } from './bar';
-import type { Tree, View } from './tree';
+import type { TNode, Tree, View } from './tree';
 import type { ClaimVerdict, Domain, RspEntry, Source, SourceType } from './types';
 
 export interface Cell { items: string[]; strength: number } // strength 0 = no argument, 1 = strong argument
@@ -81,11 +81,18 @@ export function criteria(v: View, t: Tree): Row[] {
     if (!byDomain.has(n.source!.domain!)) byDomain.set(n.source!.domain!, n.source!);
   });
   const origins = [...byDomain.values()];
+  // Variety is an argument FOR objectivity only where a source actually backs a claim: a source that contradicts, distorts or
+  // does not contain what the article says it says is no evidence of breadth. Pages the SEARCH found (kind 'named',
+  // found_source_ids; the article does not cite them) never count either. Every leaf is looked at, not only the first per domain.
+  const found = new Set(v.claims.flatMap((c) => c.found_source_ids ?? []));
+  const backs = (n: TNode) => n.source!.kind !== 'named' && !found.has(n.source!.id) && [...n.fcs].some((id) => t.by[id]?.claim?.verdict === 'supported');
+  const backing = t.nodes.filter((n) => n.kind === 'source' && !n.kids.length && n.source?.domain && n.source.kind !== 'self' && backs(n)).map((n) => n.source!);
   const own = (s: Source) => {
     const d = dom.get(s.domain!);
     return s.domain === v.article.domain || !!d?.is_article_domain || (!!artD?.cluster_id && d?.cluster_id === artD.cluster_id);
   };
   const external = origins.filter((s) => !own(s));
+  const externalBacking = backing.filter((s) => !own(s));
   const rspOf = (s: Source) => rspVerdict(dom.get(s.domain!)?.wikipedia_rsp ?? []);
   const doms = (l: Source[]) => names(l.map((s) => s.domain!));
 
@@ -134,17 +141,27 @@ export function criteria(v: View, t: Tree): Row[] {
     con: cell(fCon, checkable.length ? (checkable.length - sup.length) / checkable.length : 0),
   };
 
-  // 3. variety: independent operators (shared analytics/AdSense ID = one operator) and source types
-  const operators = new Set(external.map((s) => dom.get(s.domain!)?.cluster_id ?? s.domain!));
-  const types = new Set(external.map(typeOf).filter((x) => x !== 'unknown'));
-  const opC = Math.min(1, Math.max(0, (operators.size - 1) / 3));
-  const tyC = types.size ? Math.min(1, (types.size - 1) / 2) : null;
-  const div = external.length ? (tyC == null ? opC : (opC + tyC) / 2) : 0;
+  // 3. variety: independent operators (shared analytics/AdSense ID = one operator) and source types.
+  // Narrowness (con) looks at all external origin sources and is unchanged, so not_checkable stays neutral; breadth (pro) only counts
+  // sources that back a claim.
+  const operatorsOf = (l: Source[]) => new Set(l.map((s) => dom.get(s.domain!)?.cluster_id ?? s.domain!));
+  const diversity = (l: Source[]) => {
+    const ops = operatorsOf(l);
+    const ty = new Set(l.map(typeOf).filter((x) => x !== 'unknown'));
+    const opC = Math.min(1, Math.max(0, (ops.size - 1) / 3));
+    const tyC = ty.size ? Math.min(1, (ty.size - 1) / 2) : null;
+    return { ops, ty, div: l.length ? (tyC == null ? opC : (opC + tyC) / 2) : 0 };
+  };
+  const all = diversity(external);
+  const bk = diversity(externalBacking);
+  const operators = all.ops;
+  const types = all.ty;
+  const div = all.div;
   const ownN = origins.length - external.length;
   const vPro: string[] = [];
   const vCon: string[] = [];
-  if (operators.size >= 2) vPro.push(`${operators.size} independent operators stand behind the sources.`);
-  if (types.size >= 2) vPro.push(`The sources are of ${types.size} different types (${[...types].map((x) => TYPE_WORD[x]).join(', ')}).`);
+  if (bk.ops.size >= 2) vPro.push(`${bk.ops.size} independent operators stand behind sources that back a claim.`);
+  if (bk.ty.size >= 2) vPro.push(`The sources that back a claim are of ${bk.ty.size} different types (${[...bk.ty].map((x) => TYPE_WORD[x]).join(', ')}).`);
   if (ownN) vCon.push(`${plural(ownN, 'origin source')} belong${ownN === 1 ? 's' : ''} to the article's own operator.`);
   if (external.length > 1 && operators.size === 1) vCon.push('All other origin sources share one operator.');
   else if (external.length === 1) vCon.push('The claims rest on a single independent origin source.');
@@ -152,8 +169,8 @@ export function criteria(v: View, t: Tree): Row[] {
   if (external.length > 1 && types.size === 1) vCon.push(`All sources are of one type (${TYPE_WORD[[...types][0]]}).`);
   const variety: Row = {
     key: 'variety', label: 'Variety of the sources',
-    basis: origins.length ? `${plural(operators.size, 'independent operator')}, ${plural(types.size, 'source type')} among ${plural(origins.length, 'origin source')}` : 'No origin source found',
-    pro: cell(vPro, div),
+    basis: origins.length ? `${plural(bk.ops.size, 'independent operator')}, ${plural(bk.ty.size, 'source type')} among the sources that back a claim (${plural(origins.length, 'origin source')} in total)` : 'No origin source found',
+    pro: cell(vPro, bk.div),
     con: cell(vCon, Math.max(1 - div, origins.length ? ownN / origins.length : 0)),
   };
 
