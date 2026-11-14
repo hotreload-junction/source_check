@@ -33,15 +33,15 @@ WINDOW_PAD_DAYS = 14            # around a named month / date
 _DOMAIN_RE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 _GENERIC_SLD = ("gov", "com", "co", "org", "net", "edu", "ac", "mil")
 
-PLAN_PROMPT = """A news article attributes a claim to a person or organisation and gives no link. Plan how to find the ORIGINAL statement.
+PLAN_PROMPT = """A news article makes a claim and gives no link. It may attribute the claim to a person or organisation (then plan how to find the ORIGINAL statement); if ATTRIBUTED TO says "none", the article names no source at all (then plan how to find a reliable source that supports or refutes the claim: agency or government data, reports, filings, official statements, independent reporting).
 
 You get the CLAIM, its PARAGRAPH (the occasion is often named there, e.g. "In a May interview with Fox Business") and the ARTICLE DATE. Answer with JSON only:
 {"speaker": "...", "venue": "...", "medium": "interview|speech|statement|report|testimony|post|other", "date_from": "YYYY-MM-DD or null", "date_to": "YYYY-MM-DD or null", "domains": ["..."], "queries": ["..."], "phrases": ["..."]}
 
-- "speaker": who said or published it, by name (resolve "he" / "the founder" from the paragraph).
+- "speaker": who said or published it, by name (resolve "he" / "the founder" from the paragraph); null when no source is named.
 - "venue": the outlet, programme, institution or event the article names for it (e.g. "Fox Business", "UN Security Council"); null if none is named.
 - "date_from"/"date_to": the period the statement was made, as absolute dates computed from the ARTICLE DATE ("a May interview" in an article of November 2026 -> 2026-05-01 to 2026-05-31; "on Tuesday", "last week" likewise); null if the article does not say when.
-- "domains": up to 3 website domains where the original would be published: the venue's own site and the speaker's official site. Only domains you are confident exist.
+- "domains": up to 3 website domains where the original would be published: the venue's own site, the speaker's official site, or (no source named) the official statistics / agency / ministry site for the topic. Only domains you are confident exist.
 - "queries": up to 3 plain keyword searches (4 to 9 words, no quotation marks) that would find the original: speaker + venue + month/year + topic. Different angles, not rewordings.
 - "phrases": up to 2 VERBATIM fragments of 2 to 5 words copied from words the article QUOTES as the speaker's own; [] if nothing is quoted."""
 
@@ -77,6 +77,7 @@ class Candidate:
     hit: NamedSourceHit
     venue_hosted: bool = False      # page is on the venue's own site (the interview outlet's own report / video page)
     phrase_hit: bool = False        # Exa found it through the exact quoted words
+    agent_kind: str | None = None   # the Exa Agent returned it ("original" | "corroborating" = ITS label, not trusted)
     order: int = 0
 
     @property
@@ -85,7 +86,7 @@ class Candidate:
         irrelevant pages of the speaker's own site used to push the one outlet that quotes the sentence out of the
         verified slots); being on the venue's site is what makes such a page the original, so it comes first among them."""
         return (-int(self.phrase_hit and self.venue_hosted), -int(self.phrase_hit), -int(self.venue_hosted),
-                -self.hit.primary_hint, self.order)
+                -int(self.agent_kind == "original"), -int(self.agent_kind is not None), -self.hit.primary_hint, self.order)
 
 
 def _clean_domain(d: object) -> str | None:
@@ -167,16 +168,16 @@ def parse_plan(data: dict, context: str) -> SearchPlan:
                       domains[:3], queries[:3], phrases[:2])
 
 
-def plan_search(attribution: str, claim_text: str, context: str, article_date: datetime | None, *, llm, model: str) -> SearchPlan:
+def plan_search(attribution: str | None, claim_text: str, context: str, article_date: datetime | None, *, llm, model: str) -> SearchPlan:
     """One cheap-model call per attributed claim (cached by the step cache). Never raises: on any failure the plan is
     just the old behaviour, a query built from the speaker and the claim."""
     claim_plain = build_plain(claim_text).text
     para_plain = build_plain(context).text if context else ""
-    fallback = SearchPlan(speaker=attribution, queries=[f"{attribution} {claim_plain}"[:140]])
+    fallback = SearchPlan(speaker=attribution or None, queries=[f"{attribution or ''} {claim_plain}".strip()[:140]])
     when = article_date.date().isoformat() if article_date else "unknown"
     try:
         res = llm.chat_json(model, PLAN_PROMPT,
-                            f"ARTICLE DATE: {when}\nATTRIBUTED TO: {attribution}\nCLAIM: {claim_plain[:400]}\nPARAGRAPH: {para_plain[:1500]}",
+                            f"ARTICLE DATE: {when}\nATTRIBUTED TO: {attribution or 'none'}\nCLAIM: {claim_plain[:400]}\nPARAGRAPH: {para_plain[:1500]}",
                             max_tokens=1200)
     except LLMError as exc:
         log.info("search plan failed: %s", exc)
@@ -184,7 +185,7 @@ def plan_search(attribution: str, claim_text: str, context: str, article_date: d
     plan = parse_plan(res.data, f"{claim_plain} {para_plain}")
     if not plan.queries:
         plan.queries = fallback.queries
-    plan.speaker = plan.speaker or attribution
+    plan.speaker = plan.speaker or (attribution or None)
     return plan
 
 
@@ -274,3 +275,20 @@ def gather_candidates(plan: SearchPlan, claim_text: str, article_url: str, artic
             keep.append(c)
     keep.sort(key=lambda c: c.score)
     return keep[:limit]
+
+
+def merge_agent_hits(cands: list[Candidate], hits, plan: SearchPlan, speaker: str | None, limit: int) -> list[Candidate]:
+    """Add the Exa Agent's URLs to our own candidates (same page found by both: one candidate, both flags) and keep the
+    best `limit`. The agent's URLs verify far more often than ours (64% vs 14-27% measured), so they rank right behind
+    exact-quote and venue pages; verification of every one of them is the same."""
+    by_url = {c.hit.url: c for c in cands}
+    order = max((c.order for c in cands), default=-1) + 1
+    for h in hits:
+        c = by_url.get(h.url)
+        if c is None:
+            c = by_url[h.url] = Candidate(NamedSourceHit(h.url, None, None, speaker or "", 0),
+                                          venue_hosted=is_venue_domain(h.url, plan), order=order)
+            order += 1
+        c.agent_kind = c.agent_kind or h.kind
+    merged = sorted(by_url.values(), key=lambda c: c.score)
+    return merged[:limit]

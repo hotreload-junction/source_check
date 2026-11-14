@@ -77,6 +77,7 @@ id: "c1"
 text: str                     # as it appears in the article (verbatim span)
 char_start, char_end: int|null  # [start, end) into article.text_markdown, in Unicode code points (see below)
 source_ids: str[]             # empty -> verdict "unsourced"
+found_source_ids: str[]       # additive: unsourced claim only; pages the search found (kind "named", url set). Never counts as a citation; verdict stays "unsourced"
 verdict: ClaimVerdict
 subtype: "self_citation" | "social_media" | null
 evidence: {
@@ -179,3 +180,17 @@ edges: claim -> stub, claim -> found page, stub -> found page   (all `cites`)
 - A found page that does not contain the quote is not linked and never counts against the article.
 - Depth-2 `named` rows are NOT cited by the article: they are excluded from the infrastructure signal (no domain node,
   no `hosted_on` edge) and from M1's depth-2 expansion. Several claims about the same person share one stub.
+
+## Self-citation chain ("source of the source") and sources found for unsourced claims
+
+Additive, shapes as above.
+- A link to the article's OWN site stays `kind:"self"`, depth 1, `not_checkable` / `self_citation` (never evidence). The
+  backend now reads that page and follows the links in the passage the claim rests on (external only, no homepage, no
+  second own-site hop, max `MAX_CHAIN_SOURCES`): `Source{kind:"link", depth:2, parent_source_id:<self row id>}`, edge
+  `self row -> chain row` (`cites`). The chain source can CONFIRM the claim (`supported`, explanation "The article cites its own
+  earlier piece (domain), which cites domain: ..."); it never counts against the article (same policy as a loosely attached link).
+- Unsourced claim (`source_ids: []`): the backend still searches (Exa search + Exa Agent). Pages that support it are listed in
+  the NEW `Claim.found_source_ids` (rows `kind:"named"`, depth 1, `url` set, not cited by the article: no infrastructure
+  signal, no M1 expansion); edges `claim -> found page` (`cites`). The verdict stays `unsourced` (that describes how the ARTICLE
+  sources the claim) and `evidence` stays null; the explanation names the found page and its quote. Pages that do not support the
+  claim are dropped. `found_source_ids` is `[]` for every other claim.

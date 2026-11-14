@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v6"
+    prompt_version: str = "v7"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     llm_hedge_after_s: float = 12.0
 
     # Wall-clock budget for verifying ALL claims of one article; claims still running then become not_checkable
-    claim_deadline_s: float = 90.0
+    claim_deadline_s: float = 120.0
 
     # Detection (start values from DECISIONS.md; tune only on eval data)
     fuzzy_threshold: float = 90.0
@@ -60,6 +60,23 @@ class Settings(BaseSettings):
     # Step cache (app/cache.py): a finished article replays byte for byte. 0 = never expires.
     step_cache: bool = True
     step_cache_ttl_h: float = 0.0
+
+    # Exa Agent (POST /agent/runs): an extra, high-precision discovery source for claims without a link. A new paid API:
+    # ~0.025 USD per run at effort "low" (measured: 83% of claims got a verified supporting page, 64% of its URLs verified).
+    exa_agent: bool = True
+    exa_agent_effort: str = "low"          # minimal | low | medium | high ...
+    exa_agent_timeout_s: float = 80.0      # a run still going after this long is dropped (neutral), never waited for
+    exa_agent_concurrency: int = 8         # runs in flight per process (Exa allows 50)
+    # Claims the article leaves WITHOUT any source: still look for a page that supports them (verdict stays `unsourced`:
+    # that describes the ARTICLE's sourcing; the found page is shown next to the claim)
+    search_unsourced: bool = True
+    # The article cites another article of ITS OWN site: read that page and follow what IT cites ("source of the source")
+    follow_self_citations: bool = True
+    max_self_citation_links: int = 2       # per claim
+    max_chain_sources: int = 2             # depth-2 pages followed per self-cited page
+    # Claim selection prefers sentences that name a source; this many slots stay open for unsourced ones, so a heavily
+    # unsourced article cannot hide behind its few sourced sentences
+    min_unsourced_claims: int = 2
 
     # Attributed claims ("X said ...", no link): the evidence search (pipeline/evidence.py)
     max_evidence_candidates: int = 5

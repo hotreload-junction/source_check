@@ -206,6 +206,13 @@ class Fetcher:
             res.html = self._raw_html(url)  # full HTML for infra signals (B5); None if blocked -> neutral
         return res
 
+    def fetch_linked_page(self, url: str) -> FetchResult:
+        """A page of the article's OWN site that the article links (a self-citation). `fetch_source` never reads those (a
+        self-citation is no independent evidence), but the chain can be followed one step: what does THAT page cite?"""
+        res = self._cached_fetch("source", url, lambda: self._fetch_web(url, kind="link", ctx_timeout=self.source_timeout_s, retries=0))
+        res.kind, res.subtype = "self", "self_citation"
+        return res
+
     def fetch_html(self, url: str) -> str | None:
         cache, key = self._cache(), self._ckey("html", url)
         hit = cache.get("html", key)

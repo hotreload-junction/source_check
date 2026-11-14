@@ -67,3 +67,10 @@ def test_sentence_bounds_do_not_split_on_url_dots():
     (s, e), _ = span("A second sentence without a link follows here.")
     s0, s1 = sentence_bounds(MD, s, e)
     assert MD[s0:s1] == "A second sentence without a link follows here."
+
+
+def test_dw_topic_pages_are_navigation_not_citations():
+    from app.pipeline.textutil import is_navigation_link
+    art = "https://www.dw.com/en/some-story-about-things/a-79947535"
+    assert is_navigation_link("https://www.dw.com/en/nato/t-19016346", art)
+    assert not is_navigation_link("https://www.dw.com/en/what-have-the-talks-achieved-for-ukraine/a-79930613", art)

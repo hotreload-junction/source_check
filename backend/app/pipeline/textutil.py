@@ -173,6 +173,8 @@ def is_navigation_link(url: str, article_url: str) -> bool:
     segs = [p for p in parts.path.split("/") if p]
     if not segs:
         return True                       # the homepage
+    if re.fullmatch(r"t-\d+", segs[-1]):
+        return True                       # DW-style topic page (`/en/nato/t-19016346`): the digits are a topic id
     if len(segs) > 3 or _DIGIT.search(parts.path) or "." in segs[-1]:
         return False
     return len(re.split(r"[-_]+", segs[-1])) < 4

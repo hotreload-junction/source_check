@@ -254,8 +254,9 @@ def _network_reasons(article_final_url: str, article_url: str, rows: list[dict],
 
 
 def _is_found_evidence(row: dict) -> bool:
-    """Depth-2 page that the SEARCH found for an attributed claim (not cited by the article, not followed by M1)."""
-    return row["kind"] == "named" and row["depth"] == 2
+    """A page the SEARCH found for a claim (attributed: depth 2 below the named person; unsourced: next to the claim).
+    The article does not cite it, so it is no part of the infrastructure analysis and M1 does not follow it."""
+    return row["kind"] == "named" and bool(row["url"])
 
 
 def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 2) -> dict:
@@ -266,6 +267,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
     `evidence.source_id` points at the found page that carries the quote, so the UI shows the verdict on that link."""
     c = a.claim
     source_ids: list[str] = []
+    found_ids: list[str] = []        # unsourced claim: pages the search found (the article cites none: source_ids stays empty)
     anchors = {l.url: l.anchor_text for l in c.links}
 
     def node_event(row: dict) -> None:
@@ -273,10 +275,11 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
                      "verdict": None, "cluster_id": None, "depth": row["depth"]})
 
     def cite(sa: SourceAssessment, anchor: str | None, kind: str | None = None, stub_key: str | None = None,
-             depth: int = 1, parent: dict | None = None) -> dict:
+             depth: int = 1, parent: dict | None = None, into: list | None = None) -> dict:
         row, new = reg.add(sa, anchor, kind, stub_key, depth, parent["id"] if parent else None)
-        if row["id"] not in source_ids:
-            source_ids.append(row["id"])
+        target = source_ids if into is None else into
+        if row["id"] not in target:
+            target.append(row["id"])
         if new:
             node_event(row)
         out("edge", {"id": f"e-{c.id}-{row['id']}", "source": c.id, "target": row["id"], "type": "cites"})
@@ -286,8 +289,15 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
 
     evidence_row = None
     if c.links:
+        by_url: dict[str, dict] = {}
         for sa in a.sources:
-            cite(sa, anchors.get(sa.url))
+            if sa.depth == 2 and sa.parent_url in by_url:         # source of a self-cited page: below it, not next to the claim
+                cite(sa, None, depth=2, parent=by_url[sa.parent_url])
+            else:
+                by_url[sa.url] = cite(sa, anchors.get(sa.url))
+    elif not c.attributions:
+        for sa in a.sources:                                         # unsourced claim, supporting pages found by search
+            cite(sa, None, "named", into=found_ids)
     elif c.attributions:
         who = (a.plan.speaker if a.plan and a.plan.speaker else c.attributions[0]).strip()
         # one node per attributed party: three claims "according to X" cite the same X, not three sources
@@ -306,6 +316,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
                     "quote_original": ev.quote_original, "quote_translation": ev.quote_translation,
                     "language": ev.language or "und", "fuzzy_score": round(ev.fuzzy_score or 0.0, 1)}
     return {"id": c.id, "text": c.text, "char_start": c.char_start, "char_end": c.char_end, "source_ids": source_ids,
+            "found_source_ids": found_ids,
             "verdict": a.verdict, "subtype": a.subtype, "evidence": evidence, "explanation": a.explanation}
 
 
@@ -324,8 +335,11 @@ def _graph(title: str, article_domain: str, claims: list[dict], sources: list[di
                       "verdict": None, "cluster_id": domain_cluster.get(sr["domain"]), "depth": sr["depth"]})
         if sr["domain"] and not _is_found_evidence(sr):
             edges.append({"id": f"e-{sr['id']}-host", "source": sr["id"], "target": f"d:{sr['domain']}", "type": "hosted_on"})
-        if _is_found_evidence(sr) and sr["parent_source_id"]:       # the stub -> found page link of an attributed claim
+        if sr["parent_source_id"]:                                  # stub -> found page, self-cited page -> its source
             edges.append({"id": f"e-{sr['parent_source_id']}-{sr['id']}", "source": sr["parent_source_id"], "target": sr["id"], "type": "cites"})
+    for c in claims:                                                # claim -> pages found for it (unsourced claims)
+        for sid in c.get("found_source_ids", []):
+            edges.append({"id": f"e-{c['id']}-{sid}", "source": c["id"], "target": sid, "type": "cites"})
     first_depth: dict[str, int] = {}      # a domain is as deep as the shallowest source hosted on it
     for sr in sources:
         if sr["domain"] and not _is_found_evidence(sr):
@@ -337,4 +351,10 @@ def _graph(title: str, article_domain: str, claims: list[dict], sources: list[di
             edges.append({"id": "e-a-host", "source": "a", "target": f"d:{d['domain']}", "type": "hosted_on"})
     edges += depth2_edges
     edges += infra.edges
-    return nodes, edges
+    seen, unique = set(), []
+    for e in edges:                      # the same link can be produced by the claim step and by M1's expansion
+        key = (e["source"], e["target"], e["type"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(e)
+    return nodes, unique

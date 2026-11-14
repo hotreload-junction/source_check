@@ -156,7 +156,7 @@ ARTICLE_MD = ("# Why Huang left\n\nHuang's resignation removes one of Washington
               + CONTEXT)
 FOX_PAGE = ("Nvidia CEO Jensen Huang warned in a Fox Business interview this week that cutting Beijing off from American technology would "
             "accelerate China's push for independence. Huang also said: \"They’re flourishing in our absence.\" " * 3)
-SETTINGS = Settings(_env_file=None, model_extract="mx", model_verify="mv", exa_api_key="exa", prompt_version="vT", extract_votes=1,
+SETTINGS = Settings(_env_file=None, model_extract="mx", model_verify="mv", exa_api_key="exa", prompt_version="vT", extract_votes=1, exa_agent=False, search_unsourced=False,
                     claim_deadline_s=30, fuzzy_threshold=90)
 
 
@@ -166,7 +166,7 @@ def pipeline_router(found_type="secondary", verdict="supported", plan_json=PLAN_
         sysmsg, user = body["messages"][0]["content"], body["messages"][1]["content"]
         if "CHECKABLE FACTUAL CLAIMS" in sysmsg:
             content = {"claims": tr.ids_for(user, [{"text": "The Nvidia founder repeatedly warned", "attributions": ["The Nvidia founder"]}])}
-        elif "Plan how to find" in sysmsg:
+        elif sysmsg == PLAN_PROMPT:
             content = plan_json
         else:
             if verify_seen is not None:

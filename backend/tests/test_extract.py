@@ -355,3 +355,21 @@ def test_exa_requests_in_flight_are_capped():
     with ThreadPoolExecutor(16) as pool:
         list(pool.map(lambda i: find_candidates("X", f"claim {i}", api_key="k", client=client), range(24)))
     assert 1 < peak[0] <= exa_mod.EXA_CONCURRENCY
+
+
+def test_prefer_sourced_keeps_reserved_unsourced_slots():
+    from app.pipeline.extract import prefer_sourced
+    # 9 majority sentences, 1..6 unsourced early, 7,8,9 sourced late -> sourced first, 2 slots reserved for unsourced
+    maj = list(range(9))
+    out = prefer_sourced(maj, {6, 7, 8}, 6, 2)
+    assert len(out) == 6 and out == sorted(out)
+    assert {6, 7, 8} <= set(out) and len([i for i in out if i not in {6, 7, 8}]) == 3
+
+
+def test_prefer_sourced_unchanged_when_under_limit_or_all_unsourced():
+    from app.pipeline.extract import prefer_sourced
+    assert prefer_sourced([1, 2, 3], set(), 6, 2) == [1, 2, 3]
+    assert prefer_sourced(list(range(8)), set(), 6, 2) == [0, 1, 2, 3, 4, 5]
+    assert prefer_sourced(list(range(8)), set(range(8)), 6, 2) == [0, 1, 2, 3, 4, 5]
+    # many sourced: only the reserved number of unsourced slots, when unsourced exist
+    assert prefer_sourced(list(range(10)), {2, 3, 4, 5, 6, 7, 8, 9}, 6, 2) == [0, 1, 2, 3, 4, 5]

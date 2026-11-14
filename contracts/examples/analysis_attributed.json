@@ -28,6 +28,7 @@
           "s1",
           "s2"
         ],
+        "found_source_ids": [],
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -47,6 +48,7 @@
         "source_ids": [
           "s3"
         ],
+        "found_source_ids": [],
         "verdict": "not_checkable",
         "subtype": null,
         "evidence": null,

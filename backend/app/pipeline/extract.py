@@ -7,7 +7,8 @@ verdicts and finally the article label. Instead:
 
 1. code splits the article into numbered sentences (exact markdown offsets, no fuzzy matching, no copying by the model);
 2. the model is asked K times, independently, which sentences are checkable claims (a classification, not a ranking);
-3. a sentence counts when MORE THAN HALF of the votes name it; the first `max_claims` of them in document order win.
+3. a sentence counts when MORE THAN HALF of the votes name it; of those, sentences that name a source (link or
+   attribution) are preferred, `min_unsourced_claims` slots stay reserved for unsourced ones; document order inside.
 
 Held out (DW, Al Jazeera, Guardian, TASS; 5 repeats each): mean overlap 1.00 with K=5 against 0.66 for the single ranked call.
 Sources stay code-only: links and attributions come from the sentence / paragraph, never from the model's guess.
@@ -118,18 +119,35 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
         raise LLMError("claim extraction failed: no usable reading")
 
     counts = collections.Counter(i for v in votes for i in v)
-    keep = sorted(i for i, c in counts.items() if c * 2 > len(votes))[: s.max_claims]    # strict majority, document order
+    majority = sorted(i for i, c in counts.items() if c * 2 > len(votes))               # strict majority, document order
+    links = {i: attach_links(article_md, units[i][0], units[i][1], article_url) for i in majority}
+    attrs = {i: list(_attributions(votes, i)) for i in majority}
+    keep = prefer_sourced(majority, {i for i in majority if links[i] or attrs[i]}, s.max_claims, s.min_unsourced_claims)
     claims: list[ExtractedClaim] = []
     for i in keep:
         start, end, _ = units[i]
         claims.append(ExtractedClaim(
             id=f"c{len(claims) + 1}", text=article_md[start:end], char_start=start, char_end=end,
-            links=attach_links(article_md, start, end, article_url), attributions=list(_attributions(votes, i)),
+            links=links[i], attributions=attrs[i],
             votes=counts[i], context=article_md[slice(*paragraph_bounds(article_md, start, end))][:2000]))
     return ExtractionResult(
         claims, results[0].model if results else s.model_extract, [],
         sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
         n_votes=len(votes))
+
+
+def prefer_sourced(majority: list[int], sourced: set[int], limit: int, min_unsourced: int) -> list[int]:
+    """Pick at most `limit` claims from the majority-voted sentences (document order in, document order out).
+    Sentences that name a source (link or attribution) come first, because only those can be verified against
+    something. `min_unsourced` slots stay reserved for unsourced ones (the strongest ones: earliest, as before), so the
+    "no source given" finding is never lost and an article is not judged on its cited claims alone. Pure code, deterministic."""
+    if len(majority) <= limit:
+        return list(majority)
+    unsourced = [i for i in majority if i not in sourced]
+    reserve = min(max(0, min_unsourced), len(unsourced), limit)
+    take_sourced = [i for i in majority if i in sourced][: limit - reserve]
+    take_unsourced = unsourced[: limit - len(take_sourced)]            # reserved slots + whatever sourced ones left free
+    return sorted(take_sourced + take_unsourced)
 
 
 _TITLES = re.compile(r"^(?:(?:the|mr|mrs|ms|miss|dr|prof|professor|sen|senator|rep|representative|president|vice president|prime minister|"

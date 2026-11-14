@@ -10,9 +10,10 @@ from app.pipeline.extract import ExtractedClaim
 from app.pipeline.textutil import LinkRef
 
 ART = "https://news.test/a"
-SETTINGS = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT")
+SETTINGS = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
+                    search_unsourced=False, exa_agent=False)
 SETTINGS_ALL = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
-                        verify_secondary=True)
+                        verify_secondary=True, search_unsourced=False, exa_agent=False)
 TEXT = ("The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, "
         "according to the official report published last week.")
 QUOTE = "the new programme will expand coverage to 40 districts by 2027"
@@ -25,6 +26,10 @@ class FakeFetcher:
     def fetch_source(self, url, article_url, with_html=True):
         self.calls.append(url)
         self.with_html_args = getattr(self, "with_html_args", []) + [with_html]
+        return self.pages[url]
+
+    def fetch_linked_page(self, url):
+        self.calls.append(url)
         return self.pages[url]
 
     def fetch_html(self, url):
@@ -206,7 +211,7 @@ def test_article_date_only_sent_for_guessed_named_sources():
 
 def test_secondary_candidates_are_not_verified_by_default():
     calls = []
-    with_model = Settings(_env_file=None, model_verify="vm", model_extract="m", exa_api_key="exa", prompt_version="vT")
+    with_model = Settings(_env_file=None, model_verify="vm", model_extract="m", exa_api_key="exa", prompt_version="vT", exa_agent=False)
     (a,), f = run([claim(1, attrs=["X"])], {"https://outlet.test/report": page("https://outlet.test/report")},
                   llm=make_llm("supported", QUOTE, calls, source_type="secondary"), exa=exa_client("https://outlet.test/report"),
                   settings=with_model)
@@ -308,3 +313,96 @@ def test_named_source_that_does_not_mention_claim_is_neutral():
     (a,), _ = run([claim(1, attrs=["X"])], {"https://www.orig.gov.test/interview": page("https://www.orig.gov.test/interview")},
                   llm=make_llm("not_mentioned", ""), exa=exa_client())
     assert a.verdict == "not_checkable"     # an Exa guess proves nothing about the article
+
+
+# ------------------------------------------------------------------------------- self-citation chain (source of the source)
+SELF_URL = "https://news.test/earlier-piece"
+CHAIN_URL = "https://agency.test/report"
+SELF_TEXT = (f"Earlier we reported that [the new programme will expand coverage to 40 districts by 2027]({CHAIN_URL}), "
+             "a figure that officials repeated.")
+
+
+def _chain_llm(calls):
+    """Supported only for the chain source's text; the self page itself is only read to locate the passage."""
+    def handler(request):
+        body = json.loads(request.content)["messages"][-1]["content"]
+        calls.append(body[:0])
+        c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported",
+                        "explanation": "why.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_self_citation_source_of_the_source_can_support_the_claim():
+    pages = {SELF_URL: page(SELF_URL, kind="self", text=SELF_TEXT, subtype="self_citation"), CHAIN_URL: page(CHAIN_URL)}
+    (a,), f = run([claim(1, [SELF_URL])], pages, llm=_chain_llm([]))
+    assert a.verdict == "supported" and a.best.url == CHAIN_URL
+    head, d2 = a.sources
+    assert head.url == SELF_URL and head.kind == "self" and head.verdict == "not_checkable" and head.depth == 1
+    assert d2.url == CHAIN_URL and d2.depth == 2 and d2.parent_url == SELF_URL
+    assert "own earlier piece" in a.explanation and a.subtype is None
+
+
+def test_self_citation_without_chain_stays_neutral_self_citation():
+    pages = {SELF_URL: page(SELF_URL, kind="self", text="No outbound links here at all.", subtype="self_citation")}
+    (a,), _ = run([claim(1, [SELF_URL])], pages, llm=_chain_llm([]))
+    assert a.verdict == "not_checkable" and a.subtype == "self_citation" and len(a.sources) == 1
+
+
+def test_chain_never_follows_same_site_or_homepage_links():
+    text = (f"The new programme will expand coverage to 40 districts by 2027, says [us](https://news.test/third) "
+            "and [the agency](https://agency.test/).")
+    pages = {SELF_URL: page(SELF_URL, kind="self", text=text, subtype="self_citation")}
+    (a,), f = run([claim(1, [SELF_URL])], pages, llm=_chain_llm([]))
+    assert len(a.sources) == 1 and f.calls == [SELF_URL]
+
+
+def test_chain_source_that_does_not_support_never_counts_against_the_article():
+    pages = {SELF_URL: page(SELF_URL, kind="self", text=SELF_TEXT, subtype="self_citation"), CHAIN_URL: page(CHAIN_URL, text="Unrelated text about weather.")}
+    calls = []
+
+    def handler(request):
+        content = json.loads(request.content)["messages"][-1]["content"]
+        verdict = "supported" if "Earlier we reported" in content else "contradicted"
+        c = json.dumps({"quote_original": QUOTE if verdict == "supported" else None, "quote_translation": None, "language": "en",
+                        "verdict": verdict, "explanation": "x.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    (a,), _ = run([claim(1, [SELF_URL])], pages, llm=llm)
+    assert a.verdict not in ("contradicted", "distorted")
+
+
+# ------------------------------------------------------------------------------------ unsourced claims: search anyway
+def _planner_llm(verdict="supported"):
+    from app.pipeline.evidence import PLAN_PROMPT
+
+    def handler(request):
+        msgs = json.loads(request.content)["messages"]
+        if msgs[0]["content"] == PLAN_PROMPT:
+            c = json.dumps({"speaker": None, "venue": None, "occasion": None, "queries": ["coverage 40 districts 2027"], "phrases": []})
+        else:
+            c = json.dumps({"quote_original": QUOTE if verdict == "supported" else None, "quote_translation": None, "language": "en",
+                            "verdict": verdict, "explanation": "why.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+SEARCH = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
+                  search_unsourced=True, exa_agent=False)
+FOUND = "https://www.orig.gov.test/interview"
+
+
+def test_unsourced_claim_gets_found_source_but_stays_unsourced():
+    (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=_planner_llm(), exa=exa_client(FOUND), settings=SEARCH)
+    assert a.verdict == "unsourced" and a.best.url == FOUND and a.evidence is None
+    assert [s.url for s in a.sources] == [FOUND] and a.sources[0].kind == "named" and "gov.test" in a.explanation
+
+
+def test_unsourced_found_page_that_does_not_support_is_ignored():
+    (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=_planner_llm("not_mentioned"), exa=exa_client(FOUND), settings=SEARCH)
+    assert a.verdict == "unsourced" and a.sources == [] and a.best is None
+
+
+def test_unsourced_search_off_makes_no_calls():
+    (a,), f = run([claim(1)], {}, settings=SETTINGS)
+    assert a.verdict == "unsourced" and f.calls == []
