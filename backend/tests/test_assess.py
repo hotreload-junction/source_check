@@ -392,10 +392,11 @@ SEARCH = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_th
 FOUND = "https://www.orig.gov.test/interview"
 
 
-def test_unsourced_claim_gets_found_source_but_stays_unsourced():
+def test_unsourced_claim_with_a_verified_found_page_is_supported_and_says_the_article_gave_no_source():
     (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=_planner_llm(), exa=exa_client(FOUND), settings=SEARCH)
-    assert a.verdict == "unsourced" and a.best.url == FOUND and a.evidence is None
-    assert [s.url for s in a.sources] == [FOUND] and a.sources[0].kind == "named" and "gov.test" in a.explanation
+    assert a.verdict == "supported" and a.best.url == FOUND and a.evidence is not None and a.evidence.quote_original == QUOTE
+    assert [s.url for s in a.sources] == [FOUND] and a.sources[0].kind == "named"
+    assert a.explanation.startswith("The article gives no source for this claim.") and "gov.test" in a.explanation
 
 
 def test_unsourced_found_page_that_does_not_support_is_ignored():
@@ -406,3 +407,63 @@ def test_unsourced_found_page_that_does_not_support_is_ignored():
 def test_unsourced_search_off_makes_no_calls():
     (a,), f = run([claim(1)], {}, settings=SETTINGS)
     assert a.verdict == "unsourced" and f.calls == []
+
+
+# --------------------------------------------------- one found page checked against the other unsourced claims
+def _two_claims_llm(c2_verdict="supported"):
+    from app.pipeline.evidence import PLAN_PROMPT
+
+    def handler(request):
+        msgs = json.loads(request.content)["messages"]
+        n = "2" if "Claim number 2" in msgs[1]["content"] else "1"
+        if msgs[0]["content"] == PLAN_PROMPT:
+            c = json.dumps({"speaker": None, "venue": None, "occasion": None, "queries": [f"only-claim-{n}"], "phrases": []})
+        else:
+            verdict = c2_verdict if n == "2" else "supported"
+            c = json.dumps({"quote_original": QUOTE if verdict == "supported" else None, "quote_translation": None, "language": "en",
+                            "verdict": verdict, "explanation": "why.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def _exa_only_for_claim_1():
+    def handler(request):
+        found = "Claim number 1" in request.content.decode()
+        return httpx.Response(200, json={"results": [{"url": FOUND, "title": "T"}] if found else []})
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _run_two(c2_verdict="supported", settings=SEARCH):
+    f = FakeFetcher({FOUND: page(FOUND)})
+    announced = []
+    res = assess_claims([claim(1), claim(2)], ART, fetcher=f, llm=_two_claims_llm(c2_verdict), settings=settings,
+                        exa_client=_exa_only_for_claim_1(), on_claim=lambda i, a: announced.append((i, a.verdict)))
+    return res, f, announced
+
+
+def test_a_page_found_for_one_unsourced_claim_also_supports_another_one():
+    (a1, a2), f, announced = _run_two()
+    assert a1.verdict == "supported" and a2.verdict == "supported"          # the search found nothing for claim 2 itself
+    assert a2.best.url == FOUND and a2.evidence is not None and a2.evidence.fuzzy_score >= 90
+    assert f.calls.count(FOUND) == 1                                         # the page is read once, then only verified
+    assert sorted(announced) == [(0, "supported"), (1, "supported")]         # every claim announced once, already final
+
+
+def test_the_other_claim_stays_unsourced_when_the_found_page_does_not_support_it():
+    (a1, a2), _, announced = _run_two("not_mentioned")
+    assert a1.verdict == "supported" and a2.verdict == "unsourced" and a2.sources == []     # never held against the article
+    assert sorted(announced) == [(0, "supported"), (1, "unsourced")]
+
+
+def test_cross_check_can_be_switched_off():
+    off = Settings(**{**SEARCH.model_dump(), "cross_check_found": False})
+    (a1, a2), _, announced = _run_two(settings=off)
+    assert (a1.verdict, a2.verdict) == ("supported", "unsourced")
+    assert sorted(announced) == [(0, "supported"), (1, "unsourced")]
+
+
+def test_cross_check_never_touches_claims_that_have_a_link_or_an_attribution():
+    f = FakeFetcher({FOUND: page(FOUND), "https://src.test/x": page("https://src.test/x", text="Nothing relevant here at all, sorry.")})
+    res = assess_claims([claim(1), claim(2, links=["https://src.test/x"])], ART, fetcher=f, llm=_two_claims_llm("supported"),
+                        settings=SEARCH, exa_client=_exa_only_for_claim_1())
+    assert res[0].verdict == "supported" and res[1].best.url == "https://src.test/x"

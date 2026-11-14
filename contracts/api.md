@@ -194,8 +194,12 @@ Additive, shapes as above.
   second own-site hop, max `MAX_CHAIN_SOURCES`): `Source{kind:"link", depth:2, parent_source_id:<self row id>}`, edge
   `self row -> chain row` (`cites`). The chain source can CONFIRM the claim (`supported`, explanation "The article cites its own
   earlier piece (domain), which cites domain: ..."); it never counts against the article (same policy as a loosely attached link).
-- Unsourced claim (`source_ids: []`): the backend still searches (Exa search + Exa Agent). Pages that support it are listed in
-  the NEW `Claim.found_source_ids` (rows `kind:"named"`, depth 1, `url` set, not cited by the article: no infrastructure
-  signal, no M1 expansion); edges `claim -> found page` (`cites`). The verdict stays `unsourced` (that describes how the ARTICLE
-  sources the claim) and `evidence` stays null; the explanation names the found page and its quote. Pages that do not support the
-  claim are dropped. `found_source_ids` is `[]` for every other claim.
+- Unsourced claim (`source_ids: []`): the backend still searches (Exa search + Exa Agent) and verifies what it finds like any
+  source (quote first, fuzzy-checked). A page that supports the claim makes it `supported` with `evidence` pointing at that page
+  (`evidence.source_id`); the explanation starts "The article gives no source for this claim. A page that supports it was found: ...".
+  Such pages are listed in `Claim.found_source_ids` (rows `kind:"named"`, depth 1, `url` set), NOT in `source_ids`: the article cites
+  none of them, so they feed no infrastructure signal and are not expanded further by M1; edges `claim -> found page` (`cites`).
+  A claim that is still unsourced after its own search is also checked against the pages found for the OTHER unsourced claims (one
+  page can support several claims; max 3 pages per claim, `CROSS_CHECK_FOUND=true`). Nothing supports it: the verdict stays
+  `unsourced` (that describes how the ARTICLE sources the claim) and `evidence` is null. Pages that do not support the claim are
+  dropped. `found_source_ids` is `[]` for every other claim.

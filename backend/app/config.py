@@ -67,9 +67,11 @@ class Settings(BaseSettings):
     exa_agent_effort: str = "low"          # minimal | low | medium | high ...
     exa_agent_timeout_s: float = 80.0      # a run still going after this long is dropped (neutral), never waited for
     exa_agent_concurrency: int = 8         # runs in flight per process (Exa allows 50)
-    # Claims the article leaves WITHOUT any source: still look for a page that supports them (verdict stays `unsourced`:
-    # that describes the ARTICLE's sourcing; the found page is shown next to the claim)
+    # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
+    # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
     search_unsourced: bool = True
+    # a page found for one unsourced claim is also checked against the other unsourced claims (one verify call per pair)
+    cross_check_found: bool = True
     # The article cites another article of ITS OWN site: read that page and follow what IT cites ("source of the source")
     follow_self_citations: bool = True
     max_self_citation_links: int = 2       # per claim

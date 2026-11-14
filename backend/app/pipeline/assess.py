@@ -39,6 +39,8 @@ log = logging.getLogger("citetrace.assess")
 
 MAX_SOURCES_PER_CLAIM = 3      # keep cost bounded
 NO_SOURCE = "The article gives no source for this claim."
+MAX_CROSS_PAGES = 3            # unsourced claim: pages found for OTHER unsourced claims that it is checked against
+CROSS_DEADLINE_S = 45.0        # wall clock for that extra round; unfinished checks leave the claim `unsourced` (neutral)
 NOT_VERIFIED = "Quote could not be verified: neither the original (interview, transcript, statement) nor an independent report of it was found."
 _RANK = {"supported": 4, "contradicted": 3, "distorted": 3, "not_mentioned": 2, "not_checkable": 1}
 
@@ -138,6 +140,7 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
     futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
                            published_at=published_at, step_cache=step_cache, article_text=article_text) for c in claims]
     results: list[ClaimAssessment] = []
+    held: list[int] = []            # unsourced claims: announced after the cross-check below, so they are final when shown
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
             results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
@@ -147,9 +150,20 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
             fut.cancel()
             results.append(ClaimAssessment(claim, "not_checkable", None,
                                            "Checking the sources took too long, so this claim was left unverified."))
-        if on_claim:    # called in claim order from this thread: the SSE stream can show each claim as it is final
+        if s.cross_check_found and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
+            held.append(i)
+        elif on_claim:  # called from this thread: the SSE stream can show each claim as it is final
             on_claim(i, results[-1])
     pool.shutdown(wait=False)      # stragglers finish in the background and are ignored
+    if held:
+        try:
+            _cross_check(claims, results, held, article_url, cache=cache, llm=llm, settings=s, published_at=published_at,
+                         article_text=article_text)
+        except Exception as exc:    # never break the analysis for a bonus check
+            log.warning("cross-check failed: %s", exc)
+        if on_claim:
+            for i in held:
+                on_claim(i, results[i])
     cache.join_html(timeout=max(min(deadline - time.monotonic(), 10.0), 1.0))
     return results
 
@@ -276,12 +290,17 @@ def _assess_attributed(claim, article_url, *, cache, llm, settings, exa_client, 
 
 
 def _assess_unsourced(claim, article_url, *, cache, llm, settings, exa_client, published_at, step_cache, article_text) -> ClaimAssessment:
-    """The article names NO source. Look for a page that supports the claim anyway. The verdict stays `unsourced`: that is a
-    statement about how the ARTICLE sources its claim, not about whether the claim is true. A found page is shown next to the
-    claim; one that does not support it is ignored (never held against the article)."""
+    """The article names NO source. Look for a page that supports the claim anyway. A page that contains the claim's
+    evidence passage verbatim (quote-first, fuzzy-checked like every verdict) makes the claim `supported`; the explanation
+    says the article itself gave no source, and the page is listed in `found_source_ids`, not `source_ids`. Nothing that
+    supports it: the claim stays `unsourced`. A page that does not support it is ignored (never held against the article)."""
     plan, cands, _agent = _discover(claim, article_url, attributed=False, llm=llm, settings=settings, exa_client=exa_client,
                                     published_at=published_at, step_cache=step_cache)
     sources = _verify_all(claim, cands, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
+    return _found_assessment(claim, sources, plan, settings)
+
+
+def _found_assessment(claim: ExtractedClaim, sources: list[SourceAssessment], plan: SearchPlan | None, settings: Settings) -> ClaimAssessment:
     found = [sa for sa in sources if sa.verdict == "supported"]
     found.sort(key=lambda sa: (-(sa.verify.fuzzy_score or 0) if sa.verify else 0))
     found = found[: settings.max_evidence_links]
@@ -290,7 +309,44 @@ def _assess_unsourced(claim, article_url, *, cache, llm, settings, exa_client, p
     top = found[0]
     quote = (top.verify.quote_original or "")[:160] if top.verify else ""
     expl = f"{NO_SOURCE} A page that supports it was found: {registrable_domain(top.url)}" + (f" (\u201c{quote}\u201d)." if quote else ".")
-    return ClaimAssessment(claim, "unsourced", None, expl, sources=found, best=top, plan=plan)
+    return ClaimAssessment(claim, "supported", None, expl, sources=found, best=top, plan=plan)
+
+
+def _is_unsourced_type(claim: ExtractedClaim) -> bool:
+    return not claim.links and not claim.attributions
+
+
+def _cross_check(claims: list[ExtractedClaim], results: list[ClaimAssessment], idxs: list[int], article_url: str, *,
+                 cache: _FetchCache, llm: LLMClient, settings: Settings, published_at, article_text: str) -> None:
+    """A page found for one unsourced claim can support another one (live example: the Destatis page found for claim 3 states
+    what claim 5 says). Every claim that is still `unsourced` is checked against the pages found for the OTHER unsourced
+    claims, with the same verify step (quote first, fuzzy-checked). The pages are already fetched: one verify call per pair,
+    at most MAX_CROSS_PAGES per claim. `results` is updated in place; a claim nothing confirms stays `unsourced`."""
+    pool: dict[str, float] = {}
+    for a, c in zip(results, claims):
+        if _is_unsourced_type(c):
+            for sa in a.sources:
+                if sa.url and sa.verdict == "supported":
+                    pool[sa.url] = max(pool.get(sa.url, 0.0), (sa.verify.fuzzy_score or 0.0) if sa.verify else 0.0)
+    if not pool:
+        return
+    ranked = sorted(pool, key=lambda u: -pool[u])[:MAX_CROSS_PAGES]
+    jobs = [(i, u) for i in idxs for u in ranked]
+    if not jobs:
+        return
+    end = time.monotonic() + CROSS_DEADLINE_S
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 4), thread_name_prefix="cross") as ex:
+        futs = [(i, ex.submit(_assess_source, claims[i], u, None, article_url, cache, llm, settings, published_at,
+                              plan=results[i].plan, article_text=article_text, found_unsourced=True)) for i, u in jobs]
+        got: dict[int, list[SourceAssessment]] = {}
+        for i, fut in futs:
+            try:
+                got.setdefault(i, []).append(fut.result(timeout=max(end - time.monotonic(), 0.0)))
+            except Exception as exc:          # timeout or failed call: the claim simply stays unsourced
+                log.info("cross-check for claim %s skipped: %s", claims[i].id, type(exc).__name__)
+                fut.cancel()
+    for i, found in got.items():
+        results[i] = _found_assessment(claims[i], found, results[i].plan, settings)
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
