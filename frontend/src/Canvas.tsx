@@ -245,11 +245,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const c = !cl ? CL.p : root ? ctx.articleColor : cm ? CLAIM_V[ctx.claimVerdict(n)].c : sourceColor(ctx, n);
     const load = !root && !cm && vs && !cl;
     const isSel = sel === n.id || (stub && sel === n.fc);
-    let badge = '…';
+    let badge = root ? '' : '…';
     if (cl) {
-      if (root) badge = `${ctx.supported}/${ctx.nCentral}`;
-      else if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
-      else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : `${Math.max(1, n.citedBy.length)}×`;
+      if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
+      else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : '';
     }
     const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : sourceMeta(n.source!);
     const labels = src && n.source!.domain ? cardLabels(ctx.view.domains.find((d) => d.domain === n.source!.domain)) : [];
@@ -292,7 +291,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
                 </div>
               )}
             </div>
-            {!stub && (
+            {!stub && badge && (
               <div style={{ flex: 'none', position: col ? 'absolute' : 'static', top: -14, right: -14, boxShadow: col ? `0 0 0 3px ${TH.card}` : 'none', width: 38, height: 38, borderRadius: '50%', background: tint, color: pfg, display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: root ? 12 : 14, transition: 'background .4s' }}>{badge}</div>
             )}
           </>
