@@ -42,7 +42,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 ### Backend: depth 1 (checkpoint Sat 12:00)
 | id | task | owner | status | notes |
 |---|---|---|---|---|
-| B1 | skeleton: FastAPI, config from env, `/api/health`, pytest, MariaDB schema incl. audit trail | leo-be | doing | `backend/`, `pyproject.toml` with `[dev]` extra |
+| B1 | skeleton: FastAPI, config from env, `/api/health`, pytest, MariaDB schema incl. audit trail | leo-be | done | `backend/`, `pyproject.toml` with `[dev]` extra |
 | B2 | fetch layer: Context.dev + trafilatura fallback, Telegram `t.me/s/`, X/YouTube -> `social_media`, same domain -> `self_citation`, dead/paywall -> `not_checkable` | leo-be | todo | record fixtures for tests |
 | B3 | claim extraction (cheap LLM, max 6), attach links/attributions from same sentence/paragraph, named unlinked source -> Exa | leo-be | todo | JSON output, temperature 0 |
 | B4 | verify (strong LLM): verbatim quote original + translation + verdict; rapidfuzz check vs source text, downgrade on miss | leo-be | todo | store `PROMPT_VERSION`, model, score |
