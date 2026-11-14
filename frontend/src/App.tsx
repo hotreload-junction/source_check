@@ -249,7 +249,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
             {url && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
           </div>
         </div>
-        <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>
+        {status && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
       </div>
 
       <TrustBar ctx={ctx} ready={done} />
