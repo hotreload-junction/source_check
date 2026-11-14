@@ -18,6 +18,18 @@ def _never_a_real_database(monkeypatch, tmp_path):
         raise AssertionError("a test tried to call the real network (inject a mock httpx client)")
     for name in ("post", "get", "request", "stream"):
         monkeypatch.setattr(httpx, name, _no_network)
+    # the Wayback client (Q2) uses its own httpx.Client, which the patch above does not reach: tests get a stub that
+    # never leaves the process (module-level test Settings are built before this fixture, so an env switch is too late)
+    from app.pipeline import run as _run
+    from app.signals.reputation import ArchiveResult
+
+    class _NoWayback:
+        def __init__(self, *a, **k):
+            pass
+
+        def lookup(self, domain):
+            return ArchiveResult(domain, None, "disabled in tests")
+    monkeypatch.setattr(_run, "WaybackClient", _NoWayback)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     # nor the real demo cache / eval metrics: a developer's local precomputed results must not change test outcomes
     monkeypatch.setenv("DEMO_DIR", str(tmp_path / "no-demo"))

@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     verify_secondary: bool = False
     # Look for copies of the article on other domains (Exa findSimilar): their infrastructure joins the infrastructure signal
     find_copies: bool = True
+    # Domain reputation badge (PLAN Q2): first capture in the Wayback Machine (live CDX API, step-cached). Context only.
+    wayback_lookup: bool = True
+    wayback_timeout_s: float = 6.0
 
     # Demo cache + methodology data (both must work with every external API down)
     demo_dir: str = ""          # default: backend/demo

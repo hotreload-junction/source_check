@@ -121,6 +121,18 @@ cluster_id: str|null          # same id = shares at least one analytics/AdSense 
 is_article_domain: bool
 known_network: str|null       # name of a documented influence network whose PUBLISHED host list contains this
                               # domain (or the article/source host on it), e.g. "Portal Kombat / Pravda network"
+# Reputation badges (PLAN Q2): context for the reader, NEVER read by the verdict rules. Absent in older results = empty.
+wikipedia_rsp: RspEntry[]     # rows of Wikipedia's Perennial Sources list naming this domain ([] = not listed);
+                              # several rows are possible ("Fox News" / "Fox News (politics and science)")
+tranco_rank: int|null         # rank in the Tranco top-sites snapshot (popularity, not reliability); null = not in top 100k
+first_archived_at: str|null   # "YYYY-MM-DD" first Wayback Machine capture; null = never archived or lookup failed/off
+reputation_notes: str[]       # plain-English lines with provenance, ready to show, e.g.
+                              # "Wikipedia Perennial Sources rates \"RT\" deprecated, last discussed 2022 (snapshot 2026-11-14)"
+                              # "Archived pages predate the current registration (2026-09-01) by 6 year(s) or more: ..."
+```
+```
+RspEntry: {source: str, statuses: ("generally_reliable"|"no_consensus"|"generally_unreliable"|"deprecated")[],
+           blacklisted: bool, last_discussed: int|null, snapshot: str}   # statuses: several = depends on topic
 ```
 
 ### GraphNode / GraphEdge (Cytoscape-ready)

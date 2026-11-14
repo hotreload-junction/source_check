@@ -26,6 +26,8 @@ from ..signals.circles import article_cluster_domains, circle_path, find_circles
 from ..signals.laundering import channel_sourced_claims, declared_reposts
 from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
+from ..signals.infra import PLATFORM_DOMAINS
+from ..signals.reputation import ArchiveResult, WaybackClient, add_reputation
 from ..signals.source_type import classify_source_type
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
@@ -79,6 +81,24 @@ def _label(text: str, n: int = 110) -> str:
     return plain if len(plain) <= n else plain[: n - 1].rstrip() + "…"
 
 
+class _CachedArchive:
+    """Wayback first-capture lookups through the step cache (PLAN Q2): a finished analysis replays with the SAME dates.
+    Answers are stored (also "never archived"); failures are not, so a later run can still get the date."""
+
+    def __init__(self, inner, cache):
+        self.inner, self.cache = inner, cache
+
+    def lookup(self, domain: str) -> ArchiveResult:
+        key = cachemod.make_key("wayback", registrable_domain(domain))
+        hit = self.cache.get("wayback", key)
+        if hit is not None:
+            return ArchiveResult(**hit)
+        res = self.inner.lookup(domain)
+        if res.error is None:
+            self.cache.put("wayback", key, {"domain": res.domain, "first_archived_at": res.first_archived_at, "error": None})
+        return res
+
+
 def _set_source_type(row: dict, html: str | None) -> None:
     """PLAN Q1: contract `source_type` + `source_type_reason` (context for the reader, never a verdict signal)."""
     st = classify_source_type(row.get("url"), html)
@@ -114,7 +134,7 @@ class _Registry:
 
 
 def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None = None, settings: Settings | None = None,
-            rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None,
+            rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None, archive=None,
             refresh: bool = False) -> AnalysisOutput:
     """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results."""
     s = settings or get_settings()
@@ -122,6 +142,10 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     fetcher = fetcher or Fetcher.from_settings(s, cache=sc)
     llm = llm or LLMClient.from_settings(s, cache=sc)
     rdap = _CachedRdap(rdap if rdap is not None else RdapClient(), sc)
+    # Q2 Wayback first capture: `archive` injects a client (tests); WAYBACK_LOOKUP=false switches the live lookup off
+    if archive is None and s.wayback_lookup:
+        archive = WaybackClient(timeout=s.wayback_timeout_s)
+    archive = _CachedArchive(archive, sc) if archive is not None else None
     out = emit or (lambda event, data: None)
     t0 = time.monotonic()
 
@@ -157,6 +181,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     rdap_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rdap")
     for d in link_domains:
         rdap_pool.submit(rdap.lookup, d)
+        if archive is not None and d not in PLATFORM_DOMAINS:
+            rdap_pool.submit(archive.lookup, d)
 
     # mirrors of the article on other domains: searched while the claims are verified, joined before the infrastructure step
     copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
@@ -223,6 +249,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         back = {c.closing_edge for c in circles}      # one closing edge per cited source, however many paths reach it
         d2_edges += [{"id": f"e-{src}-back", "source": src, "target": dst, "type": "cites_back"} for src, dst in sorted(back)]
     domain_cluster = {d["domain"]: d["cluster_id"] for d in infra.domains}
+    # Q2 reputation badges (context only, never read by verdict.py): WP:RSP + Tranco snapshots, Wayback first capture
+    add_reputation(infra.domains, archive.lookup if archive is not None else None, skip=PLATFORM_DOMAINS)
 
     # 5. verdict ---------------------------------------------------------------------------------------------
     progress("verdict", "Deciding", 95)

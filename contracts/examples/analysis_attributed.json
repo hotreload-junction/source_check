@@ -91,7 +91,13 @@
         "adsense_ids": [],
         "cluster_id": null,
         "is_article_domain": true,
-        "known_network": null
+        "known_network": null,
+        "wikipedia_rsp": [],
+        "tranco_rank": null,
+        "first_archived_at": null,
+        "reputation_notes": [
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+        ]
       }
     ],
     "graph": {
