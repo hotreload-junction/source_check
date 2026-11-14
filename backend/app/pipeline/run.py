@@ -26,6 +26,7 @@ from ..signals.circles import article_cluster_domains, circle_path, find_circles
 from ..signals.laundering import channel_sourced_claims, declared_reposts
 from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
+from ..signals.source_type import classify_source_type
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .copies import find_article_copies
@@ -78,6 +79,13 @@ def _label(text: str, n: int = 110) -> str:
     return plain if len(plain) <= n else plain[: n - 1].rstrip() + "…"
 
 
+def _set_source_type(row: dict, html: str | None) -> None:
+    """PLAN Q1: contract `source_type` + `source_type_reason` (context for the reader, never a verdict signal)."""
+    st = classify_source_type(row.get("url"), html)
+    row["source_type"] = st.type if st else None
+    row["source_type_reason"] = st.reason if st else None
+
+
 class _Registry:
     """Assigns s1, s2, ... once per cited URL (the same source for several claims is ONE node)."""
 
@@ -99,6 +107,7 @@ class _Registry:
             "fetch_status": f.status if f else "not_fetched", "fetched_via": f.via if f else None,
             "_html": f.html if f else None,
         }
+        _set_source_type(row, row["_html"])
         self.rows.append(row)
         self._by_key[key] = row
         return row, True
@@ -207,6 +216,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         signal_cites = [c for c in d2.citations if c.parent_id not in searched]
         if signal_pages:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
             infra = analyze_infrastructure(article_host, art.html, pages + signal_pages, rdap.lookup)
+        for r, p in zip(d2.rows, d2.pages):
+            _set_source_type(r, p.html)
         d2_edges = d2.edges
         circles = find_circles(signal_cites, article_domain, article_cluster_domains(infra.domains, article_domain))
         back = {c.closing_edge for c in circles}      # one closing edge per cited source, however many paths reach it

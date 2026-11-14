@@ -102,7 +102,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "context_dev"
+        "fetched_via": "context_dev",
+        "source_type": "unknown",
+        "source_type_reason": "no rule matched"
       },
       {
         "id": "s2",
@@ -113,7 +115,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "context_dev"
+        "fetched_via": "context_dev",
+        "source_type": "press_release",
+        "source_type_reason": "press-release section of the site (/press/)"
       },
       {
         "id": "s3",
@@ -124,7 +128,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "trafilatura"
+        "fetched_via": "trafilatura",
+        "source_type": "unknown",
+        "source_type_reason": "no rule matched"
       }
     ],
     "domains": [

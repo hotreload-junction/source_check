@@ -64,7 +64,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "ok",
-        "fetched_via": "context_dev"
+        "fetched_via": "context_dev",
+        "source_type": "unknown",
+        "source_type_reason": "no rule matched"
       },
       {
         "id": "s2",
@@ -75,7 +77,9 @@
         "depth": 1,
         "parent_source_id": null,
         "fetch_status": "not_fetched",
-        "fetched_via": null
+        "fetched_via": null,
+        "source_type": null,
+        "source_type_reason": null
       }
     ],
     "domains": [

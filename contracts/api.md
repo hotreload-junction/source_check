@@ -103,6 +103,11 @@ depth: 1 | 2
 parent_source_id: str|null    # for depth 2
 fetch_status: "ok" | "unreachable" | "paywall" | "blocked" | "not_fetched"
 fetched_via: "context_dev" | "trafilatura" | "telegram" | null
+source_type: "official" | "press_release" | "academic" | "reference" | "news" | "blog" | "social" | "unknown" | null
+   # what KIND of document it is (PLAN Q1, backend/app/signals/source_type.py), fixed rule table on URL + raw HTML,
+   # first match wins. Not a reliability rating: kremlin.ru is official, TASS is news. null = no URL (named stub).
+   # Context for the reader only, never a verdict signal. Absent in results computed before Q1: treat as null.
+source_type_reason: str|null  # the rule that fired, e.g. "press-release distribution service (prnewswire.com)"
 ```
 
 ### Domain

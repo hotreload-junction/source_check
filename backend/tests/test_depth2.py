@@ -82,7 +82,8 @@ def test_link_back_to_the_article_domain_closes_a_circle():
     child = next(s for s in r["sources"] if s["depth"] == 2)
     assert child == {"id": "s3", "url": "https://www.pravda-mirror.com/2026/11/earlier-story", "domain": "pravda-mirror.com",
                      "kind": "self", "attribution_text": "per the partner outlet", "depth": 2, "parent_source_id": "s2",
-                     "fetch_status": "not_fetched", "fetched_via": None}
+                     "fetch_status": "not_fetched", "fetched_via": None,
+                     "source_type": "unknown", "source_type_reason": "no rule matched"}
     assert r["signals"]["circle"] == {"fired": True, "path": ["a", "c2", "s2", "s3", "a"]}
     edges = {(e["source"], e["target"], e["type"]) for e in r["graph"]["edges"]}
     assert ("s2", "s3", "cites") in edges and ("s3", "a", "cites_back") in edges and ("s3", "d:pravda-mirror.com", "hosted_on") in edges

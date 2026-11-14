@@ -92,7 +92,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 Context for the reader, not a verdict signal (DECISIONS "source quality"). Labels with provenance, no numeric score.
 | id | task | owner | status | notes |
 |---|---|---|---|---|
-| Q1 | source type per Source: deterministic rule table (official / press_release / academic / reference / news / blog / social / unknown) + the rule that fired | leo-bg | doing | `backend/app/signals/source_type.py`, additive contract fields `source_type`, `source_type_reason`; UI badge = louis-fe |
+| Q1 | source type per Source: deterministic rule table (official / press_release / academic / reference / news / blog / social / unknown) + the rule that fired | leo-bg | done | `backend/app/signals/source_type.py`, additive contract fields `source_type`, `source_type_reason`; UI badge = louis-fe |
 | Q2 | domain reputation badges: Wikipedia Perennial Sources + Tranco top-1M as dated snapshots in the repo, Wayback first capture (CDX, step-cached) vs RDAP age (expired-domain reuse) | | todo | new Domain fields, additive; failures neutral; never in `verdict.py` without a new DECISIONS line |
 | Q3 | harden copies (M3): a copy only feeds the infra signal when it shares an ID with the ARTICLE (not copy-to-copy) and copy domain age never fires "young"; label copies as syndication (wire attribution / Tranco-listed) vs mirror | | todo | FP risk: a young scraper mirroring a Reuters article fires infra for Reuters today |
 | Q4 | Wikidata (instance of news agency / state media, owner) + crt.sh shared certificates | | todo | only if time |
