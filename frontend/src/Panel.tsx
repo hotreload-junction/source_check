@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { cap, edgeColor, edgeLabel, sourceColor, TONE, type Ctx } from './Canvas';
+import { cap, edgeColor, edgeLabel, TONE, type Ctx } from './Canvas';
 import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
 import { useCompact } from './responsive';
