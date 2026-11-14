@@ -272,11 +272,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     if s.max_depth >= 2 and reg.rows:
         progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
-                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s)
+                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc)
         depth = s.max_depth
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
         searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
-        signal_pages = [p for r, p in zip(d2.rows, d2.pages) if r["id"] not in searched]
+        signal_pages = [p for r, p in zip(d2.rows, d2.pages) if r["id"] not in searched and r["url"]]
         signal_cites = [c for c in d2.citations if c.parent_id not in searched]
         if signal_pages:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
             infra = analyze_infrastructure(article_host, art.html, pages + signal_pages, rdap.lookup)
@@ -389,17 +389,19 @@ def _focus_only_ids(rows: list[dict], claim_dicts: list[dict], citations=()) -> 
 def _search_ids(rows: list[dict], citations=()) -> set[str]:
     """Ids of pages SEARCH found for an attributed claim (kind named WITH a url; unresolved person stub has none) and
     any deeper pages reachable ONLY through them. The article cites none of them, so they stay out of infrastructure,
-    network and circle signals; a deeper page re-enters signals only if an article-cited chain also leads there."""
+    network and circle signals; a deeper page re-enters signals only if an article-cited chain also leads there. The same
+    holds for a named page found at depth >= 2 (the source of a source that was only NAMED, chainsearch.py)."""
     found = {r["id"] for r in rows if r["kind"] == "named" and r["url"]}
     if not found:
         return set()
     non_search = [r["id"] for r in rows if r["depth"] == 1 and r["id"] not in found]
     children: dict[str, set[str]] = {}
     for r in rows:
-        if r.get("parent_source_id"):
+        if r.get("parent_source_id") and r["id"] not in found:       # a page we SEARCHED for is never "cited", whoever it hangs under
             children.setdefault(r["parent_source_id"], set()).add(r["id"])
     for c in citations:
-        children.setdefault(c.parent_id, set()).add(c.child_id)
+        if c.child_id not in found:
+            children.setdefault(c.parent_id, set()).add(c.child_id)
     reachable = set(non_search)
     stack = list(non_search)
     while stack:

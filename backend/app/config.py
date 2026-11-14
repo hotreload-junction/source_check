@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     search_unsourced: bool = True
     # a page found for one unsourced claim is also checked against the other unsourced claims (one verify call per pair)
     cross_check_found: bool = True
+    # Source of the source WITHOUT a link: a depth >= 2 passage that names where its information comes from ("the New York Times
+    # reported", "according to a study by ...") but links nothing -> the name is read from the passage (one cheap LLM call) and
+    # the Exa Agent + our searches look for that page (pipeline/chainsearch.py). Costs ~0.025 USD per search at effort "low".
+    chain_search: bool = True
+    max_chain_searches: int = 3            # per article, over all hops
+    chain_search_deadline_s: float = 75.0  # wall clock for the searches of ONE hop; an unfinished one is dropped (neutral)
     # The article cites another article of ITS OWN site: read that page and follow what IT cites ("source of the source")
     follow_self_citations: bool = True
     max_self_citation_links: int = 2       # per claim

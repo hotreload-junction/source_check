@@ -23,6 +23,7 @@ from typing import Callable
 from urllib.parse import unquote, urlsplit
 
 import re
+from datetime import datetime
 
 from ..config import Settings
 from ..fetch import Fetcher
@@ -31,7 +32,7 @@ from ..llm import LLMClient
 from ..signals import SourcePage
 from ..signals.circles import Citation
 from .textutil import (LINK_RE, LinkRef, attach_links, build_plain, is_navigation_link, locate, paragraph_bounds,
-                       plain_anchor, sentence_units, to_markdown_span)
+                       plain_anchor, sentence_bounds, sentence_units, to_markdown_span)
 from .verify import verify_claim
 
 log = logging.getLogger("citetrace.depth2")
@@ -69,14 +70,8 @@ class _Candidate:
     existing: dict | None = None
 
 
-def passage_links(source_text: str, quote: str | None, claim_text: str, source_url: str,
-                  alt_quote: str | None = None) -> list[LinkRef]:
-    """Links the passage a claim rests on in a source points to.
-
-    1. the links in the located passage's sentence, else its paragraph (what the source cites for exactly this);
-    2. none there, or the passage cannot be located: links elsewhere on the page whose anchor text / URL slug share
-       words with the claim (`relevant_links`), nearest paragraphs first. Navigation, footer and share links share
-       none, so a page full of links does not turn into a crawl of the whole page."""
+def _locate(source_text: str, quote: str | None, claim_text: str, alt_quote: str | None):
+    """(plain view, (start, end, score) | None): where in a source the passage the claim rests on sits."""
     plain = build_plain(source_text)
     loc = locate(plain, quote, QUOTE_ALIGN_THRESHOLD) if quote else None
     if loc is None:
@@ -90,6 +85,29 @@ def passage_links(source_text: str, quote: str | None, claim_text: str, source_u
                     loc = locate(plain, s_plain, CLAIM_ALIGN_THRESHOLD)
                     if loc is not None:
                         break
+    return plain, loc
+
+
+def passage_of(source_text: str, quote: str | None, claim_text: str, alt_quote: str | None = None) -> tuple[str, str] | None:
+    """(sentence, paragraph) of the passage the claim rests on, as plain text; None when it cannot be located."""
+    plain, loc = _locate(source_text, quote, claim_text, alt_quote)
+    if loc is None:
+        return None
+    a, b = to_markdown_span(source_text, plain, loc[0], loc[1])
+    s0, s1 = sentence_bounds(source_text, a, b)
+    p0, p1 = paragraph_bounds(source_text, a, b)
+    return build_plain(source_text[s0:s1]).text.strip(), build_plain(source_text[p0:p1]).text.strip()
+
+
+def passage_links(source_text: str, quote: str | None, claim_text: str, source_url: str,
+                  alt_quote: str | None = None) -> list[LinkRef]:
+    """Links the passage a claim rests on in a source points to.
+
+    1. the links in the located passage's sentence, else its paragraph (what the source cites for exactly this);
+    2. none there, or the passage cannot be located: links elsewhere on the page whose anchor text / URL slug share
+       words with the claim (`relevant_links`), nearest paragraphs first. Navigation, footer and share links share
+       none, so a page full of links does not turn into a crawl of the whole page."""
+    plain, loc = _locate(source_text, quote, claim_text, alt_quote)
     span = None
     if loc is not None:
         span = to_markdown_span(source_text, plain, loc[0], loc[1])
@@ -178,11 +196,13 @@ def _is_search_page(url: str) -> bool:
 def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher: Fetcher, article_url: str,
                    article_domain: str, max_depth: int = 2, emit: Emit | None = None,
                    deadline_s: float = DEADLINE_S, llm: LLMClient | None = None,
-                   settings: Settings | None = None) -> Depth2Result:
+                   settings: Settings | None = None, step_cache=None) -> Depth2Result:
     """Add depth-2..max_depth sources to `rows` (mutated: ids continue after the last source).
 
     `rows` are the initial contract Source dicts; `assessments` the ClaimAssessments they came from (fetched text
     and verified quotes live there); `claims` the contract Claim dicts (which claim cites which source).
+    A source whose passage links nothing usable but NAMES where its information comes from ("the New York Times reported")
+    gets that source searched for (`chainsearch.py`, Exa Agent + our searches) when `settings.chain_search` is on.
     With `llm` + `settings`, every newly read depth >= 2 source is CHECKED against the claim it is cited for (quote
     first, like every verdict) and gets `Source.check`; without them the structure is recorded but nothing is judged.
     """
@@ -192,10 +212,12 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
     out = emit or (lambda event, data: None)
     text_by_url: dict[str, str] = {}
     quote_by_url: dict[str, str | None] = {}
+    pub_by_url: dict[str, datetime | None] = {}
     for a in assessments:
         for sa in a.sources:
             if sa.url and sa.fetch is not None and sa.fetch.text:
                 text_by_url.setdefault(sa.url, sa.fetch.text)
+                pub_by_url.setdefault(sa.url, _parse_dt(sa.fetch.published_at))
                 q = sa.verify.quote_original if sa.verify and not sa.verify.downgraded else None
                 if q and not quote_by_url.get(sa.url):
                     quote_by_url[sa.url] = q
@@ -218,6 +240,9 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
 
     seen: set[tuple[str, str]] = set()
     total_fetched = 0
+    searches_left = settings.max_chain_searches if (settings is not None and llm is not None and settings.chain_search
+                                                    and settings.exa_api_key) else 0
+    chain_cache = None
 
     for cur_depth in range(1, max_depth):
         end = time.monotonic() + deadline_s      # per hop: a slow hop 2 must not starve hops 3..5
@@ -227,6 +252,7 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
 
         # 1. who cites what (sequential and in source order: deterministic across replays)
         cands: list[_Candidate] = []
+        unlinked: list[tuple[dict, str, str, str, str | None, str | None]] = []
         for parent in parents:
             parent_text = text_by_url.get(parent["url"])
             cinfo = claim_by_source.get(parent["id"])
@@ -246,7 +272,9 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
                 taken += 1
                 if taken >= MAX_LINKS_PER_SOURCE:
                     break
-        if not cands:
+            if taken == 0 and searches_left > 0:        # no usable link: the passage may still NAME a source
+                unlinked.append((parent, claim_id, claim_text, parent_text, quote, alt_quote))
+        if not cands and not (unlinked and searches_left > 0):
             break
 
         # 2. fetch the new ones (skip own article domain: a link back back-closes a circle without fetching).
@@ -304,9 +332,97 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
                 out("edge", edge)
             res.citations.append(Citation(c.claim_id, c.parent["id"], child["id"], c.domain,
                                           chain=chain_by_source[c.parent["id"]]))
+        if unlinked and searches_left > 0:
+            if chain_cache is None:
+                from .assess import _FetchCache      # assess imports this module: import it late
+                chain_cache = _FetchCache(fetcher, article_url)
+            searches_left -= _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_source,
+                                           alt_quote_by_source, text_by_url, pub_by_url, res, out, llm=llm, settings=settings,
+                                           cache=chain_cache, step_cache=step_cache, max_searches=searches_left)
         if llm is not None and settings is not None:
             _check_sources(to_check, llm, settings)
+    if chain_cache is not None:
+        chain_cache.join_html(timeout=5.0)
+        for r, pg in zip(res.rows, res.pages):          # the raw HTML of found pages (source type), after the searches
+            sa_html = chain_cache._data.get(r["url"]) if r.get("url") else None
+            if r["kind"] == "named" and sa_html is not None and pg.html is None:
+                pg.html = sa_html.html
     return res
+
+
+def _parse_dt(v) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00")).replace(tzinfo=None) if v else None
+    except ValueError:
+        return None
+
+
+def _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_source, alt_quote_by_source, text_by_url,
+                  pub_by_url, res: Depth2Result, out, *, llm, settings, cache, step_cache, max_searches: int) -> int:
+    """Name + look for the source each of these passages points to (in parallel, one hop deadline). Adds one row per
+    passage that names a source: the page we found (verified quote, `check`), else a stub with just the name.
+    Returns how many searches ran (they count against `max_chain_searches`)."""
+    from .chainsearch import find_cited, named_source
+
+    jobs = []
+    for parent, claim_id, claim_text, parent_text, quote, alt_quote in unlinked:
+        passage = passage_of(parent_text, quote, claim_text, alt_quote)
+        if passage is not None:
+            jobs.append((parent, claim_id, claim_text, parent_text, passage))
+    if not jobs:
+        return 0
+    end = time.monotonic() + settings.chain_search_deadline_s
+    # 1. naming is one cheap LLM call: do it for every passage, so the (paid) searches below are not spent on passages
+    #    that name nobody ("plain fact", "our reporters")
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 6), thread_name_prefix="chainname") as npool:
+        names = list(npool.map(lambda j: named_source(j[4][0], j[4][1], j[2], j[0]["domain"], llm=llm, model=settings.model_extract), jobs))
+    jobs = [(j, who) for j, who in zip(jobs, names) if who][:max_searches]
+    if not jobs:
+        return 0
+    # 2. look for each named source (Exa Agent + our searches), in parallel, one hop deadline
+    pool = ThreadPoolExecutor(max_workers=len(jobs), thread_name_prefix="chain")
+    futures = [(j, pool.submit(find_cited, j[0]["url"], j[0]["domain"], j[3], j[4][0], j[4][1], j[2], cache=cache, llm=llm,
+                               settings=settings, published_at=pub_by_url.get(j[0]["url"]), step_cache=step_cache, who=who))
+               for j, who in jobs]
+    for (parent, claim_id, claim_text, parent_text, passage), fut in futures:
+        try:
+            cited = fut.result(timeout=max(end - time.monotonic(), 0.0))
+        except FutureTimeout:
+            log.warning("search for the source cited by %s did not finish before deadline", parent["url"])
+            fut.cancel()
+            continue
+        except Exception as exc:
+            log.warning("search for the source cited by %s failed: %s", parent["url"], type(exc).__name__)
+            continue
+        if cited is None:
+            continue
+        sa = cited.found
+        child = known.get(sa.url) if sa else None
+        if child is None:
+            child = {"id": f"s{len(rows) + 1}", "url": sa.url if sa else None, "domain": registrable_domain(sa.url) if sa else None,
+                     "kind": "named", "attribution_text": cited.who, "depth": next_depth, "parent_source_id": parent["id"],
+                     "fetch_status": sa.fetch.status if sa else "not_fetched", "fetched_via": sa.fetch.via if sa else None}
+            if sa:
+                v = sa.verify
+                child["check"] = {"verdict": v.verdict, "quote_original": v.quote_original, "fuzzy_score": v.fuzzy_score,
+                                  "explanation": v.explanation, "model": v.model, "prompt_version": v.prompt_version}
+                text_by_url.setdefault(sa.url, sa.fetch.text or "")
+                known[sa.url] = child
+            rows.append(child)
+            res.rows.append(child)
+            res.pages.append(SourcePage(domain=child["domain"] or "", html=sa.fetch.html if sa else None))
+            claim_by_source[child["id"]] = (claim_id, claim_text)
+            chain_by_source[child["id"]] = chain_by_source[parent["id"]] + (child["id"],)
+            alt_quote_by_source[child["id"]] = cited.statement
+            out("node", {"id": child["id"], "type": "source", "label": child["domain"] or cited.who, "verdict": None,
+                         "cluster_id": None, "depth": next_depth})
+        edge = {"id": f"e-{parent['id']}-{child['id']}", "source": parent["id"], "target": child["id"], "type": "cites"}
+        if edge not in res.edges:
+            res.edges.append(edge)
+            out("edge", edge)
+        # no Citation: a page WE searched for is not one the source cites, so it can never close a citation circle
+    pool.shutdown(wait=False)
+    return len(jobs)
 
 
 def _check_sources(items: list[tuple[dict, str, str]], llm: LLMClient, settings: Settings) -> None:

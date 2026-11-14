@@ -179,6 +179,16 @@ rests on; if there are none or the passage cannot be located, links elsewhere on
 words with the claim (>= 2 words; 1 in the paragraphs next to the passage; click-tracker redirects are unwrapped). Every
 depth >= 2 page that was read is then judged against the claim (`Source.check`, display only).
 
+Source of the source WITHOUT a link (`CHAIN_SEARCH=true`, needs `EXA_API_KEY`; `pipeline/chainsearch.py`): when the passage links
+nothing usable but names where its information comes from ("the New York Times reported", "journalists reported", "according
+to a study by ..."), the name is read from the passage (one cheap LLM call; `null` when the passage states a plain fact or the
+origin is the page's own publisher) and the page is searched like an attributed claim (plan, our Exa searches + the Exa Agent,
+quote-first verify). Found: `Source{kind:"named", depth:N+1, parent_source_id:<the citing source>, url set, attribution_text:
+<name as the passage gives it>, check}`; not found: a stub `Source{kind:"named", url:null, domain:null, attribution_text,
+fetch_status:"not_fetched"}`. Edge `cites` source -> source. A page we searched for is not one the source cites: it stays out of
+the infrastructure / network / circle signals (like every search-found page), so it can never change the label. At most
+`MAX_CHAIN_SEARCHES` (default 3) per article, `CHAIN_SEARCH_DEADLINE_S` (75) per hop; an unfinished search is dropped (neutral).
+
 ### Signals
 ```
 evidence:       {fired: bool, claim_ids: str[], detail: str}
