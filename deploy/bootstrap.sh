@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
-# ONE-TIME setup on the VPS, run by a human (needs docker + compose >= 2.24, git):
-#   LIVE_HOST=source-trace.example.com PREVIEW_HOST=source-trace-preview.example.com deploy/bootstrap.sh [repo-url]
-# Needs the VPS's Traefik (docker provider, certresolver `letsencrypt`) and read access to the repo (deploy key
-# for a private repo: pass an ssh URL). Safe to re-run: never overwrites an existing .env.
+# ONE-TIME setup on the VPS (as the deploy user; needs docker + compose >= 2.24, openssl). Run from an uploaded release:
+#   git archive HEAD | ssh deploy@host 'mkdir -p /tmp/st && tar -x -C /tmp/st'
+#   ssh deploy@host 'LIVE_HOST=... PREVIEW_HOST=... /tmp/st/deploy/bootstrap.sh'
+# Creates /opt/source-trace/{live,preview}/{releases,.env}. Never overwrites an existing .env.
+# Routing + certificates come from the VPS's Traefik (labels in docker-compose.vps.yml): nothing to start here.
 set -euo pipefail
 : "${LIVE_HOST:?set LIVE_HOST}"; : "${PREVIEW_HOST:?set PREVIEW_HOST}"
-repo="${1:-https://github.com/hotreload-junction/Source-Trace.git}"   # private repo: use a read-only deploy-key URL
+src="$(cd "$(dirname "$0")/.." && pwd)"
 root="${DEPLOY_ROOT:-/opt/source-trace}"
-mkdir -p "$root"
-for pair in live:main preview:dev; do
-  env_name="${pair%%:*}"; branch="${pair##*:}"; dir="$root/$env_name"
-  [ -d "$dir/.git" ] || git clone -q --branch "$branch" "$repo" "$dir"
+for env_name in live preview; do
+  dir="$root/$env_name"; mkdir -p "$dir/releases"
   host="$([ "$env_name" = live ] && echo "$LIVE_HOST" || echo "$PREVIEW_HOST")"
   if [ ! -f "$dir/.env" ]; then
-    cp "$dir/.env.example" "$dir/.env"
+    cp "$src/.env.example" "$dir/.env"; chmod 600 "$dir/.env"
     printf '\n# --- VPS (%s) ---\nMARIADB_PASSWORD=%s\nSITE_HOST=%s\nPUBLIC_BASE_URL=https://%s\n' \
       "$env_name" "$(openssl rand -hex 16)" "$host" "$host" >> "$dir/.env"
-    echo "bootstrap: wrote $dir/.env, now add the API keys (AI_ROUTER_*, CONTEXT_DEV_*, EXA_*) by hand"
+    echo "bootstrap: wrote $dir/.env (add the API keys: AI_ROUTER_*, CONTEXT_DEV_*, EXA_*)"
   fi
 done
-echo "bootstrap: done. DNS for $LIVE_HOST and $PREVIEW_HOST must resolve to this VPS (Traefik issues the certificates)."
+echo "bootstrap: done. DNS for $LIVE_HOST and $PREVIEW_HOST must resolve to this VPS."

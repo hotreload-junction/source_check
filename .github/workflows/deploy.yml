@@ -1,5 +1,5 @@
 name: deploy
-# push to dev  -> preview environment (branch dev, VPS dir /opt/source-trace/preview)
+# push to dev  -> preview environment (VPS dir /opt/source-trace/preview)
 # push to main -> live environment    (branch main, VPS dir /opt/source-trace/live; main only moves via humans' tools/promote)
 # Skipped until the repo variable DEPLOY_HOST is set (see docs/deploy.md), so it never turns dev red before setup.
 on:
@@ -38,6 +38,7 @@ jobs:
       TARGET: ${{ github.ref_name == 'main' && 'live' || 'preview' }}
       SHA: ${{ github.sha }}
     steps:
+      - uses: actions/checkout@v4
       - name: SSH setup
         env:
           KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -52,9 +53,10 @@ jobs:
           USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
           ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
         run: |
-          # deploy.sh itself checks out $SHA (it needs the previous commit for rollback), so only fetch here
-          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-            "$USER_@$HOST" "cd '$ROOT/$TARGET' && git fetch -q origin && deploy/deploy.sh $TARGET $SHA"
+          # The VPS needs no repo access: upload this exact commit as a release, then run its deploy.sh.
+          # deploy.sh does the rest (build, smoke test, rollback to the previous release).
+          git archive --format=tar.gz "$SHA" | ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -e; d='$ROOT/$TARGET/releases/$SHA'; rm -rf \"\$d\"; mkdir -p \"\$d\"; tar -xz -C \"\$d\"; \"\$d/deploy/deploy.sh\" $TARGET $SHA"
       - name: Report failed deploy on the board
         if: failure()
         env:
