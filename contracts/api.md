@@ -250,3 +250,17 @@ Additive, shapes as above.
   found, and a page that contradicts the claim was found: ...". Confirming AND refuting pages: `not_checkable` ("Sources disagree").
   A refutation without a verifiable quote never counts (stays `unsourced` / `not_checkable`). Confirmation of an attributed claim by
   independent pages follows `CORROBORATION_COUNTS` (neutral by default).
+
+## Root or relay: claims the chain cannot follow (`ORIGIN_CHECK`, default on)
+
+Additive, no new fields or enum values. After all searches, a claim with no evidence, no `subtype` and no cited page with a URL
+(`unsourced`, or `not_checkable` with only a named stub) gets ONE `MODEL_VERIFY` call (`backend/app/pipeline/origin.py`):
+- **root**: the information starts with what the article names (own statement in an interview, first-hand observation, an
+  organisation's own data or decision, anonymous sources the outlet spoke to) -> `verdict: "not_checkable"` (neutral),
+  `explanation` starts with `"Root source:"`.
+- **relay**: it comes from somewhere the article does not say ("doctors claim", "studies show", a figure asserted as fact)
+  -> `verdict: "unsourced"`, `explanation` starts with `"Not the root source:"`.
+Quote first: the model must copy the words that show the origin from the claim's paragraph; no fuzzy match
+(`FUZZY_THRESHOLD`), a malformed answer or an LLM error leaves the verdict unchanged. Claims whose cited page was unreachable,
+paywalled, social or self-cited are never re-classified (they stay neutral). The `claim` SSE event is sent again with the new
+verdict.

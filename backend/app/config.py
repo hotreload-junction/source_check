@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v9"
+    prompt_version: str = "v10"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     extract_votes: int = 5
     # 3 = depth 2-3 source chain crawl (no extra LLM calls) + citation-circle signal; 1 switches it off; 5 = theoretical max
     max_depth: int = Field(default=3, ge=1, le=5)
+    # Root or relay (pipeline/origin.py): claims without any checkable source are classified by MODEL_VERIFY;
+    # root (own statement / first-hand) stays neutral, relay ("doctors claim") becomes unsourced
+    origin_check: bool = True
 
     # Also LLM-verify Exa candidates that do not look first-hand (other outlets). They can only ever corroborate
     # (never decide), so skipping them saves ~40% of verify calls; turn on for the 'other reporting confirms' note.

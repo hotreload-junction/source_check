@@ -35,6 +35,7 @@ from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .copies import find_article_copies
 from .depth2 import expand_sources
 from .extract import ExtractedClaim, extract_claims
+from .origin import check_origins
 from .textutil import article_body_filter, build_plain
 
 log = logging.getLogger("citetrace.run")
@@ -238,6 +239,12 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     focus_pool.shutdown(wait=False)
     central_dicts = claim_dicts[: len(claims)]
 
+    # 3b. root or relay (origin.py): a claim without any checkable source either ENDS at its root (neutral) or breaks
+    # off at a relay ("doctors claim", unsourced). Runs while infrastructure and depth are computed; applied before 5.
+    origin_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="origin")
+    origin_future = origin_pool.submit(check_origins, list(claim_dicts), assessments, list(reg.rows), text_md,
+                                       llm=llm, settings=s) if s.origin_check else None
+
     # 4. infrastructure --------------------------------------------------------------------------------------
     progress("infra_signals", "Looking at the infrastructure behind the sources", 85)
     rdap_pool.shutdown(wait=True)
@@ -282,6 +289,20 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     domain_cluster = {d["domain"]: d["cluster_id"] for d in infra.domains}
     # Q2 reputation badges (context only, never read by verdict.py): WP:RSP + Tranco snapshots, Wayback first capture
     add_reputation(infra.domains, archive.lookup if archive is not None else None, skip=PLATFORM_DOMAINS)
+
+    if origin_future is not None:
+        try:
+            changes = origin_future.result()
+        except Exception as exc:      # the origin check must never break the analysis: verdicts stay as they are
+            logging.getLogger("citetrace.origin").warning("origin check crashed: %s", type(exc).__name__)
+            changes = []
+        for i, verdict, expl, _ in changes:
+            cd = claim_dicts[i]
+            cd["verdict"], cd["explanation"] = verdict, expl
+            out("claim", cd)
+            out("node", {"id": cd["id"], "type": "claim", "label": _label(cd["text"]), "verdict": verdict,
+                         "cluster_id": None, "depth": 0})
+    origin_pool.shutdown(wait=False)
 
     # 5. verdict ---------------------------------------------------------------------------------------------
     progress("verdict", "Deciding", 95)
