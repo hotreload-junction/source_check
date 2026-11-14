@@ -162,7 +162,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         progress("verify_claims", f"Verified {done[0]} of {len(claims)} claims", 25 + int(55 * done[0] / max(len(claims), 1)))
 
     assessments = assess_claims(claims, url, fetcher=fetcher, llm=llm, settings=s, exa_client=exa_client,
-                                published_at=published, on_claim=finalize, step_cache=sc) if claims else []
+                                published_at=published, on_claim=finalize, step_cache=sc, article_text=text_md) if claims else []
 
     # 4. infrastructure --------------------------------------------------------------------------------------
     progress("infra_signals", "Looking at the infrastructure behind the sources", 85)

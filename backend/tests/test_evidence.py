@@ -269,3 +269,48 @@ def test_a_page_with_the_exact_quote_outranks_many_pages_of_the_venue_without_it
     ranked = sorted(venue_only + [quote_elsewhere, quote_on_venue], key=lambda c: c.score)
     assert [c.hit.url for c in ranked[:2]] == ["https://www.president.gov.ua/en/news/the-statement", "https://www.bbc.com/news/articles/x"]
     assert [c.hit.url for c in ranked[2:4]] == [f"https://www.president.gov.ua/en/news/old-{i}" for i in (0, 1)]       # then Exa's own order
+
+
+def test_user_generated_platforms_are_never_the_venues_own_site():
+    plan = SearchPlan(venue="Truth Social", domains=["truthsocial.com"])
+    assert not is_venue_domain("https://truthsocial.com/@NBS8989/posts/117607640025851418", plan)     # a fan account reposting a headline
+    assert not is_venue_domain("https://www.youtube.com/watch?v=x", SearchPlan(venue="YouTube"))
+    assert not is_venue_domain("https://t.me/rybar/1", SearchPlan(venue="Telegram", domains=["t.me"]))
+    assert is_venue_domain("https://www.foxbusiness.com/x", SearchPlan(venue="Fox Business"))            # a real outlet still is
+
+
+def test_syndication_share_tells_a_wire_copy_from_an_independent_report():
+    from app.pipeline.textutil import syndication_share
+    article = ("# Britain seeking EU deal\n\n" + "\n\n".join([
+        "Healey said the Brexit deal agreed ten years ago under the previous government just is not good enough for the country.",
+        "The government wants agreements on food and farming that cut red tape and ease trade across the Channel for business.",
+        "Britain is also seeking closer cooperation on defence procurement and on energy security over the coming winter months.",
+        "Opposition parties said the plan risked creating fresh uncertainty for exporters who already struggle with paperwork.",
+        "Officials said talks would continue next month in Brussels with a decision on the framework expected before Christmas."]))
+    claim = "Healey said the Brexit deal agreed ten years ago"
+    copy = article.replace("# Britain seeking EU deal", "Britain seeking EU deal where benefits outweigh trade-offs - finance minister") + "\n\nRead more on our site."
+    own_report = ("Finance minister John Healey spoke to the BBC on Thursday. He said the previous Brexit deal was inadequate. "
+                  "Exporters welcomed the direction of travel but asked for detail. Talks in Brussels resume in December, a spokesman added.")
+    assert syndication_share(article, claim, copy) >= 0.8
+    assert syndication_share(article, claim, own_report) <= 0.2
+    assert syndication_share("short article", claim, copy) is None              # too little to compare: never guess
+
+
+def test_a_syndicated_copy_is_not_linked_as_independent_reporting():
+    ARTICLE_TEXT = ("# Why Huang left\n\n" + "\n\n".join([
+        "Huang's resignation removes one of Washington's most prominent advocates of keeping China connected to American technology.",
+        "Congressional hawks have already been pushing for tougher export restrictions on advanced chips sold into the Chinese market.",
+        "The scandal came at a pivotal moment in the US-China technology war, just days before a planned summit between presidents.",
+        "Analysts said the timing of the downfall has fueled questions about the political interests served by the resignation.",
+        CONTEXT]))
+    mirror = ARTICLE_TEXT + "\n\n" + FOX_PAGE                              # the same text republished, quote included
+    pages = {QUOTE_COPY: FetchResult(QUOTE_COPY, "link", "ok", via="context_dev", text=mirror, html="<html></html>")}
+    art = article_result(); art.text = ARTICLE_TEXT
+
+    def exa_copy():
+        return httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": QUOTE_COPY, "title": "t", "publishedDate": "2026-11-13"}]})))
+    out = analyze("https://news.example/a", fetcher=tr.FakeFetcher(art, pages), llm=pipeline_router(found_type="secondary"), settings=SETTINGS,
+                  rdap=tr.FakeRdap({}), exa_client=exa_copy())
+    (claim,) = out.result["claims"]
+    assert claim["verdict"] == "not_checkable" and "copy or syndication of the article itself" in claim["explanation"]
+    assert [s["depth"] for s in out.result["sources"]] == [1]                  # no link below the person

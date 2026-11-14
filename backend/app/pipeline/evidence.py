@@ -188,6 +188,14 @@ def plan_search(attribution: str, claim_text: str, context: str, article_date: d
     return plan
 
 
+# Platforms where ANYONE publishes. A post on truthsocial.com / x.com / youtube.com / t.me is only the speaker's own
+# statement when it is the speaker's account, which a domain match cannot tell: measured, a fan account reposting a
+# headline ("President Trump reveals ...") counted as "Trump's own Truth Social post". The model's source_type decides.
+UGC_DOMAINS = {"truthsocial.com", "x.com", "twitter.com", "facebook.com", "instagram.com", "youtube.com", "youtu.be", "t.me",
+               "telegram.me", "reddit.com", "tiktok.com", "linkedin.com", "medium.com", "substack.com", "bsky.app", "threads.net",
+               "vk.com", "ok.ru", "wordpress.com", "blogspot.com", "stocktwits.com", "quora.com", "wikipedia.org"}
+
+
 def venue_key(venue: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", (venue or "").lower())
 
@@ -196,6 +204,8 @@ def is_venue_domain(url: str, plan: SearchPlan) -> bool:
     """Page is hosted by the venue the article names: planned domains, or a domain whose name IS the venue
     (foxbusiness.com for "Fox Business") so a wrong domain guess by the model cannot hide it."""
     reg = registrable_domain(url)
+    if reg in UGC_DOMAINS:
+        return False
     if reg in {registrable_domain(d) for d in plan.domains}:
         return True
     label, key = reg.split(".")[0], venue_key(plan.venue)

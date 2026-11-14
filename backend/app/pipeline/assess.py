@@ -29,6 +29,7 @@ from datetime import datetime
 
 from .evidence import Candidate, SearchPlan, gather_candidates, plan_search
 from .extract import ExtractedClaim
+from .textutil import SYNDICATION_THRESHOLD, syndication_share
 from .verify import VerifyResult, verify_claim
 
 log = logging.getLogger("citetrace.assess")
@@ -110,14 +111,15 @@ class _FetchCache:
 def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fetcher, llm: LLMClient,
                   settings: Settings | None = None, exa_client: httpx.Client | None = None,
                   max_workers: int | None = None, published_at: datetime | None = None,
-                  on_claim: Callable[[int, "ClaimAssessment"], None] | None = None, step_cache=None) -> list[ClaimAssessment]:
+                  on_claim: Callable[[int, "ClaimAssessment"], None] | None = None, step_cache=None,
+                  article_text: str = "") -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
     deadline = time.monotonic() + s.claim_deadline_s
     # claims are independent and almost all wait on the network: run them all at once (max 6 by contract)
     pool = ThreadPoolExecutor(max_workers=max_workers or max(len(claims), 1), thread_name_prefix="claim")
     futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
-                           published_at=published_at, step_cache=step_cache) for c in claims]
+                           published_at=published_at, step_cache=step_cache, article_text=article_text) for c in claims]
     results: list[ClaimAssessment] = []
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
@@ -137,7 +139,7 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
 
 def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache, llm: LLMClient,
                  settings: Settings, exa_client: httpx.Client | None = None,
-                 published_at: datetime | None = None, step_cache=None) -> ClaimAssessment:
+                 published_at: datetime | None = None, step_cache=None, article_text: str = "") -> ClaimAssessment:
     if claim.links:
         sources = [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
                                   loose_link=(l.scope == "paragraph"))
@@ -154,7 +156,7 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
     who = plan.speaker or speaker
     with ThreadPoolExecutor(max_workers=min(len(cands), 4) or 1) as pool:   # candidates are independent: verify together
         sources = list(pool.map(lambda c: _assess_source(claim, c.hit.url, who, article_url, cache, llm, settings, published_at,
-                                                         plan=plan, cand=c), cands))
+                                                         plan=plan, cand=c, article_text=article_text), cands))
     if not sources:   # attributed but nothing located -> neutral, never "unsourced"
         return ClaimAssessment(claim, "not_checkable", None, f"{NOT_VERIFIED} It is attributed to {who}, but no page containing it was found.",
                                plan=plan)
@@ -165,7 +167,8 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
                    llm: LLMClient, settings: Settings, published_at: datetime | None = None,
-                   loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None) -> SourceAssessment:
+                   loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None,
+                   article_text: str = "") -> SourceAssessment:
     fetch = cache.get(url)
     kind = "named" if attribution else fetch.kind
     venue_hosted, phrase_hit = (cand.venue_hosted, cand.phrase_hit) if cand else (False, False)
@@ -191,6 +194,14 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     if kind == "named" and not original_like:
         # Another outlet, not the statement itself. It can corroborate; it decides only if the team switched that on.
         corroborated = v.verdict == "supported"
+        if corroborated and article_text:
+            # A wire story is republished by dozens of sites. Such a copy is the article itself, not independent
+            # reporting (measured: 15% of "confirming" pages were copies, e.g. four mirrors of one Reuters text).
+            share = syndication_share(article_text, claim.text, fetch.text or "")
+            if share is not None and share >= SYNDICATION_THRESHOLD:
+                return SourceAssessment(url, kind, attribution, fetch, v, "not_checkable",
+                                        NOT_VERIFIED + " The page found is a copy or syndication of the article itself, not independent reporting.",
+                                        venue_hosted=venue_hosted, phrase_hit=phrase_hit)
         if corroborated and settings.corroboration_counts:
             verdict = "supported"
         else:

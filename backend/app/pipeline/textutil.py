@@ -183,3 +183,20 @@ def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110) -> li
             if total > max_chars or len(units) >= max_units:
                 return units
     return units
+
+
+SYNDICATION_THRESHOLD = 0.4
+
+
+def syndication_share(article_md: str, claim_text: str, page_text: str, *, sentences: int = 14) -> float | None:
+    """Share of the article's OTHER sentences that also occur on `page_text`: ~1.0 for a wire copy / syndication of the
+    same piece, ~0 for an outlet that wrote its own report. None when the article gives too little to compare."""
+    from rapidfuzz import fuzz
+
+    own = build_plain(claim_text).text[:40]
+    others = [t for _, _, t in sentence_units(article_md) if len(t) >= 70 and own not in t][:sentences]
+    if len(others) < 3 or not page_text:
+        return None
+    page = build_plain(page_text[:150_000]).text
+    hits = sum(1 for t in others if fuzz.partial_ratio(t[:160], page) >= 92)
+    return hits / len(others)
