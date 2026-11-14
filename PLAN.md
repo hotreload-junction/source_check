@@ -44,7 +44,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 |---|---|---|---|---|
 | B1 | skeleton: FastAPI, config from env, `/api/health`, pytest, MariaDB schema incl. audit trail | leo-be | done | `backend/`, `pyproject.toml` with `[dev]` extra |
 | B2 | fetch layer: Context.dev + trafilatura fallback, Telegram `t.me/s/`, X/YouTube -> `social_media`, same domain -> `self_citation`, dead/paywall -> `not_checkable` | leo-be | done | record fixtures for tests |
-| B3 | claim extraction (cheap LLM, max 6), attach links/attributions from same sentence/paragraph, named unlinked source -> Exa | leo-be | todo | JSON output, temperature 0 |
+| B3 | claim extraction (cheap LLM, max 6), attach links/attributions from same sentence/paragraph, named unlinked source -> Exa | leo-be | doing | JSON output, temperature 0 |
 | B4 | verify (strong LLM): verbatim quote original + translation + verdict; rapidfuzz check vs source text, downgrade on miss | leo-be | todo | store `PROMPT_VERSION`, model, score |
 | B5 | infra signals: GA/GTM/AdSense IDs via regex on raw HTML, RDAP domain age, operator clusters | leo-bg | done | `backend/app/signals/` |
 | B6 | `backend/app/verdict.py`: two-signal rule + unit tests for every row of the table | leo-bg | todo | thresholds as named constants, one place |
