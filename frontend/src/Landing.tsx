@@ -1,7 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from './api';
-import { CL, MONO, TH } from './theme';
+import { Logo } from './Logo';
+import { CL, GLY, MONO, TH } from './theme';
 import type { DemoCase } from './types';
+
+const BAR = `linear-gradient(to bottom, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
+const STEPS = ['Paste an article URL', 'Every source is traced to bedrock', 'Read a score for each link'];
+
+function hostOf(url: string): string | null {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
+}
 
 export function Landing() {
   const [input, setInput] = useState('');
@@ -18,58 +26,71 @@ export function Landing() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: TH.bg, color: TH.ink, fontFamily: TH.font, backgroundImage: `radial-gradient(${TH.dot} ${TH.dr}px, transparent ${TH.dr}px)`, backgroundSize: `${TH.ds}px ${TH.ds}px` }}>
-      <div style={{ maxWidth: 880, margin: '0 auto', padding: '28px 20px 64px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20 }}>
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.35 }} />
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.65, width: '80%' }} />
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, width: '60%' }} />
-          </div>
+    <div style={{ minHeight: '100vh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
+      <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: 14, background: BAR }} />
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 32px 36px 56px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
           Source Trace
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: '12vh' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: '6vh' }}>
+          <h1 style={{ margin: '0 0 44px', fontSize: 'clamp(40px, 7.4vw, 84px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
+            Paste something you read.
+            <br />
+            See what is{' '}
+            <span style={{ color: CL.g, backgroundImage: `linear-gradient(90deg, ${CL.r}, ${CL.o} 35%, ${CL.y} 65%, ${CL.g})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              behind it.
+            </span>
+          </h1>
 
-        <form onSubmit={go} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxWidth: 720 }}>
-          <input
-            autoFocus
-            required
-            type="url"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="https://example.com/news/article"
-            aria-label="Article URL"
-            style={{ flex: '1 1 320px', minWidth: 0, padding: '14px 16px', borderRadius: 12, border: `${TH.bw / 2}px solid ${TH.ink}`, background: TH.card, font: 'inherit', fontSize: 16, boxShadow: TH.sh }}
-          />
-          <button type="submit" style={{ cursor: 'pointer', padding: '14px 24px', border: `${TH.bw / 2}px solid ${TH.ink}`, borderRadius: 12, font: 'inherit', fontWeight: 700, fontSize: 16, background: TH.ink, color: TH.bg }}>
-            Trace sources
-          </button>
-          <input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            maxLength={500}
-            placeholder="Optional: what are you unsure about? e.g. Is the 40% figure real?"
-            aria-label="Optional question about the article"
-            style={{ flex: '1 1 100%', minWidth: 0, padding: '11px 16px', borderRadius: 12, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 14 }}
-          />
-          <div style={{ flex: '1 1 100%', fontSize: 12, color: TH.mut, lineHeight: 1.4 }}>
-            Leave it empty to check the whole article. With a question we find the sentence it is about and check it against its sources as well; the article verdict stays the same.
-          </div>
-        </form>
+          <form onSubmit={go} style={{ maxWidth: 740 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: 22 }}>
+              <input
+                autoFocus
+                required
+                type="url"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="A link to an article"
+                aria-label="Article URL"
+                style={{ flex: 1, minWidth: 0, padding: '14px 14px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 20 }}
+              />
+              <button type="submit" style={{ cursor: 'pointer', padding: '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: 18, background: TH.ink, color: '#fff' }}>
+                Check
+              </button>
+            </div>
+            <input
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              maxLength={500}
+              placeholder="Optional: what are you unsure about? e.g. Is the 40% figure real?"
+              aria-label="Optional question about the article"
+              title="Leave empty to check the whole article. With a question we also check the sentence it is about; the article verdict stays the same."
+              style={{ width: '100%', marginTop: 10, padding: '11px 16px', borderRadius: 14, border: `1.5px solid ${TH.line}`, background: 'transparent', font: 'inherit', fontSize: 14 }}
+            />
+          </form>
 
-        {demos.length > 0 && (
-          <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: TH.mut }}>No article at hand? Try a prepared case:</span>
-            {demos.map((d) => (
-              <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} style={{ textDecoration: 'none', color: TH.ink, padding: '6px 13px', borderRadius: 99, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: TH.card }}>
-                {d.label}
-              </a>
-            ))}
-          </div>
-        )}
+          {demos.length > 0 && (
+            <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 15, color: TH.mut }}>Try</span>
+              {demos.map((d) => (
+                <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: TH.ink, padding: '8px 16px 8px 12px', borderRadius: 99, fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.line}`, background: TH.card }}>
+                  <Logo domain={hostOf(d.url)} glyph={GLY.link} color={TH.mut} size={16} />
+                  {d.label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
 
+        <div style={{ display: 'flex', gap: '12px 40px', flexWrap: 'wrap', paddingTop: 22, borderTop: `1px solid ${TH.line}`, fontSize: 16, color: TH.mut }}>
+          {STEPS.map((s, i) => (
+            <span key={s}>
+              <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, color: TH.ink, marginRight: 8 }}>{`0${i + 1}`}</span>
+              {s}
+            </span>
+          ))}
         </div>
       </div>
     </div>
