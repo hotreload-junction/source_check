@@ -41,13 +41,16 @@ def test_context_dev_ok_and_request_shape():
     seen = {}
 
     def handler(request):
+        if request.url.host != "api.context.dev":   # raw HTML comes from a direct GET
+            return httpx.Response(200, text=fx("article.html"))
         seen["auth"] = request.headers["authorization"]
         seen["body"] = json.loads(request.content)
         return httpx.Response(200, json=json.loads(fx("contextdev_ok.json")))
     f = make(handler, key="k123")
     r = f.fetch_article(ART)
     assert r.status == "ok" and r.via == "context_dev" and r.title == "Test Article"
-    assert "G-ABC123" in r.html
+    assert "G-ABC123" in r.html          # <head> script survives because we do not use mainContentOnly HTML
+    assert seen["body"]["formats"] == {"markdown": True}
     assert seen["auth"] == "Bearer k123"
     # verified against the live API: unknown top-level keys (e.g. "timeout") are rejected with 400
     assert set(seen["body"]) == {"url", "formats", "markdownParams", "sharedParams"}
@@ -110,6 +113,8 @@ def test_context_dev_retries_transient_then_succeeds():
     calls = []
 
     def handler(request):
+        if request.url.host != "api.context.dev":
+            return httpx.Response(200, text=fx("article.html"))
         calls.append(1)
         if len(calls) < 3:
             return httpx.Response(502 if len(calls) == 1 else 503)
@@ -185,3 +190,28 @@ def test_sources_never_wait_but_article_does():
     assert f.fetch_source("https://example.org/a", ART).via == "context_dev"
     assert f.fetch_source("https://example.org/b", ART).via == "trafilatura"   # slot used, no waiting
     assert f.fetch_article(ART).via == "context_dev"                           # article waits for a slot
+
+
+def test_article_html_falls_back_to_full_context_dev_when_direct_get_blocked():
+    bodies = []
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            body = json.loads(request.content)
+            bodies.append(body)
+            if "html" in body["formats"]:
+                return httpx.Response(200, json={"html": {"success": True, "data": "<head>G-FULL12345</head>"}})
+            return httpx.Response(200, json=json.loads(fx("contextdev_ok.json")))
+        return httpx.Response(403)
+    r = make(handler, key="k").fetch_article(ART)
+    assert r.status == "ok" and r.html == "<head>G-FULL12345</head>"
+    assert bodies[1]["sharedParams"]["mainContentOnly"] is False
+
+
+def test_source_html_is_direct_get_and_none_when_blocked():
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            return httpx.Response(200, json=json.loads(fx("contextdev_ok.json")))
+        return httpx.Response(403)
+    r = make(handler, key="k").fetch_source("https://example.org/report", ART)
+    assert r.status == "ok" and r.html is None     # neutral: signals skip this domain

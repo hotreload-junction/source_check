@@ -108,8 +108,10 @@ class Fetcher:
     def fetch_article(self, url: str) -> FetchResult:
         """The analysed article itself: always fetched, raw HTML kept for infra signals."""
         res = self._fetch_web(url, kind="link", wait=self.article_wait_s)
-        if res.html is None and res.status == "ok":
+        if res.html is None:
             res.html = self._raw_html(url)
+            if res.html is None and self.key:  # blocked for direct GET: one full-page Context.dev call
+                res.html = self._context_full_html(url, self.article_wait_s)
         return res
 
     def fetch_source(self, url: str, article_url: str) -> FetchResult:
@@ -120,7 +122,10 @@ class Fetcher:
             return FetchResult(url, "social", "not_fetched", subtype="social_media")
         if kind == "telegram":
             return self._fetch_telegram(url)
-        return self._fetch_web(url, kind="link")
+        res = self._fetch_web(url, kind="link")
+        if res.status == "ok" and res.html is None:
+            res.html = self._raw_html(url)  # full HTML for infra signals (B5); None if blocked -> neutral
+        return res
 
     # --------------------------------------------------------------- web pages
     def _fetch_web(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
@@ -137,7 +142,7 @@ class Fetcher:
     def _context_dev(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
         body = {
             "url": url,
-            "formats": {"markdown": True, "html": True},
+            "formats": {"markdown": True},
             "markdownParams": {"includeLinks": True, "includeImages": False},
             "sharedParams": {"mainContentOnly": True},
         }
@@ -178,7 +183,7 @@ class Fetcher:
                 status = "blocked" if code in ("WEBSITE_BLOCKED", "WEBSITE_ACCESS_ERROR") else "unreachable"
                 return FetchResult(url, kind, status, error=f"context_dev {code or 'markdown failed'}")
             text = md.get("data") or ""
-            html_out = (data.get("html") or {}).get("data")
+            html_out = None  # mainContentOnly strips <head> scripts; raw HTML comes from _raw_html
             meta = data.get("metadata") or {}
         except (ValueError, AttributeError):
             return FetchResult(url, kind, "unreachable", error="context_dev: bad response")
@@ -206,6 +211,22 @@ class Fetcher:
         meta = trafilatura.extract_metadata(raw)
         return _finish(url, kind, text, "trafilatura", html=raw,
                        title=getattr(meta, "title", None), final_url=str(r.url))
+
+    def _context_full_html(self, url: str, wait: float) -> str | None:
+        """Whole page HTML (incl. <head> analytics scripts) via Context.dev, for pages we cannot GET directly."""
+        if not self.limiter.acquire(wait):
+            return None
+        body = {"url": url, "formats": {"html": True}, "sharedParams": {"mainContentOnly": False}}
+        try:
+            r = self.client.post(CONTEXT_DEV_URL, json=body, headers={"Authorization": f"Bearer {self.key}"},
+                                 timeout=self.timeout + 5)
+            if r.status_code == 429:
+                self.limiter.penalize(float(r.headers.get("retry-after", 60)))
+            if r.status_code != 200:
+                return None
+            return (r.json().get("html") or {}).get("data") or None
+        except (httpx.HTTPError, ValueError):
+            return None
 
     def _raw_html(self, url: str) -> str | None:
         try:
