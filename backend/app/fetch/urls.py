@@ -9,6 +9,7 @@ _SECOND_LEVEL = {
     "co.uk", "org.uk", "ac.uk", "gov.uk", "com.au", "net.au", "org.au", "co.nz", "co.jp",
     "com.br", "com.tr", "com.ua", "co.za", "co.in", "com.cn", "com.mx", "com.ar", "org.ru",
 }
+_GENERIC_SLD = {"co", "com", "org", "net", "gov", "edu", "ac", "mil", "go", "or", "ne", "gob", "gouv"}
 SOCIAL_DOMAINS = {
     "x.com", "twitter.com", "youtube.com", "youtu.be", "facebook.com", "fb.com", "instagram.com",
     "tiktok.com", "linkedin.com", "vk.com", "ok.ru", "reddit.com", "threads.net",
@@ -46,7 +47,8 @@ def registrable_domain(url_or_host: str) -> str:
     labels = host.split(".")
     if len(labels) <= 2:
         return host
-    if ".".join(labels[-2:]) in _SECOND_LEVEL:
+    # country-code second-level registries: gov.ua, co.uk, com.au, org.ru ... (known list + generic pattern)
+    if ".".join(labels[-2:]) in _SECOND_LEVEL or (len(labels[-1]) == 2 and labels[-2] in _GENERIC_SLD):
         return ".".join(labels[-3:])
     return ".".join(labels[-2:])
 

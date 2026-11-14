@@ -36,3 +36,12 @@ def test_classify(url, kind):
 
 def test_self_beats_social():
     assert classify_url("https://x.com/a", "https://x.com/b") == "self"
+
+
+def test_government_second_level_domains_are_not_one_domain():
+    # found in a live run: president.gov.ua collapsed to "gov.ua"
+    assert registrable_domain("https://www.president.gov.ua/en/news/x") == "president.gov.ua"
+    assert not is_same_domain("https://www.president.gov.ua/a", "https://mfa.gov.ua/b")
+    assert is_same_domain("https://www.president.gov.ua/a", "https://president.gov.ua/b")
+    assert registrable_domain("https://www.defmin.fi/en") == "defmin.fi"
+    assert registrable_domain("https://www.gov.uk/x") == "gov.uk"

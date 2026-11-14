@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     context_dev_api_key: str = ""
     exa_api_key: str = ""
     fetch_timeout_s: float = 20.0
-    # Context.dev key limit (measured: 10 requests/min); raise with a bigger plan
-    context_dev_rpm: int = 10
+    # Context.dev key limit (raised from 10 to 100 on Nov 14 by Context.dev; verified with a 24-request burst)
+    context_dev_rpm: int = 100
 
     # Storage
     database_url: str = "mysql+pymysql://citetrace:citetrace@localhost:3306/citetrace"
