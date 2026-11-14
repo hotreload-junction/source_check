@@ -64,11 +64,18 @@ verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English 
 audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2, duration_s}
 ```
 
+`article.text_markdown` is the full normalised article text, stored with the result (cached, so demo
+cases render with all external APIs down). It is final: the backend never alters it after claims were
+located, so `char_start`/`char_end` stay valid. Offsets count Unicode code points (Python `str` indices);
+JavaScript strings count UTF-16 units, so clients must convert (e.g. `[...text]`) or fall back to searching
+`claim.text` when `text_markdown.slice(start, end) !== claim.text`. The text is for display only and is not
+served publicly outside the result. Fetched source texts are not part of the API.
+
 ### Claim
 ```
 id: "c1"
 text: str                     # as it appears in the article (verbatim span)
-char_start, char_end: int|null  # offsets into article.text_markdown, for highlighting
+char_start, char_end: int|null  # [start, end) into article.text_markdown, in Unicode code points (see below)
 source_ids: str[]             # empty -> verdict "unsourced"
 verdict: ClaimVerdict
 subtype: "self_citation" | "social_media" | null
