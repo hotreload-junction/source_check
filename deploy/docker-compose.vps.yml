@@ -1,23 +1,19 @@
 # VPS override, layered on deploy/docker-compose.yml:
 #   docker compose -p source-trace-<env> -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml up -d --build
-# No host ports at all: the shared edge proxy (deploy/edge) is the only thing on 80/443 and reaches this
-# stack's web container over the external docker network `edge` (alias web-<env>). This also keeps the
-# stack clear of the standalone MariaDB that already binds 127.0.0.1:3306 on the VPS.
-# Needs docker compose >= 2.24 (`!reset`).
+# The VPS already runs Traefik (/docker/traefik) on 80/443 with the `letsencrypt` resolver and the docker
+# provider (exposedbydefault=false). We publish NO host ports: Traefik finds the web container by its labels,
+# terminates TLS and routes by hostname. This also keeps clear of the standalone MariaDB on 127.0.0.1:3306.
+# Needs docker compose >= 2.24 (`!reset`). SITE_HOST comes from the env's .env (see docs/deploy.md).
 services:
   db:
     ports: !reset []
   web:
     ports: !reset []
     environment:
-      SITE_ADDRESS: ":80"   # plain HTTP inside the docker network, TLS is terminated by the edge
-    networks:
-      default: {}
-      edge:
-        aliases:
-          - web-${ENV_NAME:?set ENV_NAME=live|preview}
-
-networks:
-  edge:
-    external: true
-    name: edge
+      SITE_ADDRESS: ":80"   # plain HTTP inside the docker network, TLS is Traefik's job
+    labels:   # list form: compose interpolates values, not map keys
+      - traefik.enable=true
+      - traefik.http.routers.source-trace-${ENV_NAME:?set ENV_NAME=live|preview}.rule=Host(`${SITE_HOST:?set SITE_HOST in .env}`)
+      - traefik.http.routers.source-trace-${ENV_NAME}.entrypoints=websecure
+      - traefik.http.routers.source-trace-${ENV_NAME}.tls.certresolver=letsencrypt
+      - traefik.http.services.source-trace-${ENV_NAME}.loadbalancer.server.port=80
