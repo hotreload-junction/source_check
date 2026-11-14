@@ -49,7 +49,7 @@ def primary_hint(url: str, attribution: str) -> int:
 def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: httpx.Client | None = None,
                     timeout: float = 20.0, exclude_url: str | None = None,
                     around: datetime | None = None, limit: int = 3,
-                    include_domains: list[str] | None = None) -> list[NamedSourceHit]:
+                    include_domains: list[str] | None = None, query: str | None = None) -> list[NamedSourceHit]:
     """Up to `limit` candidates for the attribution, first-hand-looking ones first. Never raises.
 
     The article itself and everything on its domain are excluded (a self-citation is not a source).
@@ -60,10 +60,13 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
         return []
     # Restricted to official domains, a SHORT query works better (measured on president.gov.ua)
     qlen = 160 if include_domains else 350
-    body: dict = {"query": f"{attribution.strip()} {claim_text.strip()}"[:qlen], "numResults": NUM_RESULTS, "type": "auto"}
+    text = query.strip() if query else f"{attribution.strip()} {claim_text.strip()}"
+    body: dict = {"query": text[:qlen], "numResults": NUM_RESULTS, "type": "auto"}
     if include_domains:
         body["includeDomains"] = include_domains
-    if around:
+    # Not for official-site searches: measured live, Exa's date filter dropped president.gov.ua's matching page
+    # (11 Nov) from a window that contained it. The domain restriction already narrows the search enough.
+    if around and not include_domains:
         body["startPublishedDate"] = (around - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00.000Z")
         body["endPublishedDate"] = (around + timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000Z")
     try:
@@ -102,25 +105,36 @@ def _safe_norm(url: str) -> str | None:
         return None
 
 
-OFFICIAL_DOMAINS_PROMPT = """Given who a news claim is attributed to, list up to 3 website domains where that person or organisation publishes its OWN first-hand material (press releases, official statements, transcripts, reports). Only domains you are confident exist. Return JSON {"domains": ["example.org"]}; use [] if unknown or if the source is a private individual without an official site."""
+OFFICIAL_SEARCH_PROMPT = """A news article attributes a claim to someone. Help find the ORIGINAL first-hand material.
+Return JSON {"domains": [...], "query": "..."}:
+- "domains": up to 3 website domains where that person or organisation publishes its OWN first-hand material (press releases, official statements, transcripts, reports). Only domains you are confident exist; [] if unknown or the source is a private individual without an official site.
+- "query": 3 to 8 plain keywords naming the specific event or topic of the claim (no full sentence, no quotation marks), e.g. "Starshield speed restriction occupied territory"."""
 _DOMAIN_RE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 
 
-def suggest_official_domains(attribution: str, claim_text: str, *, llm, model: str) -> list[str]:
-    """Ask the cheap model where the attributed party publishes first-hand material. A wrong guess is harmless:
-    Exa then returns nothing, or a page the verify step rejects. Never raises."""
+def suggest_official_search(attribution: str, claim_text: str, *, llm, model: str) -> tuple[list[str], str | None]:
+    """Cheap-model hint for where the original lives and how to search for it. A wrong guess is harmless: Exa
+    then returns nothing, or a page the verify step rejects. Never raises."""
     from ..llm import LLMError
 
     try:
-        res = llm.chat_json(model, OFFICIAL_DOMAINS_PROMPT,
-                            f"Attributed to: {attribution}\nTopic: {claim_text[:200]}", max_tokens=300)
+        res = llm.chat_json(model, OFFICIAL_SEARCH_PROMPT,
+                            f"Attributed to: {attribution}\nClaim: {claim_text[:300]}", max_tokens=1000)
     except LLMError as exc:
-        log.info("official-domain suggestion failed: %s", exc)
-        return []
+        log.info("official-search suggestion failed: %s", exc)
+        return [], None
     raw = res.data.get("domains")
-    out = []
+    out: list[str] = []
     for d in raw if isinstance(raw, list) else []:
         d = str(d).strip().lower().removeprefix("https://").removeprefix("http://").removeprefix("www.").split("/")[0]
-        if _DOMAIN_RE.match(d) and d not in out:
+        labels = d.split(".")
+        too_broad = len(labels) == 2 and labels[0] in ("gov", "com", "co", "org", "net", "edu", "ac", "mil")   # gov.ua
+        if _DOMAIN_RE.match(d) and d not in out and not too_broad:
             out.append(d)
-    return out[:3]
+    q = res.data.get("query")
+    q = re.sub(r"\s+", " ", q.replace('"', " ")).strip() if isinstance(q, str) and q.strip() else None
+    return out[:3], q
+
+
+def suggest_official_domains(attribution: str, claim_text: str, *, llm, model: str) -> list[str]:
+    return suggest_official_search(attribution, claim_text, llm=llm, model=model)[0]

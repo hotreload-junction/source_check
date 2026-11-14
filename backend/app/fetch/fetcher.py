@@ -136,6 +136,12 @@ class Fetcher:
             log.warning("context.dev failed for %s (%s), falling back", url, res.error)
             fallback = self._trafilatura(url, kind)
             fallback.extra["context_dev_error"] = res.error
+            if fallback.status != "ok" and res.error and "Timeout" in res.error:
+                # Sites that block direct requests (president.gov.ua) and are slow for Context.dev: once its
+                # server finished, the page sits in its cache and a retry answers in <1s (measured: 73s -> 0.4s).
+                retry = self._context_dev(url, kind, wait)
+                if retry.status == "ok":
+                    return retry
             return fallback
         return self._trafilatura(url, kind)
 
@@ -158,6 +164,10 @@ class Fetcher:
                     CONTEXT_DEV_URL, json=body, headers={"Authorization": f"Bearer {self.key}"},
                     timeout=self.timeout + 5,
                 )
+            except httpx.TimeoutException as exc:
+                # A timeout already cost the full timeout; retrying costs it again (3x25s seen live on
+                # president.gov.ua). Give up at once, the caller falls back to trafilatura.
+                return FetchResult(url, kind, "unreachable", error=f"context_dev: {type(exc).__name__}")
             except httpx.HTTPError as exc:
                 r, err = None, f"context_dev: {type(exc).__name__}"
                 continue

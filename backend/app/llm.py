@@ -66,33 +66,47 @@ class LLMClient:
     def chat_json(self, model: str, system: str, user: str, *, max_tokens: int = 2000) -> LLMResult:
         if not (self.base_url and self.api_key and model):
             raise LLMError("AI router not configured (AI_ROUTER_BASE_URL / AI_ROUTER_API_KEY / model)")
+        MAX_BUDGET = 8000
         body = {
             "model": model, "temperature": 0, "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }
         last = ""
-        for attempt in range(self.retries + 1):
-            if attempt:
-                time.sleep(self.backoff_s * attempt)
+        failures = 0       # transient errors / empty completions, bounded by self.retries
+        truncations = 0    # budget doublings, bounded separately (they are not failures)
+        while True:
+            if failures > self.retries:
+                break
+            if failures:
+                time.sleep(self.backoff_s * failures)
             try:
                 r = self.client.post(f"{self.base_url}/chat/completions", json=body,
                                      headers={"Authorization": f"Bearer {self.api_key}"})
             except httpx.HTTPError as exc:
-                last = type(exc).__name__
+                last, failures = type(exc).__name__, failures + 1
                 continue
             if r.status_code in (429, 500, 502, 503, 504):
-                last = f"http {r.status_code}"
+                last, failures = f"http {r.status_code}", failures + 1
                 continue
             if r.status_code != 200:
                 raise LLMError(f"router http {r.status_code}: {r.text[:200]}")
             try:
                 payload = r.json()
-                content = payload["choices"][0]["message"]["content"] or ""
+                choice = payload["choices"][0]
+                content = choice["message"]["content"] or ""
             except (ValueError, KeyError, IndexError, TypeError) as exc:
                 raise LLMError(f"unexpected router response: {exc}") from exc
+            if choice.get("finish_reason") == "length":
+                # Observed live: the budget also covers the model's hidden reasoning, so a small max_tokens gives
+                # empty or cut-off JSON. Never parse a truncated answer; retry with a bigger budget.
+                if body["max_tokens"] >= MAX_BUDGET or truncations >= 4:
+                    raise LLMError("model output truncated even at the maximum token budget")
+                body["max_tokens"] = min(body["max_tokens"] * 2, MAX_BUDGET)
+                truncations += 1
+                continue
             if not content.strip():   # observed live: sporadic empty completions -> retry
-                last = "empty completion"
+                last, failures = "empty completion", failures + 1
                 continue
             usage = payload.get("usage") or {}
             return LLMResult(

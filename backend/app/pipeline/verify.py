@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from rapidfuzz import fuzz
 
@@ -27,12 +28,13 @@ SYSTEM_PROMPT = """You check whether a SOURCE text supports a CLAIM taken from a
 First find the passage in the SOURCE that is most relevant to the claim and copy it VERBATIM (character for character, in the source's own language, at most 3 sentences). Only then give the verdict.
 
 Verdicts:
-- "supported": the source states the CORE assertion of the claim (same event, figure, speaker and meaning). Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them.
+- "supported": the passage you quote itself makes the CORE assertion of the claim (same event, figure, speaker and meaning). A passage on the same topic that does not say this is NOT support. Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them.
 - "distorted": the source covers the same matter, but something it states CONFLICTS with the claim or changes its meaning: a different number, date or name, the wrong speaker, a stronger or weaker wording ("may" turned into "will"), a dropped qualifier that changes the sense, an opinion presented as fact. A detail that is merely missing from the source is NOT distortion.
 - "contradicted": the source says the opposite of the claim.
 - "not_mentioned": the core assertion is not in the source (also when the source only touches a loosely related topic). Use an empty quote.
 
 Rules:
+- If an ARTICLE DATE is given, the claim was reported then. When the SOURCE is about a clearly different occasion or time (another year, an earlier meeting, an older statement, a different office-holder), it does not support the claim: answer "not_mentioned".
 - Never invent or "clean up" the quote. If you cannot copy a passage that exists in the SOURCE, use "not_mentioned" with an empty quote.
 - A claim that is merely plausible or consistent with the source is NOT supported; the passage must say it.
 - "quote_translation": English translation of the quote, or null if the quote is already English.
@@ -77,7 +79,7 @@ def fuzzy_score(quote: str, source_text: str) -> float:
 
 
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,
-                 settings: Settings | None = None) -> VerifyResult:
+                 settings: Settings | None = None, article_date: date | None = None) -> VerifyResult:
     s = settings or get_settings()
     llm = llm or LLMClient.from_settings(s)
     plain_claim = build_plain(claim_text).text
@@ -85,7 +87,8 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
     truncated = len(shown) > MAX_SOURCE_CHARS
     res = llm.chat_json(
         s.model_verify, SYSTEM_PROMPT,
-        f"CLAIM:\n{plain_claim}\n\nSOURCE:\n{shown[:MAX_SOURCE_CHARS]}",
+        (f"ARTICLE DATE: {article_date.isoformat()}\n\n" if article_date else "")
+        + f"CLAIM:\n{plain_claim}\n\nSOURCE:\n{shown[:MAX_SOURCE_CHARS]}",
     )
     d = res.data
     verdict = d.get("verdict") if d.get("verdict") in LLM_VERDICTS else None

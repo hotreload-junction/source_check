@@ -5,7 +5,7 @@ import httpx
 from app.config import Settings
 from app.fetch import FetchResult
 from app.llm import LLMClient
-from app.pipeline.assess import assess_claims, audit_records
+from app.pipeline.assess import assess_claims, audit_records, is_contemporary
 from app.pipeline.extract import ExtractedClaim
 from app.pipeline.textutil import LinkRef
 
@@ -157,10 +157,18 @@ def test_named_source_that_does_not_mention_claim_is_neutral():
     assert a.verdict == "not_checkable"     # an Exa guess proves nothing about the article
 
 
-def test_named_source_can_still_show_a_verified_distortion():
-    (a,), _ = run([claim(1, attrs=["X"])], {"https://orig.test/interview": page("https://orig.test/interview")},
-                  llm=make_llm("distorted", QUOTE), exa=exa_client())
-    assert a.verdict == "distorted"
+def test_guessed_original_that_differs_is_neutral_not_distorted():
+    # live case: a ministry briefing from before a trip vs a report written after it
+    for verdict in ("distorted", "contradicted"):
+        (a,), _ = run([claim(1, attrs=["X"])], {"https://orig.test/interview": page("https://orig.test/interview")},
+                      llm=make_llm(verdict, QUOTE), exa=exa_client())
+        assert a.verdict == "not_checkable" and a.evidence is None and "could not be confirmed" in a.explanation
+
+
+def test_linked_original_that_distorts_still_counts():
+    (a,), _ = run([claim(1, ["https://src.test/x"])], {"https://src.test/x": page("https://src.test/x")},
+                  llm=make_llm("distorted", QUOTE))
+    assert a.verdict == "distorted"       # the article itself cited this source: that is real evidence
 
 
 def test_links_take_precedence_over_exa_and_same_url_fetched_once():
@@ -185,3 +193,46 @@ def test_audit_records_carry_quote_score_model_prompt_version():
     assert row.quote_original == QUOTE and row.fuzzy_score >= 90 and row.llm_verdict == "supported"
     (u,), _ = run([claim(2)], {})
     assert audit_records(u, 8, lambda sa: None)[0].verdict == "unsourced"
+
+
+def test_article_date_only_sent_for_guessed_named_sources():
+    from datetime import datetime
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content)["messages"][1]["content"])
+        c = json.dumps({"quote_original": "", "quote_translation": None, "language": "en", "verdict": "not_mentioned",
+                        "explanation": "x", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    f = FakeFetcher({"https://src.test/x": page("https://src.test/x"), "https://orig.test/interview": page("https://orig.test/interview")})
+    assess_claims([claim(1, ["https://src.test/x"])], ART, fetcher=f, llm=llm, settings=SETTINGS, published_at=datetime(2026, 11, 14))
+    assess_claims([claim(2, attrs=["X"])], ART, fetcher=f, llm=llm, settings=SETTINGS, exa_client=exa_client(),
+                  published_at=datetime(2026, 11, 14))
+    linked = [m for m in seen if "Claim number 1" in m]
+    named = [m for m in seen if "Claim number 2" in m]
+    assert linked and all("ARTICLE DATE" not in m for m in linked)          # the article cited it itself: date irrelevant
+    assert named and all(m.startswith("ARTICLE DATE: 2026-11-14") for m in named)
+
+
+def test_is_contemporary():
+    from datetime import datetime
+    a = datetime(2026, 11, 14)
+    assert is_contemporary("2026-11-11T00:00:00.000Z", a) and is_contemporary("2026-10-10T00:00:00.000Z", a)
+    assert not is_contemporary("2022-11-04T00:00:00.000Z", a)       # mid.ru release from a 2022 forum
+    assert not is_contemporary("2025-08-21T00:00:00.000Z", a)       # president.gov.ua page from 2025
+    assert not is_contemporary("2026-12-30T00:00:00.000Z", a)       # published after the article
+    assert is_contemporary(None, a) and is_contemporary("garbage", a) and is_contemporary("2022-11-04T00:00:00.000Z", None)
+
+
+def test_stale_exa_candidates_are_dropped_before_verification():
+    from datetime import datetime
+    calls = []
+    results = [{"url": "https://old.test/2022", "publishedDate": "2022-11-04T00:00:00.000Z"},
+               {"url": "https://fresh.test/now", "publishedDate": "2026-11-12T00:00:00.000Z"}]
+    exa = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": results})))
+    pages = {"https://old.test/2022": page("https://old.test/2022"), "https://fresh.test/now": page("https://fresh.test/now")}
+    f = FakeFetcher(pages)
+    (a,) = assess_claims([claim(1, attrs=["X"])], ART, fetcher=f, llm=make_llm("supported", QUOTE, calls), settings=SETTINGS,
+                         exa_client=exa, published_at=datetime(2026, 11, 14))
+    assert f.calls == ["https://fresh.test/now"] and a.verdict == "supported"

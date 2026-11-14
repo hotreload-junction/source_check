@@ -101,3 +101,14 @@ def test_prompt_is_quote_first_and_source_plain_text():
 def test_invalid_verdict_raises():
     with pytest.raises(LLMError):
         verify_claim("c", EN_SOURCE, settings=SETTINGS, llm=llm_returning({"verdict": "maybe", "quote_original": ""}))
+
+
+def test_article_date_is_passed_to_the_model_only_when_given():
+    from datetime import date
+    seen = []
+    verify_claim("Claim.", EN_SOURCE, settings=SETTINGS, llm=llm_returning(out("not_mentioned", ""), seen), article_date=date(2026, 11, 14))
+    assert seen[0]["messages"][1]["content"].startswith("ARTICLE DATE: 2026-11-14")
+    assert "different occasion or time" in seen[0]["messages"][0]["content"]
+    seen.clear()
+    verify_claim("Claim.", EN_SOURCE, settings=SETTINGS, llm=llm_returning(out("not_mentioned", ""), seen))
+    assert "ARTICLE DATE" not in seen[0]["messages"][1]["content"]

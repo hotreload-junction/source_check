@@ -8,7 +8,7 @@ from app.config import Settings
 from app.llm import LLMClient, LLMError, parse_json_loose
 from datetime import datetime
 
-from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source, suggest_official_domains
+from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source, suggest_official_domains, suggest_official_search
 from app.pipeline.extract import extract_claims
 
 FX = Path(__file__).parent / "fixtures" / "extract"
@@ -127,6 +127,13 @@ def test_candidates_ranked_first_hand_first_and_exclude_article_and_domain():
     assert all("news.test" not in h.url for h in hits)
 
 
+def test_no_date_window_for_official_site_searches():
+    seen = []
+    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), around=datetime(2026, 11, 14),
+                    include_domains=["a.test"])
+    assert "startPublishedDate" not in seen[0] and seen[0]["includeDomains"] == ["a.test"]
+
+
 def test_candidates_date_window_and_limit():
     seen = []
     find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), around=datetime(2026, 11, 14))
@@ -164,3 +171,43 @@ def test_llm_empty_completion_is_retried():
         return httpx.Response(200, json={"model": "m", "choices": [{"message": {"content": content}}]})
     llm = LLMClient("https://r.test/v1", "k", retries=2, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
     assert llm.chat_json("m", "s", "u").data == {"claims": []} and len(calls) == 2
+
+
+def test_suggest_official_search_returns_domains_and_clean_keyword_query():
+    payload = json.dumps({"domains": ["president.gov.ua"], "query": '  "Starshield   speed restriction" '})
+    assert suggest_official_search("Zelenskyy", "claim", llm=llm_returning(payload), model="m") == (
+        ["president.gov.ua"], "Starshield speed restriction")
+    assert suggest_official_search("X", "c", llm=llm_returning(json.dumps({"domains": [], "query": 5})), model="m") == ([], None)
+
+
+def test_keyword_query_replaces_sentence_query():
+    seen = []
+    find_candidates("Zelenskyy", "long sentence " * 30, api_key="k", client=_exa(["https://www.president.gov.ua/x"], seen),
+                    include_domains=["president.gov.ua"], query="Starshield speed restriction")
+    assert seen[0]["query"] == "Starshield speed restriction"
+
+
+def test_llm_truncated_completion_is_retried_with_bigger_budget():
+    budgets = []
+
+    def handler(request):
+        budgets.append(json.loads(request.content)["max_tokens"])
+        if len(budgets) < 3:   # live behaviour: reasoning eats the budget -> '```json\n{"' + finish_reason=length
+            return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "length", "message": {"content": '```json\n{"'}}]})
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": '{"a": 1}'}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert llm.chat_json("m", "s", "u", max_tokens=300).data == {"a": 1}
+    assert budgets == [300, 600, 1200]
+
+
+def test_llm_truncation_never_loops_forever():
+    def handler(request):
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "length", "message": {"content": "{"}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(LLMError, match="truncated"):
+        llm.chat_json("m", "s", "u", max_tokens=300)
+
+
+def test_too_broad_suggested_domains_are_dropped():
+    payload = json.dumps({"domains": ["president.gov.ua", "gov.ua", "co.uk"], "query": "q"})
+    assert suggest_official_search("Z", "c", llm=llm_returning(payload), model="m")[0] == ["president.gov.ua"]

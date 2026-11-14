@@ -215,3 +215,43 @@ def test_source_html_is_direct_get_and_none_when_blocked():
         return httpx.Response(403)
     r = make(handler, key="k").fetch_source("https://example.org/report", ART)
     assert r.status == "ok" and r.html is None     # neutral: signals skip this domain
+
+
+def test_context_dev_timeout_is_not_retried_and_falls_back():
+    cd_calls = []
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            cd_calls.append(1)
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, text=fx("article.html"), headers={"content-type": "text/html"})
+    r = make(handler, key="k").fetch_source("https://example.org/report", ART)
+    assert r.status == "ok" and r.via == "trafilatura" and len(cd_calls) == 1
+    assert "ReadTimeout" in r.extra["context_dev_error"]
+
+
+def test_timeout_then_blocked_fallback_gets_one_cached_retry():
+    cd_calls = []
+    ok = json.loads(fx("contextdev_ok.json"))
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            cd_calls.append(1)
+            if len(cd_calls) == 1:
+                raise httpx.ReadTimeout("slow")      # server still fetching
+            return httpx.Response(200, json=ok)      # second call: answered from Context.dev's cache
+        return httpx.Response(403)                    # site blocks direct requests
+    r = make(handler, key="k").fetch_source("https://example.org/report", ART)
+    assert r.status == "ok" and r.via == "context_dev" and len(cd_calls) == 2
+
+
+def test_no_retry_when_fallback_succeeded_or_error_was_not_a_timeout():
+    cd_calls = []
+
+    def handler(request):
+        if request.url.host == "api.context.dev":
+            cd_calls.append(1)
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, text=fx("article.html"), headers={"content-type": "text/html"})
+    assert make(handler, key="k").fetch_source("https://example.org/report", ART).via == "trafilatura"
+    assert len(cd_calls) == 1
