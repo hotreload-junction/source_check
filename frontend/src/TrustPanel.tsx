@@ -19,9 +19,9 @@ const IconWarn = () => (
 );
 
 /** One cell: the whole column carries a light tint, the argument's strength deepens it. Icon + side label sit at the start of the cell. */
-function Td({ c, cell, icon, label, first }: { c: string; cell: Cell; icon: JSX.Element; label: string; first?: boolean }) {
+function Td({ c, cell, icon, label }: { c: string; cell: Cell; icon: JSX.Element; label: string }) {
   return (
-    <td style={{ verticalAlign: 'top', padding: '10px 12px', background: c + hex(0.07 + cell.strength * 0.33), borderTop: `1px solid ${TH.line}`, borderLeft: first ? undefined : `1px solid ${TH.line}`, fontSize: 12.5, lineHeight: 1.45 }}>
+    <td style={{ verticalAlign: 'top', padding: '10px 12px', background: c + hex(0.07 + cell.strength * 0.33), borderTop: `1px solid ${TH.line}`, borderLeft: `1px solid ${TH.line}`, fontSize: 12.5, lineHeight: 1.45 }}>
       {cell.items.length ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: c }}>
@@ -74,20 +74,23 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
       {open && rows && (
         <div style={{ ...card, position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', zIndex: 40, maxHeight: '66vh', overflow: 'auto', boxShadow: '0 12px 36px #0003', padding: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            {rows.map((r, i) => (
-              <tbody key={r.key} style={i ? { borderTop: `1px solid ${TH.line}` } : undefined}>
-                <tr>
-                  <th scope="colgroup" colSpan={2} style={{ padding: '9px 12px 5px', textAlign: 'left', background: TH.card }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700 }}>{r.label}</span>
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: TH.mut }}>{r.basis}</span>
+            <colgroup>
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '35%' }} />
+              <col style={{ width: '35%' }} />
+            </colgroup>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <th scope="row" style={{ padding: '10px 12px', textAlign: 'left', verticalAlign: 'top', background: TH.card, borderTop: `1px solid ${TH.line}`, borderRight: `1px solid ${TH.line}`, fontSize: 12.5, lineHeight: 1.4 }}>
+                    <div style={{ fontWeight: 700 }}>{r.label}</div>
+                    <div style={{ marginTop: 3, fontSize: 11, fontWeight: 400, color: TH.mut }}>{r.basis}</div>
                   </th>
-                </tr>
-                <tr>
-                  <Td c={CL.g} cell={r.pro} icon={<IconOk />} label="Objectivity" first />
+                  <Td c={CL.g} cell={r.pro} icon={<IconOk />} label="Objectivity" />
                   <Td c={CL.r} cell={r.con} icon={<IconWarn />} label="Propaganda" />
                 </tr>
-              </tbody>
-            ))}
+              ))}
+            </tbody>
           </table>
           <div style={{ padding: '8px 12px 10px', fontSize: 11.5, color: TH.mut, lineHeight: 1.4, borderTop: `1px solid ${TH.line}` }}>
             Colour strength = how strong the argument is. Context only: the marker follows the article verdict, and not-checkable claims never count against the article.
