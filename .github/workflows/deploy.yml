@@ -1,0 +1,65 @@
+name: deploy
+# push to dev  -> preview environment (branch dev, VPS dir /opt/source-trace/preview)
+# push to main -> live environment    (branch main, VPS dir /opt/source-trace/live; main only moves via humans' tools/promote)
+# Skipped until the repo variable DEPLOY_HOST is set (see docs/deploy.md), so it never turns dev red before setup.
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    if: ${{ vars.DEPLOY_HOST != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: tools/check
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: ${{ github.ref_name == 'main' && 'live' || 'preview' }}   # GitHub environments: add required reviewers to live if wanted
+    concurrency:
+      group: deploy-${{ github.ref_name }}
+      cancel-in-progress: false   # never kill a running deploy half-way; the next one queues
+    env:
+      TARGET: ${{ github.ref_name == 'main' && 'live' || 'preview' }}
+      SHA: ${{ github.sha }}
+    steps:
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ secrets.DEPLOY_HOST_KEY }}   # one known_hosts line: ssh-keyscan -t ed25519 <host> (checked by a human)
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+      - name: Deploy ${{ env.TARGET }} @ ${{ github.sha }}
+        env:
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
+          ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
+        run: |
+          # deploy.sh itself checks out $SHA (it needs the previous commit for rollback), so only fetch here
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "cd '$ROOT/$TARGET' && git fetch -q origin && deploy/deploy.sh $TARGET $SHA"
+      - name: Report failed deploy on the board
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ vars.BOARD_ISSUE || '1' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" -f body="[ci] NOTE -> louis,leo: deploy of ${TARGET} (${GITHUB_SHA::7}) FAILED or rolled back. ${TARGET} still serves the previous version unless the log says the rollback failed too. Log: ${RUN_URL}"

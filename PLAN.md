@@ -70,6 +70,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 |---|---|---|---|---|
 | D1 | `deploy/`: docker compose (mariadb, backend + static frontend), reverse proxy + HTTPS, public URL | louis-bg, louis-fe | doing | stack runs locally: `docker compose -f deploy/docker-compose.yml up --build` (db, backend by leo-be, web = Caddy). Open: VPS setup, HTTPS on the real domain (set `SITE_ADDRESS`), public URL |
 | D2 | deploy script: VPS pulls `main` and restarts (`deploy/deploy.sh`), smoke test `/api/health` + demo case | louis-bg | todo | humans run it after `tools/promote` |
+| D3 | automated deploy: Action on push main -> live, dev -> preview over SSH, deploy.sh with smoke test + rollback, edge proxy, bootstrap | leo-bg | done (untested on the VPS) | `.github/workflows/deploy.yml`, `deploy/deploy.sh`, `deploy/bootstrap.sh`, `deploy/edge/`, `docs/deploy.md`. Needs humans: DNS, SSH key secrets (docs/deploy.md). Covers D2 |
 
 ### Evaluation
 | id | task | owner | status | notes |
