@@ -266,7 +266,7 @@ def audit_records(a: ClaimAssessment, claim_pk: int, source_id: Callable[[Source
     for sa in a.sources:
         v = sa.verify
         rows.append(ClaimVerdictRecord(
-            claim_pk=claim_pk, source_id=source_id(sa), verdict=sa.verdict,
+            claim_pk=claim_pk, source_id=source_id(sa), source_url=sa.url, verdict=sa.verdict,
             subtype=sa.fetch.subtype if sa.fetch else None,
             quote_original=v.quote_original if v else None, quote_translation=v.quote_translation if v else None,
             language=v.language if v else None, fuzzy_score=v.fuzzy_score if v else None,

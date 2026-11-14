@@ -97,6 +97,8 @@ class ClaimVerdictRecord(Base):
     pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     claim_pk: Mapped[int] = mapped_column(ForeignKey("claims.pk", ondelete="CASCADE"))
     source_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # the page that was judged: Exa guesses are audited here too although they never become contract Sources
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     verdict: Mapped[str] = mapped_column(String(24))  # contract ClaimVerdict
     subtype: Mapped[str | None] = mapped_column(String(16), nullable=True)
     quote_original: Mapped[str | None] = mapped_column(Text, nullable=True)

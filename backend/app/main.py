@@ -7,21 +7,28 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from . import db
+from .api import router
 from .config import get_version
+from .jobs import JobManager
 
 log = logging.getLogger("citetrace")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.jobs = JobManager()
     try:
         db.init_db()
+        stale = app.state.jobs.recover_stale()
+        if stale:
+            log.warning("marked %d unfinished analyses from the previous run as failed", stale)
     except Exception as exc:  # health must still answer; demo cache needs no DB writes later
         log.warning("database unavailable at startup: %s", exc)
     yield
 
 
 app = FastAPI(title="CiteTrace", lifespan=lifespan)
+app.include_router(router)
 
 
 @app.get("/api/health")

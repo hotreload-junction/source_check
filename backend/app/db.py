@@ -17,9 +17,7 @@ _session_factory: sessionmaker[Session] | None = None
 def make_engine(url: str) -> Engine:
     kwargs: dict = {"pool_pre_ping": True}
     if url.startswith("sqlite"):
-        from sqlalchemy.pool import StaticPool
-
-        kwargs = {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
+        kwargs = {"connect_args": {"check_same_thread": False, "timeout": 15}}
     return create_engine(url, **kwargs)
 
 

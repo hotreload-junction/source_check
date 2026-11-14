@@ -6,18 +6,28 @@ from app.config import get_settings
 
 
 @pytest.fixture(autouse=True)
-def sqlite_db(monkeypatch):
-    """Never touch MariaDB or any external API in tests (AGENTS.md section 7)."""
-    monkeypatch.setenv("DATABASE_URL", "sqlite://")
+def _never_a_real_database(monkeypatch, tmp_path):
+    """Never touch MariaDB or any external API in tests (AGENTS.md section 7).
+
+    Every test points DATABASE_URL at its own SQLite FILE (not ":memory:": job threads and request threads need
+    their own connections). The file is only created when a test actually uses the database (lazy init_db)."""
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     get_settings.cache_clear()
-    engine = db.init_db("sqlite://")
-    yield engine
-    engine.dispose()
+    db._engine, db._session_factory = None, None
+    yield
+    if db._engine is not None:
+        db._engine.dispose()
+    db._engine, db._session_factory = None, None
     get_settings.cache_clear()
 
 
 @pytest.fixture
-def client():
+def sqlite_db(_never_a_real_database):
+    return db.init_db()
+
+
+@pytest.fixture
+def client(sqlite_db):
     from app.main import app
 
     with TestClient(app) as c:
