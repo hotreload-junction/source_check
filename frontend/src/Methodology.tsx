@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from './api';
 import { hasRun, label, pct, total } from './evalstats';
+import { useCompact } from './responsive';
 import { CL, MONO, TH } from './theme';
 import type { Confusion, Methodology as M } from './types';
 
@@ -9,7 +10,7 @@ const cap: CSSProperties = { fontSize: 11, letterSpacing: '.07em', textTransform
 
 function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
-    <section style={{ marginTop: 36 }}>
+    <section style={{ marginTop: 32 }}>
       <h2 style={{ fontSize: 22, letterSpacing: '-.02em', margin: 0 }}>{title}</h2>
       {sub && <p style={{ color: TH.mut, fontSize: 14, lineHeight: 1.5, margin: '6px 0 0', maxWidth: 680 }}>{sub}</p>}
       <div style={{ marginTop: 16 }}>{children}</div>
@@ -20,7 +21,7 @@ function Section({ title, sub, children }: { title: string; sub?: string; childr
 function Metric({ name, value, note, strong }: { name: string; value: string; note?: string; strong?: boolean }) {
   const none = value === 'no run yet';
   return (
-    <div style={{ ...card, flex: '1 1 150px', minWidth: 150, borderColor: strong ? TH.ink : TH.line, borderWidth: strong ? 2 : 1 }}>
+    <div style={{ ...card, flex: '1 1 140px', minWidth: 0, borderColor: strong ? TH.ink : TH.line, borderWidth: strong ? 2 : 1 }}>
       <div style={cap}>{name}</div>
       <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: none ? 16 : 28, marginTop: 8, color: none ? TH.mut : TH.ink }}>{value}</div>
       {note && <div style={{ fontSize: 12, color: TH.mut, marginTop: 6, lineHeight: 1.4 }}>{note}</div>}
@@ -38,7 +39,7 @@ function Matrix({ c, positive, negative }: { c: Confusion; positive: string; neg
   );
   const head: CSSProperties = { ...cap, textAlign: 'center', alignSelf: 'end' };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: 6, alignItems: 'stretch', maxWidth: 420 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(70px, 110px) 1fr 1fr', gap: 6, alignItems: 'stretch', maxWidth: 420 }}>
       <div />
       <div style={head}>flagged: {positive}</div>
       <div style={head}>flagged: {negative}</div>
@@ -55,13 +56,14 @@ function Matrix({ c, positive, negative }: { c: Confusion; positive: string; neg
 export function Methodology() {
   const [m, setM] = useState<M | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const compact = useCompact();
   useEffect(() => { api.methodology().then(setM, (e) => setErr(String(e.message || e))); }, []);
 
   const run = m ? hasRun(m.pairs.confusion) || hasRun(m.articles.confusion) : false;
 
   return (
-    <div style={{ minHeight: '100vh', background: TH.bg, color: TH.ink, fontFamily: TH.font, backgroundImage: `radial-gradient(${TH.dot} ${TH.dr}px, transparent ${TH.dr}px)`, backgroundSize: `${TH.ds}px ${TH.ds}px` }}>
-      <div style={{ maxWidth: 880, margin: '0 auto', padding: '28px 20px 80px' }}>
+    <div style={{ minHeight: '100dvh', background: TH.bg, color: TH.ink, fontFamily: TH.font, backgroundImage: `radial-gradient(${TH.dot} ${TH.dr}px, transparent ${TH.dr}px)`, backgroundSize: `${TH.ds}px ${TH.ds}px` }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left))' : '28px 20px 80px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <a href="#/" style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink }}>Source Trace</a>
           <span style={{ color: TH.mut }}>/</span>
@@ -69,8 +71,8 @@ export function Methodology() {
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
-        <h1 style={{ fontSize: 'clamp(30px, 5vw, 46px)', lineHeight: 1.08, letterSpacing: '-.03em', margin: '48px 0 12px', maxWidth: 700 }}>How good is the detection? Measured, including its mistakes.</h1>
-        <p style={{ fontSize: 17, lineHeight: 1.5, color: TH.mut, margin: 0, maxWidth: 680 }}>
+        <h1 style={{ fontSize: 'clamp(30px, 5vw, 46px)', lineHeight: 1.08, letterSpacing: '-.03em', margin: compact ? '28px 0 12px' : '48px 0 12px', maxWidth: 700 }}>How good is the detection? Measured, including its mistakes.</h1>
+        <p style={{ fontSize: compact ? 15.5 : 17, lineHeight: 1.5, color: TH.mut, margin: 0, maxWidth: 680 }}>
           Every number below comes from a labelled evaluation run, not from the three demo articles. Thresholds were set on one article set and measured on another, so the false-positive rate on wire-service articles is honest.
         </p>
 
@@ -116,8 +118,8 @@ export function Methodology() {
               <div style={card}>
                 {Object.entries(m.thresholds).map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderTop: `1px solid ${TH.line}`, fontSize: 14 }}>
-                    <span style={{ textTransform: 'capitalize' }}>{label(k)}</span>
-                    <span style={{ fontFamily: MONO, fontWeight: 700 }}>{v}</span>
+                    <span style={{ textTransform: 'capitalize', minWidth: 0 }}>{label(k)}</span>
+                    <span style={{ fontFamily: MONO, fontWeight: 700, textAlign: 'right' }}>{v}</span>
                   </div>
                 ))}
                 <div style={{ marginTop: 12, fontSize: 13, color: TH.mut, lineHeight: 1.6 }}>
@@ -136,7 +138,7 @@ export function Methodology() {
                   ['Popularity', 'Rank on the Tranco top-sites research list, from a dated snapshot. Shown as popularity, not reliability: widely read state media rank high too.'],
                   ['Re-registered', 'The Wayback Machine has pages from the domain at least a year before its current registration date. The domain existed before and was registered again, a known way to borrow an old name. A failed archive lookup shows nothing.'],
                 ].map(([k, v]) => (
-                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 12, padding: '8px 0', borderTop: `1px solid ${TH.line}` }}>
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 3 : 12, padding: '8px 0', borderTop: `1px solid ${TH.line}` }}>
                     <b>{k}</b>
                     <span style={{ color: TH.mut }}>{v}</span>
                   </div>
@@ -150,7 +152,7 @@ export function Methodology() {
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
                   {m.error_cases.map((e, i) => (
-                    <div key={i} style={{ ...card, padding: '12px 16px', display: 'grid', gridTemplateColumns: '90px 1fr', gap: 12, alignItems: 'start' }}>
+                    <div key={i} style={{ ...card, padding: '12px 16px', display: 'grid', gridTemplateColumns: compact ? '1fr' : '90px 1fr', gap: compact ? 8 : 12, alignItems: 'start' }}>
                       <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12, padding: '2px 9px', borderRadius: 99, border: `2px solid ${e.kind === 'fp' ? CL.o : CL.r}`, justifySelf: 'start' }}>{e.kind === 'fp' ? 'false pos.' : 'false neg.'}</span>
                       <div style={{ fontSize: 14, lineHeight: 1.5 }}>
                         <div style={{ fontFamily: MONO, fontSize: 12.5, overflowWrap: 'anywhere' }}>{e.url_or_pair_id}</div>

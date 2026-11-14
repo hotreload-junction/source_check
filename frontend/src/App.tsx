@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { api } from './api';
-import { Canvas, type CanvasHandle, type Ctx } from './Canvas';
+import { Canvas, graphSize, type CanvasHandle, type Ctx } from './Canvas';
 import { Logo } from './Logo';
 import { Panel } from './Panel';
+import { useCompact, useViewport } from './responsive';
 import { TrustBar } from './TrustPanel';
 import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate, srcName } from './theme';
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
@@ -19,6 +20,9 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
 };
 
 export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string } }) {
+  const compact = useCompact();
+  const [vw, vh] = useViewport();
+  const [formOpen, setFormOpen] = useState(false);   // phones: the URL form is folded away behind "New check"
   const [demos, setDemos] = useState<DemoCase[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [url, setUrl] = useState('');
@@ -114,7 +118,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   const analyze = (ev: FormEvent) => {
     ev.preventDefault();
     const u = input.trim();
-    if (u) startUrl(u, false, qInput.trim());
+    if (u) { startUrl(u, false, qInput.trim()); setFormOpen(false); }
   };
 
   const running = !!url && !view.done && !error;
@@ -201,91 +205,180 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   const sn = sel ? tree.by[sel] ?? null : null;
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: TH.bg, color: TH.ink, fontFamily: TH.font, fontSize: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap', flex: 'none' }}>
-        <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: 6, textDecoration: 'none', color: TH.ink }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20 }}>
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.35 }} />
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.65, width: '80%' }} />
-            <div style={{ height: 4, background: TH.ink, borderRadius: 1, width: '60%' }} />
-          </div>
-          Source Trace
-        </a>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {demos.map((d) => (
-            <div key={d.key} onClick={() => pickDemo(d)} style={{ cursor: 'pointer', padding: '6px 13px', borderRadius: 99, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: active === d.key ? TH.ink : 'transparent', color: active === d.key ? TH.bg : TH.ink }}>{d.label}</div>
-          ))}
-        </div>
-        <form onSubmit={analyze} style={{ display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 220, maxWidth: 620 }}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste an article URL"
-            type="url"
-            style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 }}
-          />
-          <input
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            maxLength={500}
-            placeholder="Optional: your question"
-            aria-label="Optional question about the article"
-            title="Optional: what are you unsure about in this article? We find the sentence and check it too. The article verdict stays the same."
-            style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 }}
-          />
-          <button type="submit" style={{ cursor: 'pointer', padding: '6px 12px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, background: TH.ink, color: TH.bg }}>Analyze</button>
-        </form>
-        <div style={{ flex: 1 }} />
-        {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
-        <TopBtn onClick={reanalyze} disabled={!url || running} title="Ignore the cache and analyze this article again from scratch (takes 1-2 minutes)">Force re-analyze</TopBtn>
-        <TopBtn onClick={replay}>Rebuild</TopBtn>
-        <TopBtn onClick={skip}>Show instantly</TopBtn>
-      </div>
+  // phones: the detail panel is a full-screen sheet, so the page behind it must not scroll
+  useEffect(() => {
+    if (!compact || !sn) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [compact, sn]);
 
-      <div style={{ margin: '0 18px 10px', padding: '6px 14px', border: `${TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: TH.rad, boxShadow: TH.sh, flex: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={32} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
-              <span>{view.article.domain}{view.article.published_at ? ` · published ${fmtDate(view.article.published_at)}` : ''}</span>
-              {url && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
-            </div>
-          </div>
-          {status && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
-        </div>
-        {(question || view.focus) && <FocusRow question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
+  const px = compact ? 14 : 18;
+  // phones: the canvas is only as tall as the graph needs at the width-fitting zoom (a wide, flat tree leaves no dead space), at most 66 % of the screen
+  const [gW, gH] = graphSize(tree);
+  const canvasH = Math.round(Math.min(vh * 0.66, Math.max(340, gH * Math.min(1.3, Math.max(0.18, (vw - 36) / gW)) + 96)));
+  const fieldStyle: CSSProperties = { flex: 1, minWidth: 0, padding: compact ? '10px 12px' : '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 };
+
+  const brand = (
+    <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', marginRight: compact ? 0 : 6, textDecoration: 'none', color: TH.ink, minHeight: compact ? 40 : undefined }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 20 }}>
+        <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.35 }} />
+        <div style={{ height: 4, background: TH.ink, borderRadius: 1, opacity: 0.65, width: '80%' }} />
+        <div style={{ height: 4, background: TH.ink, borderRadius: 1, width: '60%' }} />
       </div>
+      Source Trace
+    </a>
+  );
+  const demoPills = demos.map((d) => (
+    <button key={d.key} type="button" onClick={() => pickDemo(d)} aria-pressed={active === d.key} style={{ cursor: 'pointer', flex: 'none', padding: compact ? '9px 15px' : '6px 13px', borderRadius: 99, font: 'inherit', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: active === d.key ? TH.ink : 'transparent', color: active === d.key ? TH.bg : TH.ink }}>{d.label}</button>
+  ));
+  const urlForm = (
+    <form onSubmit={analyze} style={compact ? { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 } : { display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 220, maxWidth: 620 }}>
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="Paste an article URL"
+        aria-label="Article URL"
+        type="url"
+        inputMode="url"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        style={fieldStyle}
+      />
+      <input
+        value={qInput}
+        onChange={(e) => setQInput(e.target.value)}
+        maxLength={500}
+        placeholder="Optional: your question"
+        aria-label="Optional question about the article"
+        title="Optional: what are you unsure about in this article? We find the sentence and check it too. The article verdict stays the same."
+        style={fieldStyle}
+      />
+      <button type="submit" style={{ cursor: 'pointer', padding: compact ? '11px 14px' : '6px 12px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: compact ? 14 : 13, background: TH.ink, color: TH.bg }}>Analyze</button>
+    </form>
+  );
+  const mockBadge = api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}`, whiteSpace: 'nowrap' }}>MOCK DATA</span>;
+  const actions = (
+    <>
+      <TopBtn onClick={reanalyze} disabled={!url || running} title="Ignore the cache and analyze this article again from scratch (takes 1-2 minutes)">Force re-analyze</TopBtn>
+      <TopBtn onClick={replay}>Rebuild</TopBtn>
+      <TopBtn onClick={skip}>Show instantly</TopBtn>
+    </>
+  );
+
+  const articleCard = (
+    <div style={{ margin: `0 ${px}px 10px`, padding: compact ? '10px 12px' : '6px 14px', border: `${compact ? 2 : TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: compact ? 14 : TH.rad, boxShadow: TH.sh, flex: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 14 }}>
+        <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={compact ? 28 : 32} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: compact ? 15 : 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
+          <div style={{ display: 'flex', gap: compact ? 6 : 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
+            <span style={{ overflowWrap: 'anywhere' }}>{view.article.domain}{view.article.published_at ? ` · published ${fmtDate(view.article.published_at)}` : ''}</span>
+            {url && !compact && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
+          </div>
+        </div>
+        {status && !compact && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
+      </div>
+      {status && compact && <div role="status" style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${TH.line}`, fontSize: 12, color: error ? CL.r : TH.mut, lineHeight: 1.35 }}>{status}</div>}
+      {(question || view.focus) && <FocusRow question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
+    </div>
+  );
+
+  const legend = <Legend compact={compact} />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', ...(compact ? { minHeight: '100dvh' } : { height: '100dvh' }), background: TH.bg, color: TH.ink, fontFamily: TH.font, fontSize: 14 }}>
+      {compact ? (
+        <div style={{ flex: 'none', padding: `max(10px, env(safe-area-inset-top)) max(${px}px, env(safe-area-inset-right)) 8px max(${px}px, env(safe-area-inset-left))` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {brand}
+            <div style={{ flex: 1 }} />
+            {mockBadge}
+            <button type="button" onClick={() => setFormOpen((o) => !o)} aria-expanded={formOpen} style={{ cursor: 'pointer', padding: '9px 14px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: formOpen ? TH.ink : TH.card, color: formOpen ? TH.bg : TH.ink }}>{formOpen ? 'Close' : 'New check'}</button>
+          </div>
+          {formOpen && (
+            <>
+              {urlForm}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>{actions}</div>
+            </>
+          )}
+          {demos.length > 0 && <div className="st-strip" style={{ display: 'flex', gap: 8, margin: `10px -${px}px 0`, padding: `0 ${px}px 2px` }}>{demoPills}</div>}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap', flex: 'none' }}>
+          {brand}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{demoPills}</div>
+          {urlForm}
+          <div style={{ flex: 1 }} />
+          {mockBadge}
+          {actions}
+        </div>
+      )}
+
+      {articleCard}
 
       <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
 
-      <div style={{ flex: 1, minHeight: 480, display: 'flex', borderTop: `1px solid ${TH.line}` }}>
+      <div style={{ display: 'flex', borderTop: `1px solid ${TH.line}`, ...(compact ? { flex: 'none', height: canvasH } : { flex: 1, minHeight: 480 }) }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <Canvas ref={canvas} ctx={ctx} sel={sel} focus={focus} dd={dd} setDd={setDd} classify={classify} pick={pick} clearFocus={clearFocus} />
-          <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 16, padding: '9px 18px', borderTop: `1px solid ${TH.line}`, fontSize: 11.5, color: TH.mut, background: TH.bar, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Color</span>
-            {[
-              { c: CLAIM_V.supported.c, t: 'supported' },
-              { c: CLAIM_V.distorted.c, t: 'distorted' },
-              { c: CL.r, t: 'contradicted · not mentioned · unsourced' },
-              { c: CL.p, t: 'not checkable (neutral)' },
-              { c: CL.o, t: 'source flagged by infrastructure signal' },
-            ].map((l) => (
-              <span key={l.t} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: l.c }} />{l.t}</span>
-            ))}
-            <span style={{ width: 1, height: 14, background: TH.line }} />
-            <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Line weight</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ width: 26, height: 2, background: TH.mut, borderRadius: 2 }} />cited</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}><span style={{ width: 26, height: 8, background: TH.mut, borderRadius: 3 }} />evidence for the verdict</span>
-            <span style={{ flex: 1 }} />
-            <span style={{ whiteSpace: 'nowrap' }}>Click a claim to show only its sources · Label on line = verdict for that claim-source pair · Click it to classify{api.mock ? ' · Mock data, fictional domains' : ''}</span>
+          {!compact && legend}
+        </div>
+        {!compact && (
+          <div style={{ width: sn ? '50%' : '0px', flex: 'none', overflow: 'hidden', borderLeft: `1px solid ${TH.line}`, background: TH.bar, transition: 'width .45s cubic-bezier(.2,.7,.2,1)' }}>
+            {sn && <Panel ctx={ctx} n={sn} pick={pick} close={closeSel} />}
           </div>
-        </div>
-        <div style={{ width: sn ? '50%' : '0px', flex: 'none', overflow: 'hidden', borderLeft: `1px solid ${TH.line}`, background: TH.bar, transition: 'width .45s cubic-bezier(.2,.7,.2,1)' }}>
-          {sn && <Panel ctx={ctx} n={sn} pick={pick} close={closeSel} />}
-        </div>
+        )}
       </div>
+      {compact && legend}
+
+      {compact && sn && (
+        <div role="dialog" aria-modal="true" aria-label="Details" style={{ position: 'fixed', inset: 0, zIndex: 60, background: TH.bar, animation: 'stSheetIn .22s ease-out' }}>
+          <Panel ctx={ctx} n={sn} pick={pick} close={closeSel} compact />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Legend({ compact }: { compact: boolean }) {
+  const colors = [
+    { c: CLAIM_V.supported.c, t: 'supported' },
+    { c: CLAIM_V.distorted.c, t: 'distorted' },
+    { c: CL.r, t: 'contradicted · not mentioned · unsourced' },
+    { c: CL.p, t: 'not checkable (neutral)' },
+    { c: CL.o, t: 'source flagged by infrastructure signal' },
+  ];
+  const dot = (c: string) => <span style={{ flex: 'none', width: 10, height: 10, borderRadius: '50%', background: c }} />;
+  const item = { display: 'flex', alignItems: 'center', gap: 6 } as const;
+  if (compact) {
+    return (
+      <details style={{ flex: 'none', borderTop: `1px solid ${TH.line}`, background: TH.bar, fontSize: 12, color: TH.mut }}>
+        <summary style={{ cursor: 'pointer', padding: '14px 14px', fontWeight: 600, fontSize: 13, color: TH.ink, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Legend and help <span aria-hidden>▾</span>
+        </summary>
+        <div style={{ padding: '0 14px max(18px, env(safe-area-inset-bottom))', display: 'grid', gap: 9, lineHeight: 1.4 }}>
+          <div style={{ fontWeight: 600, color: TH.ink }}>Color</div>
+          {colors.map((l) => <span key={l.t} style={item}>{dot(l.c)}{l.t}</span>)}
+          <div style={{ fontWeight: 600, color: TH.ink, marginTop: 4 }}>Line weight</div>
+          <span style={item}><span style={{ flex: 'none', width: 26, height: 2, background: TH.mut, borderRadius: 2 }} />cited</span>
+          <span style={item}><span style={{ flex: 'none', width: 26, height: 8, background: TH.mut, borderRadius: 3 }} />evidence for the verdict</span>
+          <div style={{ marginTop: 4 }}>Tap a claim to show only its sources. The label on a line is the verdict for that claim-source pair; tap it to classify. Drag to move, pinch to zoom.{api.mock ? ' Mock data, fictional domains.' : ''}</div>
+        </div>
+      </details>
+    );
+  }
+  return (
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 16, padding: '9px 18px', borderTop: `1px solid ${TH.line}`, fontSize: 11.5, color: TH.mut, background: TH.bar, flexWrap: 'wrap' }}>
+      <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Color</span>
+      {colors.map((l) => <span key={l.t} style={{ ...item, whiteSpace: 'nowrap' }}>{dot(l.c)}{l.t}</span>)}
+      <span style={{ width: 1, height: 14, background: TH.line }} />
+      <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Line weight</span>
+      <span style={{ ...item, whiteSpace: 'nowrap' }}><span style={{ width: 26, height: 2, background: TH.mut, borderRadius: 2 }} />cited</span>
+      <span style={{ ...item, whiteSpace: 'nowrap' }}><span style={{ width: 26, height: 8, background: TH.mut, borderRadius: 3 }} />evidence for the verdict</span>
+      <span style={{ flex: 1 }} />
+      <span style={{ whiteSpace: 'nowrap' }}>Click a claim to show only its sources · Label on line = verdict for that claim-source pair · Click it to classify{api.mock ? ' · Mock data, fictional domains' : ''}</span>
     </div>
   );
 }
@@ -303,5 +396,6 @@ function FocusRow({ question, note, status }: { question: string; note: string |
 }
 
 function TopBtn({ onClick, children, disabled, title }: { onClick: () => void; children: string; disabled?: boolean; title?: string }) {
-  return <div title={title} aria-disabled={disabled || undefined} onClick={disabled ? undefined : onClick} style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1, padding: '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: TH.card }}>{children}</div>;
+  const compact = useCompact();
+  return <button type="button" title={title} disabled={disabled} onClick={onClick} style={{ cursor: disabled ? 'not-allowed' : 'pointer', flex: 'none', opacity: disabled ? 0.45 : 1, padding: compact ? '9px 14px' : '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: TH.card, color: TH.ink }}>{children}</button>;
 }

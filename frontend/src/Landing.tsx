@@ -1,5 +1,6 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api } from './api';
+import { useCompact, useTouch } from './responsive';
 import { CL, MONO, TH } from './theme';
 import type { DemoCase } from './types';
 
@@ -34,7 +35,7 @@ function Chip({ label, title, onRemove }: { label: string; title?: string; onRem
       </span>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label="Remove link" style={{ cursor: 'pointer', border: 'none', background: 'transparent', color: TH.mut, font: 'inherit', fontSize: 18, lineHeight: 1, padding: '0 0 0 2px' }}>×</button>
+        <button type="button" onClick={onRemove} aria-label="Remove link" style={{ cursor: 'pointer', border: 'none', background: 'transparent', color: TH.mut, font: 'inherit', fontSize: 20, lineHeight: 1, padding: '6px 6px 6px 4px', margin: '-6px -6px -6px 0' }}>×</button>
       )}
     </span>
   );
@@ -45,6 +46,8 @@ export function Landing() {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [demos, setDemos] = useState<DemoCase[]>([]);
+  const compact = useCompact();
+  const touch = useTouch();
 
   useEffect(() => { api.demo().then(setDemos, () => setDemos([])); }, []);
 
@@ -79,16 +82,16 @@ export function Landing() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
-      <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: 14, background: BAR }} />
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 32px 36px 56px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
+      <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: compact ? 6 : 14, background: BAR }} />
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) 24px' : '28px 32px 36px 56px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
           Source Trace
           {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: '6vh' }}>
-          <h1 style={{ margin: '0 0 44px', fontSize: 'clamp(40px, 7.4vw, 84px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 0 }}>
+          <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: 'clamp(32px, 8.6vw, 84px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
             Paste something you read.
             <br />
             See what is{' '}
@@ -98,11 +101,15 @@ export function Landing() {
           </h1>
 
           <form onSubmit={go} style={{ maxWidth: 740 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: 22 }}>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 8 }}>
+            <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: 8, padding: compact ? 6 : 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: compact ? 20 : 22 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: compact ? 6 : 8 }}>
                 {url && <Chip label={hostOf(url)} title={url} onRemove={() => { setUrl(null); setNote(''); }} />}
                 <input
-                  autoFocus
+                  autoFocus={!touch} // on a phone the keyboard would cover the page at once
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onPaste={onPaste}
@@ -110,10 +117,10 @@ export function Landing() {
                   maxLength={500}
                   placeholder={url ? 'Add a question or the quote you want checked (optional)' : 'Paste an article link'}
                   aria-label={url ? 'Optional question or quote about the article' : 'Article link'}
-                  style={{ flex: '1 1 200px', minWidth: 0, padding: '12px 6px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 20 }}
+                  style={{ flex: '1 1 200px', minWidth: 0, padding: compact ? '12px 6px' : '12px 6px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: compact ? 17 : 20 }}
                 />
               </div>
-              <button type="submit" disabled={!ready} style={{ cursor: ready ? 'pointer' : 'not-allowed', alignSelf: 'flex-end', padding: '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: 18, background: ready ? TH.ink : '#d8d8dc', color: ready ? '#fff' : '#9a9aa2' }}>
+              <button type="submit" disabled={!ready} style={{ cursor: ready ? 'pointer' : 'not-allowed', alignSelf: compact ? 'stretch' : 'flex-end', padding: compact ? '14px 20px' : '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: compact ? 17 : 18, background: ready ? TH.ink : '#d8d8dc', color: ready ? '#fff' : '#9a9aa2' }}>
                 Check
               </button>
             </div>
@@ -121,11 +128,11 @@ export function Landing() {
           </form>
 
           {demos.length > 0 && (
-            <div style={{ marginTop: 30 }}>
+            <div style={{ marginTop: compact ? 26 : 30 }}>
               <div style={{ fontSize: 15, color: TH.mut, marginBottom: 10 }}>Try asking</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: compact ? 'stretch' : 'flex-start', gap: 10 }}>
                 {demos.map((d) => (
-                  <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 10px', maxWidth: '100%', textDecoration: 'none', color: TH.ink, padding: '14px 22px', borderRadius: 22, fontSize: 18, border: `1px solid ${TH.line}`, background: TH.card }}>
+                  <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 10px', maxWidth: '100%', textDecoration: 'none', color: TH.ink, padding: compact ? '12px 16px' : '14px 22px', borderRadius: compact ? 18 : 22, fontSize: compact ? 16 : 18, lineHeight: 1.4, border: `1px solid ${TH.line}`, background: TH.card }}>
                     {d.question ? `Is it true that ${d.question}, as stated in` : 'Is it true what'}
                     <Chip label={d.label} />
                     {d.question ? '?' : 'says?'}

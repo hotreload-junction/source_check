@@ -1,10 +1,28 @@
 *, *::before, *::after { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
-body { background: #f6f6f7; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body, #root { min-height: 100%; margin: 0; }
+body { background: #f6f6f7; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
 a { color: #17171a; }
 a:hover { color: #6b6b70; }
 @keyframes stShimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
 @keyframes stPulse { 0%, 100% { stroke-opacity: .2; } 50% { stroke-opacity: .75; } }
+@keyframes stSheetIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes stFade { from { opacity: 0; } to { opacity: 1; } }
+a[href], button, [role="button"], [style*="cursor: pointer"] { touch-action: manipulation; }
 a[href], button, [style*="cursor: pointer"] { transition: scale .15s ease; }
-a[href]:hover, button:hover, [style*="cursor: pointer"]:hover { scale: 1.05; }
 button:disabled:hover { scale: 1; }
+/* hover feedback only where a real hover exists: on touch screens it sticks after a tap and enlarges buttons */
+@media (hover: hover) {
+  a[href]:hover, button:hover, [style*="cursor: pointer"]:hover { scale: 1.05; }
+}
+/* iOS zooms the page when a focused field has a font size under 16px */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+}
+.st-strip { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.st-strip::-webkit-scrollbar { display: none; }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

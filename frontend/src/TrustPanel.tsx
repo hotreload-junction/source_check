@@ -1,5 +1,6 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Ctx } from './Canvas';
+import { useCompact } from './responsive';
 import { CL, MONO, TH } from './theme';
 import { barPos, criteria, type Cell } from './trust';
 
@@ -34,16 +35,31 @@ function Td({ c, cell }: { c: string; cell: Cell }) {
   );
 }
 
+/** Phone layout of one cell: a stacked box with its side label instead of a table column. */
+function CellBox({ c, name, icon, cell }: { c: string; name: string; icon: ReactNode; cell: Cell }) {
+  return (
+    <div style={{ borderRadius: 12, border: `1px solid ${TH.line}`, background: c + hex(0.07 + cell.strength * 0.33), padding: '10px 12px', fontSize: 12.5, lineHeight: 1.45 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: c }}>
+        <span style={{ width: 18, height: 18, borderRadius: 6, background: c, color: '#fff', display: 'inline-grid', placeItems: 'center', flex: 'none' }}>{icon}</span>
+        {name}
+        {cell.items.length > 0 && <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10.5 }}>{WORD(cell.strength)}</span>}
+      </div>
+      {cell.items.length ? cell.items.map((t) => <div key={t} style={{ overflowWrap: 'anywhere', marginTop: 5 }}>{t}</div>) : <div style={{ marginTop: 4, color: TH.mut }}>–</div>}
+    </div>
+  );
+}
+
 /** Top bar: one big Propaganda <-> Objective slider; click opens a two-column table of what speaks for objectivity / propaganda per criterion. */
 export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; onToggle?: () => void }) {
   const [open, setOpen] = useState(false);
+  const compact = useCompact();
   const calc = ready && !!ctx.view.verdict && !!ctx.view.signals;
   const pos = useMemo(() => (calc ? barPos(ctx.view, ctx.tree) : null), [calc, ctx.view, ctx.tree]);
   const rows = useMemo(() => (calc ? criteria(ctx.view, ctx.tree) : null), [calc, ctx.view, ctx.tree]);
   const none = pos == null;
   const toggle = () => { if (calc) { setOpen((o) => !o); onToggle?.(); } };
   return (
-    <div style={{ margin: '0 18px 12px', flex: 'none' }}>
+    <div style={{ margin: compact ? '0 14px 10px' : '0 18px 12px', flex: 'none' }}>
       <div
         role="button"
         tabIndex={calc ? 0 : -1}
@@ -52,10 +68,17 @@ export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; o
         title={calc ? 'Show what speaks for objectivity and what for propaganda' : undefined}
         onClick={toggle}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
-        style={{ ...card, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', cursor: calc ? 'pointer' : 'default', boxShadow: TH.sh, scale: 'none' /* opt out of the global hover scale: a full-width bar would overflow */ }}
+        style={{ ...card, display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: compact ? 8 : 14, padding: compact ? '10px 14px 12px' : '12px 16px', cursor: calc ? 'pointer' : 'default', boxShadow: TH.sh, scale: 'none' /* opt out of the global hover scale: a full-width bar would overflow */ }}
       >
-        <span style={{ fontWeight: 700, fontSize: 13, color: CL.r }}>Propaganda</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {compact && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, fontWeight: 700, fontSize: 12.5 }}>
+            <span style={{ color: CL.r }}>Propaganda</span>
+            <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 500, color: TH.mut, whiteSpace: 'nowrap' }}>{calc ? (open ? 'Hide ▴' : 'Why? ▾') : ''}</span>
+            <span style={{ color: CL.g }}>Objective</span>
+          </div>
+        )}
+        {!compact && <span style={{ fontWeight: 700, fontSize: 13, color: CL.r }}>Propaganda</span>}
+        <div style={{ flex: 1, minWidth: 0, padding: compact ? '0 12px' : 0 }}>
           <div style={{ position: 'relative', height: 16, borderRadius: 99, background: none ? TH.line : GRADIENT, ...(calc ? {} : SKELETON) }}>
             {!none && (
               <div style={{ position: 'absolute', left: `${pos! * 100}%`, top: '50%', width: 28, height: 28, marginLeft: -14, marginTop: -14, boxSizing: 'border-box', borderRadius: '50%', background: TH.card, border: `4px solid ${TH.ink}`, boxShadow: '0 1px 5px #0004', transition: 'left .5s' }} />
@@ -63,12 +86,26 @@ export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; o
           </div>
           {calc && none && <div style={{ marginTop: 5, textAlign: 'center', fontSize: 11.5, color: TH.mut }}>Insufficient evidence: the article has no position on the scale</div>}
         </div>
-        <span style={{ fontWeight: 700, fontSize: 13, color: CL.g }}>Objective</span>
-        <span style={{ fontFamily: MONO, fontSize: 11.5, color: TH.mut, whiteSpace: 'nowrap', minWidth: 62, textAlign: 'right' }}>{calc ? (open ? 'Hide ▴' : 'Why? ▾') : ''}</span>
+        {!compact && <span style={{ fontWeight: 700, fontSize: 13, color: CL.g }}>Objective</span>}
+        {!compact && <span style={{ fontFamily: MONO, fontSize: 11.5, color: TH.mut, whiteSpace: 'nowrap', minWidth: 62, textAlign: 'right' }}>{calc ? (open ? 'Hide ▴' : 'Why? ▾') : ''}</span>}
       </div>
 
       {open && rows && (
-        <div style={{ ...card, marginTop: 8, boxShadow: TH.sh, padding: 0 }}>
+        <div style={{ ...card, marginTop: 8, boxShadow: TH.sh, padding: 0, overflow: 'hidden' }}>
+          {compact ? (
+            <div>
+              {rows.map((r, i) => (
+                <div key={r.key} style={{ padding: '12px 12px 12px', borderTop: i ? `1px solid ${TH.line}` : undefined }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.4 }}>{r.label}</div>
+                  <div style={{ marginTop: 2, fontSize: 11.5, color: TH.mut, lineHeight: 1.4 }}>{r.basis}</div>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    <CellBox c={CL.g} name="Objectivity" icon={<IconOk />} cell={r.pro} />
+                    <CellBox c={CL.r} name="Propaganda" icon={<IconWarn />} cell={r.con} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '30%' }} />
@@ -105,6 +142,7 @@ export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; o
               ))}
             </tbody>
           </table>
+          )}
           <div style={{ padding: '8px 12px 10px', fontSize: 11.5, color: TH.mut, lineHeight: 1.4, borderTop: `1px solid ${TH.line}` }}>
             Colour strength = how strong the argument is. Context only: the marker follows the article verdict, and not-checkable claims never count against the article.
           </div>

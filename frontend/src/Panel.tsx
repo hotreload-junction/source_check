@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { cap, edgeColor, edgeLabel, QuoteMatch, sourceColor, TONE, type Ctx } from './Canvas';
 import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
+import { useCompact } from './responsive';
 import { locate, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
 import type { TNode } from './tree';
@@ -11,7 +12,7 @@ const box: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, backgro
 function Section({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
     <div style={{ marginTop: 22 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
         <div style={cap}>{title}</div>
         <div style={{ flex: 1 }} />
         {right}
@@ -22,8 +23,9 @@ function Section({ title, right, children }: { title: string; right?: ReactNode;
 }
 
 function Ring({ deg, c, text, label }: { deg: number; c: string; text: string; label: string }) {
+  const compact = useCompact();
   return (
-    <div style={{ textAlign: 'center', flex: 'none', maxWidth: 110 }}>
+    <div style={{ textAlign: 'center', flex: 'none', maxWidth: compact ? 84 : 110 }}>
       <div style={{ width: 58, height: 58, margin: '0 auto', borderRadius: '50%', background: `conic-gradient(${c} ${deg}deg, ${TH.line} 0)`, display: 'grid', placeItems: 'center' }}>
         <div style={{ width: 46, height: 46, borderRadius: '50%', background: TH.bar, display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: text.length > 3 ? 13 : 16 }}>{text}</div>
       </div>
@@ -37,9 +39,10 @@ function Pill({ c, children }: { c: string; children: ReactNode }) {
 }
 
 function Row({ k, children, warn }: { k: string; children: ReactNode; warn?: boolean }) {
+  const compact = useCompact();
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 10, fontSize: 13, lineHeight: 1.45, padding: '5px 0', borderTop: `1px solid ${TH.line}` }}>
-      <span style={{ color: TH.mut }}>{k}</span>
+    <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 2 : 10, fontSize: 13, lineHeight: 1.45, padding: compact ? '8px 0' : '5px 0', borderTop: `1px solid ${TH.line}` }}>
+      <span style={{ color: TH.mut, fontSize: compact ? 12 : undefined }}>{k}</span>
       <span style={{ color: warn ? CL.o : TH.ink, fontWeight: warn ? 600 : 400, overflowWrap: 'anywhere' }}>{children}</span>
     </div>
   );
@@ -47,10 +50,11 @@ function Row({ k, children, warn }: { k: string; children: ReactNode; warn?: boo
 
 const thrText = (thr: number | null) => `Quote match vs. fetched source text${thr != null ? ` (threshold ${thr})` : ''}`;
 
-export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: TNode) => void; close: () => void }) {
+export function Panel({ ctx, n, pick, close, compact = false }: { ctx: Ctx; n: TNode; pick: (n: TNode) => void; close: () => void; compact?: boolean }) {
   const { tree, view } = ctx;
   const root = n.kind === 'root', cm = n.kind === 'claim';
   const text = view.article.text;
+  const lg = compact ? 44 : 60;
 
   const claimMark = (c: TNode): Mark | null => {
     const span = locate(text, c.claim!.char_start, c.claim!.char_end, c.claim!.text);
@@ -67,7 +71,7 @@ export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: T
     const total = tree.claims.length;
     const av = view.verdict ? ARTICLE_V[view.verdict.label] : null;
     ring = <Ring deg={total ? (ctx.supported / total) * 360 : 0} c={ctx.articleColor} text={`${ctx.supported}/${total}`} label={av ? av.label : 'Calculating'} />;
-    logo = <Logo domain={view.article.domain} glyph={GLY.article} color={TH.ink} size={60} />;
+    logo = <Logo domain={view.article.domain} glyph={GLY.article} color={TH.ink} size={lg} />;
   } else if (cm) {
     const v = ctx.claimVerdict(n), ev = n.claim!.evidence;
     kind = `Claim ${n.claimIdx}`;
@@ -76,7 +80,7 @@ export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: T
     ring = ev
       ? <Ring deg={ev.fuzzy_score * 3.6} c={CLAIM_V[v].c} text={String(Math.round(ev.fuzzy_score))} label={CLAIM_V[v].label} />
       : <Ring deg={360} c={CLAIM_V[v].c} text={CLAIM_V[v].sym} label={CLAIM_V[v].label} />;
-    logo = <Logo glyph={GLY.claim} color={TH.ink} size={60} />;
+    logo = <Logo glyph={GLY.claim} color={TH.ink} size={lg} />;
   } else {
     const s = n.source!;
     kind = n.kids.length ? 'Intermediate source' : s.depth >= 3 ? `Deeper source (depth ${s.depth}) · origin` : s.depth === 2 ? 'Source of a source · origin' : 'Source';
@@ -84,20 +88,26 @@ export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: T
     meta = `${KIND[s.kind]} · ${FETCH[s.fetch_status]}${s.fetched_via ? ' via ' + s.fetched_via.replace('_', '.') : ''}`;
     const cnt = Math.max(1, n.citedBy.length);
     ring = <Ring deg={360} c={sourceColor(ctx, n)} text={`${cnt}×`} label={n.citedBy.length > 1 ? `Cited by ${cnt} claims` : 'Cited once'} />;
-    logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(srcName(s))} size={60} />;
+    logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(srcName(s))} size={lg} />;
   }
 
   return (
-    <div style={{ width: '50vw', height: '100%', overflow: 'auto', padding: '20px 26px 40px', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'auto', overscrollBehavior: 'contain', padding: compact ? '0 16px max(40px, env(safe-area-inset-bottom))' : '20px 26px 40px', boxSizing: 'border-box' }}>
+      {compact && (
+        <div style={{ position: 'sticky', top: 0, zIndex: 5, margin: '0 -16px', padding: 'max(8px, env(safe-area-inset-top)) 12px 8px', background: TH.bar, borderBottom: `1px solid ${TH.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button type="button" onClick={close} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', border: `1.5px solid ${TH.ink}`, borderRadius: 10, background: TH.card, color: TH.ink, font: 'inherit', fontWeight: 600, fontSize: 14 }}>← Back to graph</button>
+          <div style={{ ...cap, flex: 1, minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kind}</div>
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: compact ? 12 : 14, marginTop: compact ? 16 : 0 }}>
         {logo}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={cap}>{kind}</div>
-          <div style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.25, letterSpacing: '-.01em', marginTop: 2, textWrap: 'pretty', overflowWrap: 'anywhere' } as CSSProperties}>{ti}</div>
-          <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 4 }}>{meta}</div>
+          {!compact && <div style={cap}>{kind}</div>}
+          <div style={{ fontSize: compact ? 17 : 19, fontWeight: 600, lineHeight: 1.25, letterSpacing: '-.01em', marginTop: 2, textWrap: 'pretty', overflowWrap: 'anywhere' } as CSSProperties}>{ti}</div>
+          <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 4, overflowWrap: 'anywhere' }}>{meta}</div>
         </div>
         {ring}
-        <div onClick={close} style={{ cursor: 'pointer', flex: 'none', width: 28, height: 28, borderRadius: 7, border: `1px solid ${TH.line}`, display: 'grid', placeItems: 'center', fontSize: 14 }}>✕</div>
+        {!compact && <div onClick={close} style={{ cursor: 'pointer', flex: 'none', width: 28, height: 28, borderRadius: 7, border: `1px solid ${TH.line}`, display: 'grid', placeItems: 'center', fontSize: 14 }}>✕</div>}
       </div>
 
       {root && <RootSections ctx={ctx} />}
@@ -109,7 +119,7 @@ export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: T
           title="Source text"
           right={<><span style={{ width: 10, height: 10, borderRadius: 2, background: root ? TH.mut : CLAIM_V[ctx.claimVerdict(n)].c }} /><span style={{ fontSize: 11.5, color: TH.mut }}>{root ? 'Extracted claims, coloured by verdict' : 'Where the claim appears in the document'}</span></>}
         >
-          <div style={{ ...box, padding: '16px 18px', fontSize: 14.5, lineHeight: 1.65, whiteSpace: 'pre-wrap', textWrap: 'pretty' } as CSSProperties}>
+          <div style={{ ...box, padding: compact ? '12px 14px' : '16px 18px', fontSize: 14.5, lineHeight: 1.65, whiteSpace: 'pre-wrap', textWrap: 'pretty' } as CSSProperties}>
             {segments(text, marks).map((g, i) =>
               g.c ? (
                 <span key={i} onClick={() => root && g.id && pick(tree.by[g.id])} style={{ background: g.c + '40', borderBottom: `2px solid ${g.c}`, borderRadius: 3, padding: '1px 0', fontWeight: 600, cursor: root ? 'pointer' : 'default' }}>{g.t}</span>
@@ -144,10 +154,10 @@ function KidRow({ ctx, parent, k, pick }: { ctx: Ctx; parent: TNode; k: TNode; p
   else if (e) { fx = edgeLabel(ctx, e); c = edgeColor(ctx, e); }
   const dom = k.source?.domain ?? null;
   return (
-    <div onClick={() => pick(k)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` }}>
+    <div onClick={() => pick(k)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', minHeight: 56, borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` }}>
       <Logo domain={dom} glyph={k.source ? GLY[k.source.kind] : GLY.claim} color={dom ? pal(dom) : TH.ink} size={36} />
       <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{k.kind === 'claim' ? k.claim!.text : dom}</div>
-      <div style={{ fontSize: 11, color: TH.mut, fontFamily: MONO, whiteSpace: 'nowrap' }}>{fx}</div>
+      <div style={{ fontSize: 11, color: TH.mut, fontFamily: MONO, textAlign: 'right', maxWidth: '38%' }}>{fx}</div>
       <div style={{ width: 12, height: 12, borderRadius: '50%', background: c, flex: 'none' }} />
     </div>
   );
@@ -155,14 +165,15 @@ function KidRow({ ctx, parent, k, pick }: { ctx: Ctx; parent: TNode; k: TNode; p
 
 function RootSections({ ctx }: { ctx: Ctx }) {
   const { view } = ctx;
+  const compact = useCompact();
   if (!view.verdict || !view.signals) return <div style={{ ...box, marginTop: 20, color: TH.mut }}>The analysis is still running. The article verdict appears when all claims are checked.</div>;
   const av = ARTICLE_V[view.verdict.label];
   const sg = view.signals;
   const sig = (name: string, fired: boolean, detail: ReactNode) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '120px 90px 1fr', gap: 10, alignItems: 'start', fontSize: 13, lineHeight: 1.45, padding: '7px 0', borderTop: `1px solid ${TH.line}` }}>
+    <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr auto' : '120px 90px 1fr', gap: compact ? '4px 10px' : 10, alignItems: 'start', fontSize: 13, lineHeight: 1.45, padding: compact ? '9px 0' : '7px 0', borderTop: `1px solid ${TH.line}` }}>
       <span style={{ fontWeight: 600 }}>{name}</span>
-      <span><Pill c={fired ? CL.r : TH.line}>{fired ? 'fired' : 'not fired'}</Pill></span>
-      <span style={{ color: TH.mut }}>{detail}</span>
+      <span style={compact ? { gridColumn: 2, gridRow: 1 } : undefined}><Pill c={fired ? CL.r : TH.line}>{fired ? 'fired' : 'not fired'}</Pill></span>
+      <span style={{ color: TH.mut, overflowWrap: 'anywhere', ...(compact ? { gridColumn: '1 / -1' } : {}) }}>{detail}</span>
     </div>
   );
   return (
@@ -231,6 +242,7 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
 }
 
 function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode) => void }) {
+  const compact = useCompact();
   const s = n.source!;
   const d = s.domain ? ctx.view.domains.find((x) => x.domain === s.domain) : undefined;
   const cluster = d?.cluster_id ? ctx.view.domains.filter((x) => x.cluster_id === d.cluster_id && x.domain !== d.domain) : [];
@@ -288,7 +300,7 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
       </Section>
 
       <Section title="Source text" right={<><span style={{ width: 10, height: 10, borderRadius: 2, background: passages.length ? CLAIM_V[passages[0].verdict].c : TH.line }} /><span style={{ fontSize: 11.5, color: TH.mut }}>Passage the claim relies on</span></>}>
-        <div style={{ ...box, padding: '16px 18px', fontSize: 14.5, lineHeight: 1.65 }}>
+        <div style={{ ...box, padding: compact ? '12px 14px' : '16px 18px', fontSize: 14.5, lineHeight: 1.65 }}>
           {passages.length ? passages.map((c) => {
             const col = CLAIM_V[c.verdict].c;
             return (

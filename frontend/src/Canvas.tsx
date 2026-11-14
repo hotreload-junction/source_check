@@ -1,6 +1,8 @@
+import { createPortal } from 'react-dom';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type MouseEvent as RME, type PointerEvent as RPE, type ReactNode } from 'react';
 import { Logo } from './Logo';
 import { cardLabels, typeWord, type Tone } from './labels';
+import { useCompact } from './responsive';
 import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal, srcName } from './theme';
 import type { TEdge, TNode, Tree, View } from './tree';
 import type { ClaimVerdict } from './types';
@@ -37,6 +39,8 @@ interface Props {
 const CW = 240, W0 = 90;
 const hh = (n: TNode) => (n.kind === 'root' ? 65 : n.kind === 'claim' ? 55 : n.kind === 'nosrc' ? 42 : 84);
 const wd = (n: TNode) => (n.kind === 'root' ? 280 : n.kind === 'claim' ? 300 : n.kind === 'nosrc' ? 170 : 190);
+/** Size of the graph in its own coordinates (also used by App to size the canvas on a phone). */
+export const graphSize = (tree: Tree): [number, number] => [Math.max(tree.L * 300 + 60, 680), W0 * 2 + tree.md * CW];
 export const NEUTRAL = '#2b2b33';
 const f1 = (v: number) => v.toFixed(1);
 const skg = `linear-gradient(90deg, ${TH.ink}14 0%, ${TH.ink}2b 50%, ${TH.ink}14 100%)`;
@@ -75,6 +79,9 @@ export function edgeColor(ctx: Ctx, e: TEdge): string {
 
 export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel, focus, dd, setDd, classify, pick, clearFocus }, ref) {
   const { tree } = ctx;
+  const compact = useCompact();
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(1);
   const tx = useRef(0), ty = useRef(0);
@@ -83,7 +90,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
   const pan = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const moved = useRef(false);
 
-  const gw = Math.max(tree.L * 300 + 60, 680), gh = W0 * 2 + tree.md * CW;
+  const [gw, gh] = graphSize(tree);
   const pos = (n: TNode): [number, number] => [n.s * gw, W0 + n.d * CW];
   const inF = (n: TNode) => !focus || n.kind === 'root' || n.id === focus || n.fcs.has(focus);
   const dims = useRef<[number, number]>([gw, gh]);
@@ -105,7 +112,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
   const zoomBy = useCallback((f: number, cx?: number, cy?: number) => {
     const el = gEl.current;
     if (!el) return;
-    const z = zoomRef.current, nz = Math.min(2.2, Math.max(0.3, z * f));
+    const z = zoomRef.current, nz = Math.min(2.2, Math.max(compactRef.current ? 0.15 : 0.3, z * f));
     const px = cx ?? el.clientWidth / 2, py = cy ?? el.clientHeight / 2;
     tx.current = px - ((px - tx.current) * nz) / z;
     ty.current = py - ((py - ty.current) * nz) / z;
@@ -116,7 +123,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const el = gEl.current;
     if (!el) return;
     const w = x1 - x0, h = y1 - y0, cw = el.clientWidth, ch = el.clientHeight;
-    const nz = Math.max(0.4, Math.min(1.3, (cw - 120) / w, (ch - 120) / h));
+    const pad = compactRef.current ? 36 : 120; // a phone cannot spare 120 px of margin
+    const nz = Math.max(compactRef.current ? 0.18 : 0.4, Math.min(1.3, (cw - pad) / w, (ch - pad) / h));
     tx.current = (cw - w * nz) / 2 - x0 * nz;
     ty.current = (ch - h * nz) / 2 - y0 * nz;
     if (cEl.current) {
@@ -161,31 +169,72 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     return () => el.removeEventListener('wheel', wh);
   }, [apply, zoomBy]);
 
+  // One finger / mouse pans, two fingers pinch-zoom around their midpoint.
+  const ptrs = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ d: number; z: number; cx: number; cy: number; tx: number; ty: number } | null>(null);
+  const startPan = () => {
+    const [p] = [...ptrs.current.values()];
+    pan.current = p ? { x: p.x, y: p.y, tx: tx.current, ty: ty.current } : null;
+  };
+  const startPinch = () => {
+    const el = gEl.current;
+    const [a, b] = [...ptrs.current.values()];
+    if (!el || !a || !b) return;
+    const r = el.getBoundingClientRect();
+    pan.current = null;
+    pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: zoomRef.current, cx: (a.x + b.x) / 2 - r.left, cy: (a.y + b.y) / 2 - r.top, tx: tx.current, ty: ty.current };
+    moved.current = true; // a pinch is never a tap on a card
+  };
   const mv = useCallback((e: PointerEvent) => {
+    if (!ptrs.current.has(e.pointerId)) return;
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (cEl.current && (pinch.current || moved.current)) cEl.current.style.transition = 'none';
+    const g = pinch.current;
+    if (g && ptrs.current.size >= 2 && gEl.current) {
+      const [a, b] = [...ptrs.current.values()];
+      const r = gEl.current.getBoundingClientRect();
+      const nz = Math.min(2.2, Math.max(compactRef.current ? 0.15 : 0.3, (g.z * (Math.hypot(a.x - b.x, a.y - b.y) || 1)) / g.d));
+      const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+      // the content point under the first midpoint follows the current midpoint
+      tx.current = mx - ((g.cx - g.tx) * nz) / g.z;
+      ty.current = my - ((g.cy - g.ty) * nz) / g.z;
+      setZ(nz);
+      return;
+    }
     const p = pan.current;
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (!moved.current && Math.hypot(dx, dy) < 5) return;
+    if (!moved.current && Math.hypot(dx, dy) < (e.pointerType === 'touch' ? 8 : 5)) return;
     moved.current = true;
     if (gEl.current) gEl.current.style.cursor = 'grabbing';
     if (cEl.current) cEl.current.style.transition = 'none';
     tx.current = p.tx + dx;
     ty.current = p.ty + dy;
     apply();
-  }, [apply]);
-  const up = useCallback(() => {
+  }, [apply, setZ]);
+  const up = useCallback((e: PointerEvent) => {
+    ptrs.current.delete(e.pointerId);
+    if (ptrs.current.size >= 2) { startPinch(); return; }
+    pinch.current = null;
+    if (ptrs.current.size === 1) { startPan(); return; } // one finger lifted after a pinch: keep panning without a jump
     window.removeEventListener('pointermove', mv);
     window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
     pan.current = null;
     if (gEl.current) gEl.current.style.cursor = 'grab';
     setTimeout(() => { moved.current = false; }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mv]);
   const down = (e: RPE) => {
-    if (e.button || !gEl.current) return;
-    pan.current = { x: e.clientX, y: e.clientY, tx: tx.current, ty: ty.current };
-    moved.current = false;
-    window.addEventListener('pointermove', mv);
-    window.addEventListener('pointerup', up);
+    if ((e.pointerType === 'mouse' && e.button) || !gEl.current) return;
+    if (ptrs.current.size === 0) {
+      moved.current = false;
+      window.addEventListener('pointermove', mv);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    }
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.current.size >= 2) startPinch(); else startPan();
   };
   const capClick = (e: RME) => { if (moved.current) { e.stopPropagation(); e.preventDefault(); } };
 
@@ -339,26 +388,29 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
                 style={{
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: cl ? TH.card : skg, backgroundSize: '400px 100%',
                   animation: cl ? 'none' : 'stShimmer 1.3s linear infinite', minWidth: cl ? 0 : 46, border: `2px solid ${c}`, borderRadius: 99,
-                  padding: '1px 7px 1px 9px', fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: cl ? TH.ink : 'transparent', whiteSpace: 'nowrap',
+                  padding: compact ? '5px 10px 5px 12px' : '1px 7px 1px 9px', fontFamily: MONO, fontSize: compact ? 12.5 : 11.5, fontWeight: 700, color: cl ? TH.ink : 'transparent', whiteSpace: 'nowrap',
                   transition: 'border-color .4s, scale .15s', boxShadow: open ? `0 0 0 3px ${c}55` : 'none',
                 }}
               >
                 {cl ? edgeLabel(ctx, e) : '…'}
                 <span style={{ fontSize: 8, opacity: 0.7, display: 'inline-block', transform: `rotate(${open ? 180 : 0}deg)`, transition: 'transform .2s' }}>▼</span>
               </div>
-              {open && cl && <EdgeCard ctx={ctx} e={e} c={c} up={up} classify={classify} pick={pick} />}
+              {open && cl && <EdgeCard ctx={ctx} e={e} c={c} up={up} compact={compact} close={() => setDd(null)} classify={classify} pick={pick} />}
             </div>
           ))}
           {nodes}
         </div>
       </div>
-      <div style={{ position: 'absolute', right: 14, bottom: 14, display: 'flex', alignItems: 'center', gap: 6, zIndex: 30 }}>
-        <span style={{ fontSize: 11.5, color: TH.mut, marginRight: 8 }}>Drag to move · Ctrl + scroll to zoom</span>
-        <Btn onClick={() => zoomBy(1 / 1.2)}>−</Btn>
-        <div style={{ minWidth: 46, textAlign: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{Math.round(zoom * 100)} %</div>
-        <Btn onClick={() => zoomBy(1.2)}>+</Btn>
-        <Btn onClick={fit}>Fit</Btn>
-        {focus && (
+      {compact && focus && (
+        <button type="button" onClick={clearFocus} style={{ cursor: 'pointer', position: 'absolute', left: 10, top: 10, zIndex: 30, height: 40, padding: '0 14px', border: 'none', borderRadius: 10, background: TH.ink, color: TH.bg, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>← Show all claims</button>
+      )}
+      <div style={{ position: 'absolute', right: compact ? 10 : 14, bottom: compact ? 10 : 14, display: 'flex', alignItems: 'center', gap: compact ? 8 : 6, zIndex: 30 }}>
+        {!compact && <span style={{ fontSize: 11.5, color: TH.mut, marginRight: 8 }}>Drag to move · Ctrl + scroll to zoom</span>}
+        <Btn onClick={() => zoomBy(1 / 1.2)} label="Zoom out" big={compact}>−</Btn>
+        <div style={{ minWidth: compact ? 44 : 46, textAlign: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{Math.round(zoom * 100)} %</div>
+        <Btn onClick={() => zoomBy(1.2)} label="Zoom in" big={compact}>+</Btn>
+        <Btn onClick={fit} label="Fit graph to screen" big={compact}>Fit</Btn>
+        {!compact && focus && (
           <div onClick={clearFocus} style={{ cursor: 'pointer', height: 34, padding: '0 12px', display: 'grid', placeItems: 'center', borderRadius: 10, background: TH.ink, color: TH.bg, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Show all claims</div>
         )}
       </div>
@@ -370,9 +422,10 @@ function Dot({ c, side }: { c: string; side: 'top' | 'bottom' }) {
   return <div style={{ position: 'absolute', left: '50%', [side]: -(TH.bw + 13), width: 26, height: 26, marginLeft: -13, borderRadius: '50%', background: c, border: `4px solid ${TH.bg}`, transition: 'background .4s', zIndex: 4, boxSizing: 'border-box' }} />;
 }
 
-function Btn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+function Btn({ onClick, children, label, big }: { onClick: () => void; children: ReactNode; label?: string; big?: boolean }) {
+  const h = big ? 42 : 34;
   return (
-    <div onClick={onClick} style={{ cursor: 'pointer', minWidth: 34, height: 34, padding: '0 10px', display: 'grid', placeItems: 'center', borderRadius: 10, background: TH.card, border: `1.5px solid ${TH.line}`, fontWeight: 600, fontSize: 14, color: TH.ink, whiteSpace: 'nowrap', boxSizing: 'border-box' }}>{children}</div>
+    <button type="button" aria-label={label} onClick={onClick} onPointerDown={(e) => e.stopPropagation()} style={{ cursor: 'pointer', minWidth: h, height: h, padding: '0 10px', display: 'grid', placeItems: 'center', borderRadius: 10, background: TH.card, border: `1.5px solid ${TH.line}`, font: 'inherit', fontWeight: 600, fontSize: big ? 16 : 14, color: TH.ink, whiteSpace: 'nowrap', boxSizing: 'border-box' }}>{children}</button>
   );
 }
 
@@ -391,17 +444,23 @@ export function QuoteMatch({ score, threshold }: { score: number; threshold: num
   );
 }
 
-function EdgeCard({ ctx, e, c, up, classify, pick }: { ctx: Ctx; e: TEdge; c: string; up: boolean; classify: (e: TEdge, v: ClaimVerdict) => void; pick: (n: TNode) => void }) {
+function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx; e: TEdge; c: string; up: boolean; compact: boolean; close: () => void; classify: (e: TEdge, v: ClaimVerdict) => void; pick: (n: TNode) => void }) {
   const claim = e.claim;
   const ev = e.evidence && claim?.evidence ? claim.evidence : null;
   const cur = ctx.edgeVerdict(e);
   const judged = e.type === 'cites' && e.verdict != null;
   const thr = ctx.view.audit?.fuzzy_threshold ?? null;
-  return (
+  // Desktop: a card hanging off the label, scaled with the graph. Phone: a bottom sheet in a portal, because
+  // a fixed element inside the transformed graph would be positioned (and shrunk) relative to the graph.
+  const card = (
     <div
       onClick={stop}
       onPointerDown={stop}
-      style={{
+      style={compact ? {
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 80, maxHeight: '80dvh', overflowY: 'auto', overscrollBehavior: 'contain',
+        background: TH.card, color: TH.ink, borderTop: `${TH.bw}px solid ${c}`, borderRadius: `${TH.rad}px ${TH.rad}px 0 0`, boxShadow: '0 -14px 36px #0003',
+        padding: '16px 16px max(18px, env(safe-area-inset-bottom))', fontFamily: TH.font, fontSize: 13.5, lineHeight: 1.45, cursor: 'default', userSelect: 'text', boxSizing: 'border-box', animation: 'stSheetIn .2s ease-out',
+      } : {
         position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: up ? 'auto' : '100%', bottom: up ? '100%' : 'auto', margin: '9px 0', width: 330,
         background: TH.card, color: TH.ink, border: `${TH.bw}px solid ${c}`, borderRadius: TH.rad, boxShadow: '0 14px 36px #0003', padding: '14px 16px',
         fontFamily: TH.font, fontSize: 12.5, lineHeight: 1.4, cursor: 'default', userSelect: 'text', boxSizing: 'border-box',
@@ -411,6 +470,7 @@ function EdgeCard({ ctx, e, c, up, classify, pick }: { ctx: Ctx; e: TEdge; c: st
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
         <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{edgeLabel(ctx, e)}</span>
         {ev && <span title="Quote match of the evidence quote against the fetched source text" style={{ fontFamily: MONO, fontWeight: 700, fontSize: 14 }}>{Math.round(ev.fuzzy_score)}</span>}
+        {compact && <button type="button" onClick={(x) => { stop(x); close(); }} aria-label="Close" style={{ cursor: 'pointer', flex: 'none', width: 36, height: 36, marginRight: -6, borderRadius: 8, border: `1px solid ${TH.line}`, background: TH.card, color: TH.ink, font: 'inherit', fontSize: 14 }}>✕</button>}
       </div>
       {claim && e.type !== 'sub' && e.type !== 'back' && <div style={{ marginTop: 8, color: TH.mut }}>Claim: <span style={{ color: TH.ink }}>{claim.text}</span></div>}
       {e.type === 'cites' && !judged && <div style={{ marginTop: 4 }}>The claim cites this source, but its verdict rests on another source.</div>}
@@ -430,7 +490,7 @@ function EdgeCard({ ctx, e, c, up, classify, pick }: { ctx: Ctx; e: TEdge; c: st
             {CLAIM_ORDER.map((v) => {
               const on = v === cur;
               return (
-                <div key={v} onClick={(x) => { stop(x); classify(e, v); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px', borderRadius: 10, border: `2px solid ${on ? CLAIM_V[v].c : TH.line}`, background: on ? CLAIM_V[v].c + '26' : 'transparent', fontWeight: 600, fontSize: 12 }}>
+                <div key={v} onClick={(x) => { stop(x); classify(e, v); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, padding: compact ? '10px 9px' : '7px 9px', borderRadius: 10, border: `2px solid ${on ? CLAIM_V[v].c : TH.line}`, background: on ? CLAIM_V[v].c + '26' : 'transparent', fontWeight: 600, fontSize: 12, minHeight: compact ? 44 : undefined }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: CLAIM_V[v].c, flex: 'none' }} />
                   {CLAIM_V[v].label}
                   <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.65 }}>{v === e.verdict ? 'AI' : ''}</span>
@@ -447,9 +507,17 @@ function EdgeCard({ ctx, e, c, up, classify, pick }: { ctx: Ctx; e: TEdge; c: st
           <QuoteMatch score={ev.fuzzy_score} threshold={thr} />
         </div>
       )}
-      <div onClick={(x) => { stop(x); pick(e.to.kind === 'nosrc' ? e.from : e.to); }} style={{ marginTop: 12, cursor: 'pointer', textAlign: 'center', padding: 7, borderRadius: 8, background: TH.ink, color: TH.bg, fontWeight: 600 }}>
+      <div onClick={(x) => { stop(x); pick(e.to.kind === 'nosrc' ? e.from : e.to); }} style={{ marginTop: 12, cursor: 'pointer', textAlign: 'center', padding: compact ? 12 : 7, borderRadius: 8, background: TH.ink, color: TH.bg, fontWeight: 600 }}>
         {e.to.kind === 'nosrc' ? 'Open claim' : 'Open source'}
       </div>
     </div>
+  );
+  if (!compact) return card;
+  return createPortal(
+    <>
+      <div onClick={(x) => { stop(x); close(); }} onPointerDown={stop} style={{ position: 'fixed', inset: 0, zIndex: 79, background: '#0006', animation: 'stFade .2s ease-out' }} />
+      {card}
+    </>,
+    document.body,
   );
 }
