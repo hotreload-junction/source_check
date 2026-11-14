@@ -254,7 +254,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
       <button type="submit" style={{ cursor: 'pointer', padding: compact ? '11px 14px' : '6px 12px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: compact ? 14 : 13, background: TH.ink, color: TH.bg }}>Analyze</button>
     </form>
   );
-  const mockBadge = api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}`, whiteSpace: 'nowrap' }}>MOCK DATA</span>;
   const actions = (
     <>
       <TopBtn onClick={reanalyze} disabled={!url || running} title="Ignore the cache and analyze this article again from scratch (takes 1-2 minutes)">Force re-analyze</TopBtn>
@@ -290,7 +289,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {brand}
             <div style={{ flex: 1 }} />
-            {mockBadge}
             <button type="button" onClick={() => setFormOpen((o) => !o)} aria-expanded={formOpen} style={{ cursor: 'pointer', padding: '9px 14px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', background: formOpen ? TH.ink : TH.card, color: formOpen ? TH.bg : TH.ink }}>{formOpen ? 'Close' : 'New check'}</button>
           </div>
           {formOpen && (
@@ -307,7 +305,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{demoPills}</div>
           {urlForm}
           <div style={{ flex: 1 }} />
-          {mockBadge}
           {actions}
         </div>
       )}

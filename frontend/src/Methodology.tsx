@@ -69,7 +69,6 @@ export function Methodology() {
           <a href="#/" style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink }}><Wordmark /></a>
           <span style={{ color: TH.mut }}>/</span>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Methodology</span>
-          {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
         <h1 style={{ fontSize: 'clamp(30px, 5vw, 46px)', lineHeight: 1.08, letterSpacing: '-.03em', margin: compact ? '28px 0 12px' : '48px 0 12px', maxWidth: 700 }}>How good is the detection? Measured, including its mistakes.</h1>

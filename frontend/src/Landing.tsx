@@ -2,7 +2,7 @@ import { useEffect, useState, type ClipboardEvent, type FormEvent, type Keyboard
 import { api } from './api';
 import { Wordmark } from './Brand';
 import { useCompact, useTouch } from './responsive';
-import { CL, MONO, TH } from './theme';
+import { CL, TH } from './theme';
 import type { DemoCase } from './types';
 
 const BAR = `linear-gradient(to bottom, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
@@ -88,7 +88,6 @@ export function Landing() {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) 24px' : '28px 32px 36px 56px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
           <Wordmark />
-          {api.mock && <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: CL.y + '33', border: `1px solid ${CL.y}` }}>MOCK DATA</span>}
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 48 }}>
