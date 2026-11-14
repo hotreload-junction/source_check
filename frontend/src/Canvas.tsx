@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type MouseEvent as RME, type PointerEvent as RPE, type ReactNode } from 'react';
 import { Logo } from './Logo';
+import { cardLabels, typeWord, type Tone } from './labels';
 import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal, srcName } from './theme';
 import type { TEdge, TNode, Tree, View } from './tree';
 import type { ClaimVerdict } from './types';
@@ -42,6 +43,14 @@ const skg = `linear-gradient(90deg, ${TH.ink}14 0%, ${TH.ink}2b 50%, ${TH.ink}14
 const shimmer: CSSProperties = { background: skg, backgroundSize: '400px 100%', animation: 'stShimmer 1.3s linear infinite' };
 const stop = (ev: { stopPropagation: () => void }) => ev.stopPropagation();
 const KIND_SHORT = { link: 'Source', named: 'Named source', telegram: 'Telegram', social: 'Social media', self: 'Self-citation' } as const;
+export const TONE: Record<Tone, string> = { good: CL.g, warn: CL.o, bad: CL.r };
+
+/** Card meta line: the Q1 source type replaces the generic "Source" for links; named sources keep their kind. */
+function sourceMeta(s: NonNullable<TNode['source']>): string {
+  const tw = typeWord(s);
+  const head = s.kind === 'link' && tw ? tw : KIND_SHORT[s.kind] + (s.kind === 'named' && tw ? ` · ${tw.toLowerCase()}` : '');
+  return head + (s.depth >= 2 ? ` · depth ${s.depth}` : '');
+}
 
 export function sourceColor(ctx: Ctx, n: TNode): string {
   if (n.kind === 'nosrc') return CL.r;
@@ -193,12 +202,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       else if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : `${Math.max(1, n.citedBy.length)}×`;
     }
-    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth >= 2 ? ` · depth ${n.source!.depth}` : ''}`;
+    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : sourceMeta(n.source!);
+    const labels = src && n.source!.domain ? cardLabels(ctx.view.domains.find((d) => d.domain === n.source!.domain)) : [];
     const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
     const glyph = root ? GLY.article : cm ? GLY.claim : stub ? GLY.none : GLY[n.source!.kind] ?? GLY.link;
     const lcol = root ? TH.bg : cm ? TH.ink : stub ? CL.r : pal(srcName(n.source!));
-    const ls = root ? 56 : cm ? 40 : stub ? 28 : 64;
+    const ls = root ? 56 : cm ? 40 : stub ? 28 : labels.length ? 40 : 64; // labels need the room
     const pfg = root ? TH.bg : src && cl ? (c === CL.y || c === CL.p ? '#10141a' : '#ffffff') : TH.ink;
     const tint = cl ? (src ? c : c + '3a') : root ? TH.bg + '33' : TH.line;
     const col = src; // sources: centred column layout as in the design
@@ -211,7 +221,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
           transform: `translate(-50%,-50%) scale(${vs ? 1 : 0.85})`, opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none',
           cursor: 'pointer', background: root ? TH.ink : TH.card, color: root ? TH.bg : TH.ink,
           border: `${TH.bw}px ${load || stub || (cm && !cl) ? 'dashed' : 'solid'} ${c}`, borderRadius: TH.rad,
-          padding: col ? '16px 12px 12px' : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
+          padding: col ? (labels.length ? '12px 10px 10px' : '16px 12px 12px') : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
           display: 'flex', flexDirection: col ? 'column' : 'row', gap: col ? 8 : 12, alignItems: 'center', textAlign: col ? 'center' : 'left',
           boxShadow: isSel ? `0 0 0 4px ${c}66, 0 6px 18px #0002` : TH.sh,
           outline: cm && n.claim!.focus ? `2.5px dashed ${TH.ink}` : undefined, outlineOffset: 6, // F6: matches the reader's question
@@ -224,6 +234,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
             <div style={{ flex: col ? 'none' : 1, minWidth: 0, width: col ? '100%' : undefined }}>
               <div style={{ fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
               <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? 8 : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
+              {labels.length > 0 && ( // PLAN Q2 reputation labels; hover for the list entry
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: 6 }}>
+                  {labels.map((l) => (
+                    <span key={l.key} title={l.title} style={{ fontSize: 10.5, fontWeight: 700, lineHeight: '18px', padding: '0 8px', borderRadius: 99, background: TONE[l.tone], color: '#fff', whiteSpace: 'nowrap' }}>{l.text}</span>
+                  ))}
+                </div>
+              )}
             </div>
             {!stub && (
               <div style={{ flex: 'none', position: col ? 'absolute' : 'static', top: -14, right: -14, boxShadow: col ? `0 0 0 3px ${TH.card}` : 'none', width: 38, height: 38, borderRadius: '50%', background: tint, color: pfg, display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: root ? 12 : 14, transition: 'background .4s' }}>{badge}</div>

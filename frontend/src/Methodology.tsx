@@ -128,6 +128,22 @@ export function Methodology() {
               </div>
             </Section>
 
+            <Section title="Source labels: context, not a verdict" sub="Each source card shows what kind of page it is and what dated public lists say about its domain. These labels help the reader judge a source; they never change a claim verdict or the article verdict.">
+              <div style={{ ...card, fontSize: 14, lineHeight: 1.55 }}>
+                {[
+                  ['Source type', 'Fixed rules on the URL and the page markup, first match wins: social media, academic, press release, official (government hosts and suffixes such as .gov), reference, news, blog. No rule matches: unknown, and no label is shown.'],
+                  ['Wikipedia rating', 'The status the Wikipedia community gives the outlet on its Perennial Sources list (reliable, mixed, unreliable, deprecated or spam-blacklisted), from a dated snapshot. Most sites are not listed; that is neutral.'],
+                  ['Popularity', 'Rank on the Tranco top-sites research list, from a dated snapshot. Shown as popularity, not reliability: widely read state media rank high too.'],
+                  ['Re-registered', 'The Wayback Machine has pages from the domain at least a year before its current registration date. The domain existed before and was registered again, a known way to borrow an old name. A failed archive lookup shows nothing.'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 12, padding: '8px 0', borderTop: `1px solid ${TH.line}` }}>
+                    <b>{k}</b>
+                    <span style={{ color: TH.mut }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
             <Section title="Where it goes wrong" sub="Every error case from the run, not a selection.">
               {m.error_cases.length === 0 ? (
                 <div style={{ ...card, color: TH.mut }}>No error cases recorded.</div>

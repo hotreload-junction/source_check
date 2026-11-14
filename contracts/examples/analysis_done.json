@@ -183,9 +183,12 @@
           }
         ],
         "tranco_rank": null,
-        "first_archived_at": null,
+        "first_archived_at": "2014-03-02",
         "reputation_notes": [
-          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+          "Wikipedia Perennial Sources rates \"News Front (mock)\" generally unreliable, last discussed 2022 (snapshot 2026-11-14)",
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)",
+          "First captured by the Wayback Machine on 2014-03-02",
+          "Archived pages predate the current registration (2026-09-20) by 12 year(s) or more: the domain existed before and was registered again"
         ]
       },
       {
@@ -200,10 +203,11 @@
         "is_article_domain": false,
         "known_network": null,
         "wikipedia_rsp": [],
-        "tranco_rank": null,
-        "first_archived_at": null,
+        "tranco_rank": 41210,
+        "first_archived_at": "2001-06-14",
         "reputation_notes": [
-          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+          "Rank 41,210 among the most visited sites (Tranco list Y897G, 2026-11-13); popularity, not reliability",
+          "First captured by the Wayback Machine on 2001-06-14"
         ]
       },
       {
@@ -231,7 +235,9 @@
         "tranco_rank": null,
         "first_archived_at": null,
         "reputation_notes": [
-          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)"
+          "Wikipedia Perennial Sources rates \"Daily Truth (mock)\" deprecated, last discussed 2023 (snapshot 2026-11-14)",
+          "Not among the 100,000 most visited sites (Tranco list Y897G, 2026-11-13)",
+          "Never captured by the Wayback Machine"
         ]
       }
     ],

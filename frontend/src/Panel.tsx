@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { cap, edgeColor, edgeLabel, QuoteMatch, sourceColor, type Ctx } from './Canvas';
+import { cap, edgeColor, edgeLabel, QuoteMatch, sourceColor, TONE, type Ctx } from './Canvas';
+import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
 import { locate, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
@@ -258,6 +259,10 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
         </div>
       ))}
 
+      <Section title="Source type and reputation" right={<span style={{ fontSize: 11.5, color: TH.mut }}>Context only, never part of a verdict</span>}>
+        <ReputationBox ctx={ctx} n={n} />
+      </Section>
+
       <Section title="Domain and infrastructure">
         <div style={box}>
           <Row k="Domain">{s.domain ?? 'Unknown (named source without a link)'}</Row>
@@ -298,5 +303,49 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
         </div>
       </Section>
     </>
+  );
+}
+
+/** PLAN Q1/Q2: what kind of page this is and what dated public lists say about its domain. Restates backend fields;
+ *  a missing field shows as "not listed" / "not checked", never as a guess. */
+function ReputationBox({ ctx, n }: { ctx: Ctx; n: TNode }) {
+  const s = n.source!;
+  const d = s.domain ? ctx.view.domains.find((x) => x.domain === s.domain) : undefined;
+  const tw = typeWord(s);
+  const rows = d?.wikipedia_rsp ?? [];
+  const rsp = cardLabels(d).find((l) => l.key === 'rsp');
+  const yrs = reregisteredYears(d);
+  const arch = archiveText(d);
+  const pending = !ctx.view.done;
+  return (
+    <div style={box}>
+      <Row k="Source type">
+        {tw ?? (s.source_type === undefined ? 'Not classified in this result' : 'Unknown: no rule matched')}
+        {s.source_type_reason && <div style={{ fontSize: 12, color: TH.mut, marginTop: 2 }}>{s.source_type_reason}</div>}
+      </Row>
+      {s.domain && (d ? (
+        <>
+          <Row k="Wikipedia rating">
+            {rsp ? (
+              <>
+                <Pill c={TONE[rsp.tone]}>{rsp.text.replace('Wikipedia: ', '')}</Pill>
+                {rspLines(rows).map((t) => <div key={t} style={{ fontSize: 12.5, marginTop: 4 }}>{t}</div>)}
+                <div style={{ fontSize: 12, color: TH.mut, marginTop: 2 }}>Wikipedia Perennial Sources, snapshot {rows[0].snapshot}</div>
+              </>
+            ) : d.wikipedia_rsp ? 'Not on Wikipedia\'s Perennial Sources list (most sites are not; this is neutral)' : 'Not checked in this result'}
+          </Row>
+          <Row k="Popularity">
+            {d.tranco_rank != null ? `Rank ${d.tranco_rank.toLocaleString('en-US')} on the Tranco top-sites list` : d.reputation_notes?.some((x) => x.startsWith('Not among')) ? 'Not among the 100,000 most visited sites (Tranco)' : 'Not checked in this result'}
+            <div style={{ fontSize: 12, color: TH.mut, marginTop: 2 }}>Popularity, not reliability: widely read state media rank high too.</div>
+          </Row>
+          <Row k="Web archive" warn={yrs != null}>
+            {arch ?? 'Not checked (archive lookup off or unavailable)'}
+            {yrs != null && <div style={{ marginTop: 2 }}>Archived pages predate the current registration ({d.created_at!.slice(0, 10)}) by {yrs}+ year(s): the domain existed before and was registered again.</div>}
+          </Row>
+        </>
+      ) : (
+        <Row k="Reputation">{pending ? 'Pending' : 'Not collected for this domain'}</Row>
+      ))}
+    </div>
   );
 }

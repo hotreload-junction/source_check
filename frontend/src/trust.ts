@@ -27,7 +27,7 @@ export function rspVerdict(rows: RspEntry[]): RspVerdict | null {
 }
 
 const TYPE_BASE: Record<SourceType, number> = { official: 0.9, academic: 0.9, reference: 0.75, news: 0.65, press_release: 0.4, blog: 0.4, social: 0.2, unknown: 0.5 };
-const TYPE_WORD: Record<SourceType, string> = { official: 'official', academic: 'academic', reference: 'reference', news: 'news', press_release: 'press release', blog: 'blog', social: 'social media', unknown: 'unknown' };
+export const TYPE_WORD: Record<SourceType, string> = { official: 'official', academic: 'academic', reference: 'reference', news: 'news', press_release: 'press release', blog: 'blog', social: 'social media', unknown: 'unknown' };
 const typeOf = (s: Source): SourceType => s.source_type ?? (s.kind === 'telegram' || s.kind === 'social' ? 'social' : 'unknown');
 
 /** 0..1 standing of one origin source; null = nothing known about it (never guessed). */
