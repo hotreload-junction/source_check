@@ -19,6 +19,7 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from typing import Callable
 
 from ..config import Settings, get_settings
 from ..llm import LLMClient, LLMError
@@ -80,10 +81,14 @@ def _parse_vote(data: dict, n_units: int) -> dict[int, tuple[str, ...]]:
 
 
 def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | None = None,
-                   settings: Settings | None = None) -> ExtractionResult:
+                   settings: Settings | None = None, body_filter: Callable[[str], bool] | None = None) -> ExtractionResult:
+    """`body_filter`: only sentences of the article's main text are candidates (textutil.article_body_filter), so
+    related-article teasers and sidebars can never become central claims. None = the whole page."""
     s = settings or get_settings()
     llm = llm or LLMClient.from_settings(s)
-    units = sentence_units(article_md, MAX_ARTICLE_CHARS)
+    units = sentence_units(article_md, MAX_ARTICLE_CHARS, keep=body_filter) if body_filter else []
+    if not units:     # no filter, or it kept nothing (then it is not trustworthy for this page)
+        units = sentence_units(article_md, MAX_ARTICLE_CHARS)
     if not units:
         return ExtractionResult([], s.model_extract)
     numbered = "\n".join(f"[{i}] {text}" for i, (_, _, text) in enumerate(units))

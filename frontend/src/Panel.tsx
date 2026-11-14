@@ -176,8 +176,9 @@ function RootSections({ ctx }: { ctx: Ctx }) {
       <Section title="Signals">
         <div style={box}>
           {sig('Evidence', sg.evidence.fired, sg.evidence.detail)}
-          {sig('Infrastructure', sg.infrastructure.fired, sg.infrastructure.reasons.length ? sg.infrastructure.reasons.join(' · ') : 'No shared analytics/AdSense IDs, no young source domains.')}
+          {sig('Infrastructure', sg.infrastructure.fired, sg.infrastructure.reasons.length ? sg.infrastructure.reasons.join(' · ') : 'No shared analytics/AdSense IDs, no young source domains, no domain on a published network list.')}
           {sig('Citation circle', sg.circle.fired, view.audit?.depth === 1 ? 'Needs depth 2; not run for this analysis.' : sg.circle.path ? sg.circle.path.join(' → ') : 'No source leads back to the article.')}
+          {sig('Laundering', !!sg.laundering?.fired, sg.laundering?.reasons.length ? sg.laundering.reasons.join(' · ') : 'The article does not republish Telegram or social-media channel posts as its source.')}
           <div style={{ marginTop: 8, fontSize: 12, color: TH.mut, lineHeight: 1.45 }}>
             A propaganda pattern needs at least two different signals. A single bad claim never produces it, and not-checkable claims never count against the article.
           </div>

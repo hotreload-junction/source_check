@@ -96,7 +96,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": true
+        "is_article_domain": true,
+        "known_network": null
       }
     ],
     "graph": {
@@ -216,6 +217,11 @@
       "circle": {
         "fired": false,
         "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
       }
     },
     "verdict": {

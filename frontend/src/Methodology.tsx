@@ -112,7 +112,7 @@ export function Methodology() {
               )}
             </Section>
 
-            <Section title="Rules and thresholds" sub="A propaganda pattern needs two different signals (evidence, infrastructure, citation circle). One bad claim never produces it, and claims we cannot check never count against an article.">
+            <Section title="Rules and thresholds" sub="A propaganda pattern needs two different signals (evidence, infrastructure, citation circle, laundering). One bad claim never produces it, and claims we cannot check never count against an article.">
               <div style={card}>
                 {Object.entries(m.thresholds).map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderTop: `1px solid ${TH.line}`, fontSize: 14 }}>

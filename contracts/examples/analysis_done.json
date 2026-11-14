@@ -133,7 +133,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": "k1",
-        "is_article_domain": true
+        "is_article_domain": true,
+        "known_network": null
       },
       {
         "domain": "news-front.example.net",
@@ -144,7 +145,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": "k1",
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "ministry.example.gov",
@@ -155,7 +157,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "daily-truth.example.org",
@@ -166,7 +169,8 @@
           "ca-pub-0000000000000001"
         ],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       }
     ],
     "graph": {
@@ -363,6 +367,11 @@
       "circle": {
         "fired": false,
         "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
       }
     },
     "verdict": {

@@ -149,7 +149,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": true
+        "is_article_domain": true,
+        "known_network": null
       },
       {
         "domain": "city-council.example.gov",
@@ -160,7 +161,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "transit-stats.example.net",
@@ -169,7 +171,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "local-paper.example.com",
@@ -180,7 +183,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       }
     ],
     "graph": {
@@ -372,6 +376,11 @@
       "circle": {
         "fired": false,
         "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
       }
     },
     "verdict": {

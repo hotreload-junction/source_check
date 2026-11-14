@@ -23,12 +23,14 @@ from ..fetch.urls import registrable_domain
 from ..llm import LLMClient, LLMError
 from ..signals import RdapClient, SourcePage, analyze_infrastructure
 from ..signals.circles import article_cluster_domains, circle_path, find_circles
+from ..signals.laundering import channel_sourced_claims, declared_reposts
+from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .depth2 import expand_sources
 from .extract import ExtractedClaim, extract_claims
-from .textutil import build_plain
+from .textutil import article_body_filter, build_plain
 
 log = logging.getLogger("citetrace.run")
 Emit = Callable[[str, dict], None]
@@ -132,7 +134,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     # 2. extract ---------------------------------------------------------------------------------------------
     progress("extract_claims", "Finding the central claims", 15)
     try:
-        ex = extract_claims(text_md, url, llm=llm, settings=s)
+        ex = extract_claims(text_md, url, llm=llm, settings=s, body_filter=article_body_filter(art.html))
     except LLMError as exc:
         raise AnalysisError(f"Claim extraction failed: {exc}") from exc
     claims = ex.claims
@@ -193,8 +195,13 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
 
     # 5. verdict ---------------------------------------------------------------------------------------------
     progress("verdict", "Deciding", 95)
+    # documented networks (published lists) for the article and every source the article (or a source) cites
+    net_reasons = _network_reasons(art.final_url or url, url, reg.rows, infra.domains)
+    channel_ids, linked = channel_sourced_claims(claim_dicts, reg.rows)
     decision = decide([ClaimInput(c["id"], c["verdict"]) for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
-                      circle_path(circles))
+                      circle_path(circles), network_reasons=net_reasons,
+                      declared_reposts=[d.line for d in declared_reposts(text_md)],
+                      channel_claim_ids=channel_ids, linked_claims=linked)
     nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges)
     for n in nodes:
         if n["type"] in ("domain", "source"):
@@ -217,6 +224,33 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     }
     progress("verdict", "Done", 100)
     return AnalysisOutput(result, assessments, reg.rows)
+
+
+def _network_reasons(article_final_url: str, article_url: str, rows: list[dict], domains: list[dict]) -> list[str]:
+    """Plain-English reasons for hosts on a published network list; sets `known_network` on the matching Domain[].
+    Pages a SEARCH found for an attributed claim are not the article's citations and are skipped."""
+    hits: list[tuple[str, NetworkMatch]] = []
+    art = match_network(article_final_url) or match_network(article_url)
+    if art:
+        hits.append(("the article", art))
+    seen = {art.host} if art else set()
+    for r in rows:
+        if not r.get("url") or _is_found_evidence(r) or r.get("kind") == "self":   # own-site links say nothing new
+            continue
+        m = match_network(r["url"])
+        if m and m.host not in seen:
+            seen.add(m.host)
+            hits.append(("a cited source" if r["depth"] == 1 else "a source of a source", m))
+    for d in domains:
+        d.setdefault("known_network", None)
+    reasons = []
+    for role, m in hits:
+        reasons.append(f"{m.host} ({role}) is on the published list of the {m.network} ({m.list_source})")
+        dom = registrable_domain(m.host)
+        for d in domains:
+            if d["domain"] in (dom, m.host):
+                d["known_network"] = m.network
+    return reasons
 
 
 def _is_found_evidence(row: dict) -> bool:

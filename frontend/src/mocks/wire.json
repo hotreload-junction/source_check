@@ -157,7 +157,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": true
+        "is_article_domain": true,
+        "known_network": null
       },
       {
         "domain": "union.example.org",
@@ -166,7 +167,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "port-authority.example.gov",
@@ -177,7 +179,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "econ-institute.example.org",
@@ -188,7 +191,8 @@
         ],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "social.example.com",
@@ -197,7 +201,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       },
       {
         "domain": "stats.example.gov",
@@ -206,7 +211,8 @@
         "analytics_ids": [],
         "adsense_ids": [],
         "cluster_id": null,
-        "is_article_domain": false
+        "is_article_domain": false,
+        "known_network": null
       }
     ],
     "graph": {
@@ -410,6 +416,11 @@
       "circle": {
         "fired": false,
         "path": null
+      },
+      "laundering": {
+        "fired": false,
+        "claim_ids": [],
+        "reasons": []
       }
     },
     "verdict": {

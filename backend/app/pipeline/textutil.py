@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Callable
+from urllib.parse import urlsplit
 
 from rapidfuzz import fuzz
 
@@ -140,11 +142,40 @@ def attach_links(md: str, start: int, end: int, article_url: str = "") -> list[L
     art = article_url.split("#")[0].rstrip("/")
     for url, anchor in found:
         key = url.split("#")[0].rstrip("/")
-        if key in seen or key == art:
+        if key in seen or key == art or is_navigation_link(url, article_url):
             continue
         seen.add(key)
         refs.append(LinkRef(url, plain_anchor(anchor), scope))
     return refs
+
+
+def _reg_domain(url: str) -> str:
+    from ..fetch.urls import registrable_domain   # local import: fetch imports nothing from pipeline, keep it so
+    return registrable_domain(url)
+
+
+_DIGIT = re.compile(r"\d")
+
+
+def is_navigation_link(url: str, article_url: str) -> bool:
+    """A link to a topic / section / tag page of the article's OWN site (`/world/gaza`, `/ukraine`,
+    `/sport/lewis-hamilton`, `/hub/russia-ukraine`). It is navigation, not a citation, so it is ignored instead of
+    turning the claim into a `self_citation`. Same-site links to ARTICLES (a date or id in the path, a .html page, or a
+    slug of four or more words) stay self-citations."""
+    if not article_url:
+        return False
+    try:
+        if _reg_domain(url) != _reg_domain(article_url):
+            return False
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    segs = [p for p in parts.path.split("/") if p]
+    if not segs:
+        return True                       # the homepage
+    if len(segs) > 3 or _DIGIT.search(parts.path) or "." in segs[-1]:
+        return False
+    return len(re.split(r"[-_]+", segs[-1])) < 4
 
 
 def plain_anchor(text: str) -> str:
@@ -155,12 +186,21 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])[\"”’»)\]]*\s+(?=[\"“‘«(\[
 MIN_UNIT_CHARS = 30
 
 
-def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110) -> list[tuple[int, int, str]]:
+def _dedupe_key(text: str) -> str:
+    return re.sub(r"[\W_]+", " ", text).casefold().strip()
+
+
+def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110,
+                   keep: Callable[[str], bool] | None = None, dedupe: bool = True) -> list[tuple[int, int, str]]:
     """Sentences of the article as (md_start, md_end, plain_text), in document order.
 
     Lines come from the MARKDOWN (a share-button row or a byline stays its own unit instead of being glued to the
-    lede), and the offsets are exact: the claim is a slice of the markdown, never fuzzy-located."""
+    lede), and the offsets are exact: the claim is a slice of the markdown, never fuzzy-located.
+    `keep`: only sentences it accepts count (the article-body filter); applied BEFORE the size caps, so a long
+    sidebar cannot use up the budget. `dedupe`: a sentence repeated on the page (headline + teaser + body) is kept
+    once, at its first place, so it cannot get two different verdicts."""
     units: list[tuple[int, int, str]] = []
+    seen: set[str] = set()
     total = 0
     offset = 0
     for line in md.split("\n"):
@@ -177,6 +217,13 @@ def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110) -> li
             pos = i + len(part)
             if len(part) < MIN_UNIT_CHARS:
                 continue
+            if keep is not None and not keep(part):
+                continue
+            if dedupe:
+                k = _dedupe_key(part)
+                if k in seen:
+                    continue
+                seen.add(k)
             a, b = to_markdown_span(line, view, i, i + len(part))
             units.append((line_start + a, line_start + b, part))
             total += len(part)
@@ -200,3 +247,37 @@ def syndication_share(article_md: str, claim_text: str, page_text: str, *, sente
     page = build_plain(page_text[:150_000]).text
     hits = sum(1 for t in others if fuzz.partial_ratio(t[:160], page) >= 92)
     return hits / len(others)
+
+
+# ---- article body (DECISIONS: extraction scope) --------------------------------------------------------------------
+BODY_MATCH = 90.0          # partial_ratio of a sentence against the extracted main text
+MIN_BODY_CHARS = 150       # less than this is a failed extraction, not a short article: no filter then
+
+
+def _ws(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def article_body_filter(html: str | None) -> Callable[[str], bool] | None:
+    """-> predicate "this sentence belongs to the article's main text", or None when the body cannot be told apart.
+
+    The markdown (with links, needed for sourcing) is the whole page: menus, "Top news" teasers, related-article
+    headlines and sidebars. trafilatura (precision mode) finds the main text in the raw HTML; a markdown sentence is
+    part of the article when it appears in that text (fuzzy, punctuation and markup differ). Measured on 8 live
+    articles (Guardian x2, Conversation, ZeroHedge, RT, NaturalNews, Pravda x2): no body sentence lost, all sidebar and
+    teaser sentences dropped. No HTML / extraction failed -> None (the whole page is used, as before)."""
+    if not html:
+        return None
+    try:
+        import trafilatura
+        body = trafilatura.extract(html, include_comments=False, include_tables=False, favor_precision=True) or ""
+    except Exception:      # a parser failure must never stop an analysis
+        return None
+    body = _ws(body)
+    if len(body) < MIN_BODY_CHARS:
+        return None
+
+    def keep(sentence: str) -> bool:
+        return fuzz.partial_ratio(_ws(sentence), body) >= BODY_MATCH
+
+    return keep

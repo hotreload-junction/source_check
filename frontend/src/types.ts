@@ -45,6 +45,7 @@ export interface Domain {
   adsense_ids: string[];
   cluster_id: string | null;
   is_article_domain: boolean;
+  known_network?: string | null; // on a published influence-network list (e.g. VIGINUM Portal Kombat)
 }
 
 export interface GraphNode {
@@ -67,6 +68,7 @@ export interface Signals {
   evidence: { fired: boolean; claim_ids: string[]; detail: string };
   infrastructure: { fired: boolean; reasons: string[] };
   circle: { fired: boolean; path: string[] | null };
+  laundering?: { fired: boolean; claim_ids: string[]; reasons: string[] }; // optional: older cached results lack it
 }
 
 export interface Result {

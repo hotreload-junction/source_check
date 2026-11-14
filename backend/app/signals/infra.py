@@ -96,6 +96,7 @@ def analyze_infrastructure(
             "adsense_ids": ids.adsense_ids,
             "cluster_id": None,
             "is_article_domain": d == art,
+            "known_network": None,         # set by the pipeline from signals/networks.py (published lists)
         })
 
     shared = _shared_ids(domains)

@@ -101,7 +101,7 @@ def test_evidence_threshold_boundary_and_claim_ids():
 
 def test_signals_match_contract_shape():
     s = decide(cl(*BAD2), [dom("b.net", 55)], SHARED, ["a", "b"])["signals"]
-    assert set(s) == {"evidence", "infrastructure", "circle"}
+    assert set(s) == {"evidence", "infrastructure", "circle", "laundering"}
     assert set(s["evidence"]) == {"fired", "claim_ids", "detail"}
     assert set(s["infrastructure"]) == {"fired", "reasons"}
     assert set(s["circle"]) == {"fired", "path"}

@@ -113,6 +113,8 @@ analytics_ids: str[]          # e.g. "G-XXXX", "UA-123-1", "GTM-XXXX"
 adsense_ids: str[]            # "ca-pub-..."
 cluster_id: str|null          # same id = shares at least one analytics/AdSense ID
 is_article_domain: bool
+known_network: str|null       # name of a documented influence network whose PUBLISHED host list contains this
+                              # domain (or the article/source host on it), e.g. "Portal Kombat / Pravda network"
 ```
 
 ### GraphNode / GraphEdge (Cytoscape-ready)
@@ -134,7 +136,12 @@ domain in the article's operator cluster) to the article node `a`; `signals.circ
 evidence:       {fired: bool, claim_ids: str[], detail: str}
 infrastructure: {fired: bool, reasons: str[]}        # e.g. "a.com and b.net share G-ABC123"
 circle:         {fired: bool, path: str[] | null}    # node ids, depth 2 only
+laundering:     {fired: bool, claim_ids: str[], reasons: str[]}   # republished Telegram/social channel posts
 ```
+`infrastructure.reasons` also names hosts on a published network list (`backend/app/signals/known_networks.py`,
+VIGINUM Portal Kombat list). `laundering` fires when the page declares a Telegram channel as its source ("Source:
+Telegram ...") or when >= 2 claims, and more than half of the claims that cite a link, rest only on Telegram/social
+posts; `claim_ids` = those claims. Cached results from before this field may lack `laundering` (treat as not fired).
 `ArticleVerdict` = `well_sourced` | `weakly_sourced` | `propaganda_pattern` | `insufficient_evidence`
 Rule: AGENTS.md section 7 / DECISIONS.md (Q17). Implemented only in `backend/app/verdict.py`.
 
