@@ -170,6 +170,29 @@ def test_fetch_budget_and_per_source_cap(n_links):
     assert len([s for s in r["sources"] if s["depth"] == 2]) == 2          # MAX_LINKS_PER_SOURCE
 
 
+@pytest.mark.parametrize("url,expected", [
+    ("https://www.google.com/search?q=abc&rlz=1", True),
+    ("https://uk.news.search.yahoo.com/search;_ylt=A?p=abc", True),
+    ("https://duckduckgo.com/?ia=news&q=abc", True),
+    ("https://www.bing.com/search?q=abc", True),
+    ("https://news.yahoo.com/some-story-123.html", False),
+    ("https://www.google.com/maps/place/x", False),
+    ("https://perma.cc/U9Z4-AAAN", False),
+])
+def test_search_result_pages_are_not_citations(url, expected):
+    from app.pipeline.depth2 import _is_search_page
+    assert _is_search_page(url) is expected
+
+
+def test_search_pages_do_not_use_up_the_link_cap():
+    links = ("[Google](https://www.google.com/search?q=x) [Yahoo](https://uk.news.search.yahoo.com/search?p=x) "
+             "[archived](https://archive-one.example/a) [archived](https://archive-two.example/b)")
+    pages = pages_with("https://x.example/y", {u: src(u, "t " * 200, CLEAN) for u in ("https://archive-one.example/a", "https://archive-two.example/b")})
+    pages["https://ministry.gov.uk/report"] = src("https://ministry.gov.uk/report", f"The ministry said on Tuesday that {QUOTE}, {links} report says.", CLEAN)
+    r = run2(pages).result
+    assert {s["url"] for s in r["sources"] if s["depth"] == 2} == {"https://archive-one.example/a", "https://archive-two.example/b"}
+
+
 S3 = Settings(**{**SETTINGS.model_dump(), "max_depth": 3})
 S5 = Settings(**{**SETTINGS.model_dump(), "max_depth": 5})
 

@@ -35,7 +35,7 @@ MAX_FETCHES = 8                # new pages fetched per hop (depth 1->2, 2->3, ..
 MAX_FETCHES_TOTAL = 14         # total deeper-hop fetches across all depths (cost + latency)
 QUOTE_ALIGN_THRESHOLD = 85.0   # locating the verified evidence quote in the source
 CLAIM_ALIGN_THRESHOLD = 70.0   # no quote: locating the claim itself; weaker, so stricter than "anything similar"
-DEADLINE_S = 25.0              # wall clock for all deeper-hop fetches; the rest is "unreachable" (neutral)
+DEADLINE_S = 25.0              # wall clock for the fetches of ONE hop; the rest is "unreachable" (neutral)
 Emit = Callable[[str, dict], None]
 
 
@@ -86,6 +86,21 @@ def _is_homepage(url: str) -> bool:
     return p.path in ("", "/") and not p.query
 
 
+_SEARCH_ENGINES = {"google", "bing", "duckduckgo", "yandex", "baidu", "ecosia", "startpage"}
+
+
+def _is_search_page(url: str) -> bool:
+    """A search-results page (Google / Yahoo / DuckDuckGo ...) is how a fact-checker shows 'I looked and found
+    nothing', not a source the passage rests on. It must not use up the per-source link cap."""
+    p = urlsplit(url)
+    host = p.netloc.lower()
+    if host.startswith("search.") or ".search." in host:      # uk.news.search.yahoo.com, search.brave.com
+        return True
+    if registrable_domain(url).split(".")[0] in _SEARCH_ENGINES:
+        return p.path.lower().startswith("/search") or p.path in ("", "/") or any(k in p.query for k in ("q=", "wd=", "text="))
+    return False
+
+
 def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher: Fetcher, article_url: str,
                    article_domain: str, max_depth: int = 2, emit: Emit | None = None,
                    deadline_s: float = DEADLINE_S) -> Depth2Result:
@@ -124,11 +139,11 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
         if pid and pid in rqm:
             alt_quote_by_source[r["id"]] = rqm[pid]
 
-    end = time.monotonic() + deadline_s
     seen: set[tuple[str, str]] = set()
     total_fetched = 0
 
     for cur_depth in range(1, max_depth):
+        end = time.monotonic() + deadline_s      # per hop: a slow hop 2 must not starve hops 3..5
         parents = [r for r in rows if r["depth"] == cur_depth and r["url"] and r["fetch_status"] == "ok"]
         if not parents:
             break
@@ -146,7 +161,8 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
             taken = 0
             for link in passage_links(parent_text, quote, claim_text, parent["url"], alt_quote=alt_quote):
                 domain = registrable_domain(link.url)
-                if domain == parent["domain"] or _is_homepage(link.url) or (parent["id"], link.url) in seen:
+                if domain == parent["domain"] or _is_homepage(link.url) or _is_search_page(link.url) \
+                        or (parent["id"], link.url) in seen:
                     continue                      # a source citing itself / its own front page is not a citation
                 seen.add((parent["id"], link.url))
                 cands.append(_Candidate(parent, claim_id, claim_text, link, domain, quote or alt_quote, known.get(link.url)))
