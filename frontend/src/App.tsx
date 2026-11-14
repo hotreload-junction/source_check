@@ -196,7 +196,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   else if (!done) { const cur = tree.nodes.find((n) => n.ord === rev); status = cur?.source ? `Checking source: ${srcName(cur.source)} …` : 'Checking sources …'; }
   else status = '';
 
-  const av = view.verdict ? ARTICLE_V[view.verdict.label] : null;
   const sn = sel ? tree.by[sel] ?? null : null;
 
   return (
@@ -241,8 +240,8 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
         <TopBtn onClick={skip}>Show instantly</TopBtn>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, margin: '0 18px 12px', padding: '10px 16px', border: `${TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: TH.rad, boxShadow: TH.sh, flex: 'none' }}>
-        <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={44} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '0 18px 10px', padding: '6px 14px', border: `${TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: TH.rad, boxShadow: TH.sh, flex: 'none' }}>
+        <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={32} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
@@ -251,15 +250,6 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
           </div>
         </div>
         <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>
-        <div onClick={pickRoot} style={{ cursor: done ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600 }}>Article verdict</div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{done && av ? av.label : 'Calculating'}</div>
-          </div>
-          <div title="Claims supported by their sources" style={{ width: 50, height: 50, borderRadius: '50%', background: `conic-gradient(${done ? ctx.articleColor : CL.p} ${done && nC ? (ctx.supported / nC) * 360 : 0}deg, ${TH.line} 0)`, display: 'grid', placeItems: 'center', flex: 'none' }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: TH.card, display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: 13 }}>{done ? `${ctx.supported}/${nC}` : '…'}</div>
-          </div>
-        </div>
       </div>
 
       <TrustBar ctx={ctx} ready={done} />
