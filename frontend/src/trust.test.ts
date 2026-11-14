@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildTree, type View } from './tree';
+import pravda from '../../contracts/examples/analysis_done.json';
+import blog from './mocks/blog.json';
+import wire from './mocks/wire.json';
+import { buildTree, fromResult, type View } from './tree';
 import { overview, rspVerdict, trustProfile } from './trust';
-import type { ArticleVerdict, Claim, ClaimVerdict, Domain, RspEntry, Signals, Source } from './types';
+import type { Analysis, ArticleVerdict, Claim, ClaimVerdict, Domain, RspEntry, Signals, Source } from './types';
 
 const claim = (id: string, source_ids: string[]): Claim => ({
   id, text: id, char_start: null, char_end: null, source_ids, verdict: 'supported', subtype: null, evidence: null, explanation: '',
@@ -139,5 +142,21 @@ describe('overview', () => {
 
   it('gives no position for insufficient evidence', () => {
     expect(ov('insufficient_evidence', ['not_checkable'], calm).pos).toBeNull();
+  });
+});
+
+describe('demo mocks', () => {
+  const run = (a: unknown) => {
+    const v = fromResult((a as Analysis).result!);
+    const t = buildTree(v, new Map());
+    return { tp: trustProfile(v, t), ov: overview(v, t, trustProfile(v, t)) };
+  };
+
+  it('land in different places on the slider so the demo shows the whole scale', () => {
+    const [p, w, bl] = [run(pravda), run(wire), run(blog)];
+    expect([p.tp.legitimacy.word, w.tp.legitimacy.word, bl.tp.legitimacy.word]).toEqual(['Doubtful', 'Established', 'Mixed']);
+    expect(p.ov.pos!).toBeLessThan(0.34);
+    expect(w.ov.pos!).toBeGreaterThan(0.67);
+    expect(p.ov.negatives.length).toBeGreaterThan(w.ov.negatives.length);
   });
 });

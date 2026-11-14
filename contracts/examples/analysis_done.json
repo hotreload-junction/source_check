@@ -111,8 +111,8 @@
         "parent_source_id": null,
         "fetch_status": "ok",
         "fetched_via": "context_dev",
-        "source_type": "unknown",
-        "source_type_reason": "no rule matched"
+        "source_type": "news",
+        "source_type_reason": "news-site URL pattern (mock)"
       },
       {
         "id": "s2",
@@ -137,8 +137,8 @@
         "parent_source_id": null,
         "fetch_status": "ok",
         "fetched_via": "trafilatura",
-        "source_type": "unknown",
-        "source_type_reason": "no rule matched"
+        "source_type": "blog",
+        "source_type_reason": "blog platform path (mock)"
       }
     ],
     "domains": [
@@ -171,7 +171,17 @@
         "cluster_id": "k1",
         "is_article_domain": false,
         "known_network": null,
-        "wikipedia_rsp": [],
+        "wikipedia_rsp": [
+          {
+            "source": "News Front (mock)",
+            "statuses": [
+              "generally_unreliable"
+            ],
+            "blacklisted": false,
+            "last_discussed": 2022,
+            "snapshot": "2026-11-14"
+          }
+        ],
         "tranco_rank": null,
         "first_archived_at": null,
         "reputation_notes": [
@@ -207,7 +217,17 @@
         "cluster_id": null,
         "is_article_domain": false,
         "known_network": null,
-        "wikipedia_rsp": [],
+        "wikipedia_rsp": [
+          {
+            "source": "Daily Truth (mock)",
+            "statuses": [
+              "deprecated"
+            ],
+            "blacklisted": false,
+            "last_discussed": 2023,
+            "snapshot": "2026-11-14"
+          }
+        ],
         "tranco_rank": null,
         "first_archived_at": null,
         "reputation_notes": [
