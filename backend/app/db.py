@@ -15,7 +15,9 @@ _session_factory: sessionmaker[Session] | None = None
 
 
 def make_engine(url: str) -> Engine:
-    kwargs: dict = {"pool_pre_ping": True}
+    # connect_timeout: an unreachable database must fail fast, or every request (even the file-backed demo ones that
+    # only TRY the database first) would hang until the OS gives up
+    kwargs: dict = {"pool_pre_ping": True, "connect_args": {"connect_timeout": 5}}
     if url.startswith("sqlite"):
         kwargs = {"connect_args": {"check_same_thread": False, "timeout": 15}}
     return create_engine(url, **kwargs)

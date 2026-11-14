@@ -54,7 +54,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 | id | task | owner | status | notes |
 |---|---|---|---|---|
 | B8 | jobs: `POST /api/analyses`, `GET /api/analyses/{id}`, SSE events, background tasks with status in DB, concurrency limit, URL cache | leo-be | done | see contract |
-| B9 | demo cache: precompute the 3 demo cases, `GET /api/demo`, `GET /api/methodology` from `eval/results/metrics.json` | leo-be | doing | must work offline |
+| B9 | demo cache: precompute the 3 demo cases, `GET /api/demo`, `GET /api/methodology` from `eval/results/metrics.json` | leo-be | done | must work offline |
 
 ### Frontend (checkpoint Sat 18:00)
 | id | task | owner | status | notes |

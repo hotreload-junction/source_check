@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from . import db
+from . import db, demo
 from .api import router
 from .config import get_version
 from .jobs import JobManager
@@ -22,7 +22,8 @@ async def lifespan(app: FastAPI):
         stale = app.state.jobs.recover_stale()
         if stale:
             log.warning("marked %d unfinished analyses from the previous run as failed", stale)
-    except Exception as exc:  # health must still answer; demo cache needs no DB writes later
+        log.info("demo cache: %d case(s) seeded", demo.seed(app.state.jobs.settings))
+    except Exception as exc:  # health, /api/demo and /api/methodology must still answer: they read files only
         log.warning("database unavailable at startup: %s", exc)
     yield
 

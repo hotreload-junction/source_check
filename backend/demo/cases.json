@@ -1,0 +1,20 @@
+[
+  {
+    "key": "pravda",
+    "label": "Pravda network article (placeholder case)",
+    "url": "https://news-pravda.com/world/2026/11/14/2743940.html",
+    "placeholder": true
+  },
+  {
+    "key": "wire",
+    "label": "Wire service article (placeholder case)",
+    "url": "https://apnews.com/article/russia-ukraine-war-nato-us-zelenskyy-f9a8629626c087424f05adc85d127780",
+    "placeholder": true
+  },
+  {
+    "key": "blog",
+    "label": "Blog post (placeholder case)",
+    "url": "https://www.astralcodexten.com/p/book-review-the-scout-mindset",
+    "placeholder": true
+  }
+]

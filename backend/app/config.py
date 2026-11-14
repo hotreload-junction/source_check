@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # (never decide), so skipping them saves ~40% of verify calls; turn on for the 'other reporting confirms' note.
     verify_secondary: bool = False
 
+    # Demo cache + methodology data (both must work with every external API down)
+    demo_dir: str = ""          # default: backend/demo
+    metrics_path: str = ""      # default: eval/results/metrics.json (repo root, or mounted at /app/eval/results)
+
     # Runtime
     max_concurrent_analyses: int = 2
     public_base_url: str = ""

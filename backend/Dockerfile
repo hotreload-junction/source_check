@@ -15,6 +15,8 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
  && pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 COPY app ./app
+# demo cache: cases.json (+ results/*.json when present); served by /api/demo with every external service down
+COPY demo ./demo
 
 # Shown by GET /api/health ("version"); config comes only from the environment (no .env in the image).
 ARG GIT_SHA=dev

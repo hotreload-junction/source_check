@@ -12,6 +12,9 @@ def _never_a_real_database(monkeypatch, tmp_path):
     Every test points DATABASE_URL at its own SQLite FILE (not ":memory:": job threads and request threads need
     their own connections). The file is only created when a test actually uses the database (lazy init_db)."""
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
+    # nor the real demo cache / eval metrics: a developer's local precomputed results must not change test outcomes
+    monkeypatch.setenv("DEMO_DIR", str(tmp_path / "no-demo"))
+    monkeypatch.setenv("METRICS_PATH", str(tmp_path / "no-metrics.json"))
     get_settings.cache_clear()
     db._engine, db._session_factory = None, None
     yield
