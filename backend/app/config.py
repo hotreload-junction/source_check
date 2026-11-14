@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v8"
+    prompt_version: str = "v9"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     llm_hedge_after_s: float = 12.0
 
     # Wall-clock budget for verifying ALL claims of one article; claims still running then become not_checkable
-    claim_deadline_s: float = 120.0
+    claim_deadline_s: float = 240.0
 
     # Detection (start values from DECISIONS.md; tune only on eval data)
     fuzzy_threshold: float = 90.0
@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     exa_agent_effort: str = "low"          # minimal | low | medium | high ...
     exa_agent_timeout_s: float = 80.0      # a run still going after this long is dropped (neutral), never waited for
     exa_agent_concurrency: int = 8         # runs in flight per process (Exa allows 50)
+    # Fact-check agent (pipeline/factcheck.py, exa-py SDK): ONE Exa Agent run per claim the article gives no usable source for
+    # (unsourced, or attributed with the original not found) that looks for pages CONFIRMING or REFUTING it. A refuting page
+    # needs a verbatim, fuzzy-checked quote like every verdict. Replaces the support-only agent run for unsourced claims.
+    factcheck_agent: bool = True
+    factcheck_effort: str = "low"          # minimal | low | medium | high ... (low ~0.025 USD, medium ~0.10 USD per run)
+    factcheck_timeout_s: float = 80.0
     # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
     # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
     search_unsourced: bool = True

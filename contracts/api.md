@@ -94,7 +94,7 @@ id: "c1"
 text: str                     # as it appears in the article (verbatim span)
 char_start, char_end: int|null  # [start, end) into article.text_markdown, in Unicode code points (see below)
 source_ids: str[]             # empty -> verdict "unsourced"
-found_source_ids: str[]       # additive: unsourced claim only; pages the search found (kind "named", url set). Never counts as a citation; verdict stays "unsourced"
+found_source_ids: str[]       # additive: unsourced claim only; pages the search found (kind "named", url set). Never counts as a citation. The page(s) that confirm OR refute the claim (fact-check agent, see below)
 verdict: ClaimVerdict
 subtype: "self_citation" | "social_media" | null
 evidence: {
@@ -238,5 +238,15 @@ Additive, shapes as above.
   none of them, so they feed no infrastructure signal and are not expanded further by M1; edges `claim -> found page` (`cites`).
   A claim that is still unsourced after its own search is also checked against the pages found for the OTHER unsourced claims (one
   page can support several claims; max 3 pages per claim, `CROSS_CHECK_FOUND=true`). Nothing supports it: the verdict stays
-  `unsourced` (that describes how the ARTICLE sources the claim) and `evidence` is null. Pages that do not support the claim are
-  dropped. `found_source_ids` is `[]` for every other claim.
+  `unsourced` (that describes how the ARTICLE sources the claim) and `evidence` is null. Pages that neither confirm nor refute the
+  claim are dropped. `found_source_ids` is `[]` for every other claim.
+- Fact-check agent (additive, no new fields; `FACTCHECK_AGENT=true`): for a claim the article gives no usable source for (unsourced, or
+  attributed with the original not found and no independent report confirming it) ONE Exa Agent run looks for pages that CONFIRM or
+  REFUTE it. Every returned URL is fetched and verified in fact-check mode (quote first, fuzzy-checked; the agent's labels and quotes
+  are never trusted). New outcomes: a page whose verified quote states a fact that cannot be true together with the claim makes the
+  claim `contradicted` (or `distorted`) with `evidence.source_id` on that page; the page is listed as the claim's source (`kind:"named"`,
+  `found_source_ids` for an unsourced claim, `source_ids` for an attributed one), explanation "The article gives no source for this
+  claim. Checked against other sources, a page that contradicts the claim was found: ..." / "The original statement could not be
+  found, and a page that contradicts the claim was found: ...". Confirming AND refuting pages: `not_checkable` ("Sources disagree").
+  A refutation without a verifiable quote never counts (stays `unsourced` / `not_checkable`). Confirmation of an attributed claim by
+  independent pages follows `CORROBORATION_COUNTS` (neutral by default).

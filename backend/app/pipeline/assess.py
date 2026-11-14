@@ -31,6 +31,7 @@ from datetime import datetime
 from .depth2 import passage_links
 from .evidence import Candidate, SearchPlan, gather_candidates, merge_agent_hits, plan_search
 from .exa_agent import AgentResult, build_body, find_sources
+from .factcheck import FactResult, build_query, run_factcheck
 from .extract import ExtractedClaim, _name_key
 from .textutil import SYNDICATION_THRESHOLD, syndication_share, build_plain
 from .verify import VerifyResult, verify_claim
@@ -60,6 +61,7 @@ class SourceAssessment:
     depth: int = 1                  # 2 = a source of a self-cited page ("source of the source")
     parent_url: str | None = None   # depth 2: the self-cited page that cites it
     agent_kind: str | None = None   # the Exa Agent returned it (its own label, never trusted)
+    factchecked: bool = False       # found by the fact-check agent and verified in fact-check mode (can refute, not only confirm)
 
 
 @dataclass
@@ -188,7 +190,8 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
     if claim.links:
         return _assess_linked(claim, article_url, **kw)
     if claim.attributions:
-        return _assess_attributed(claim, article_url, **kw)
+        res = _assess_attributed(claim, article_url, **kw)
+        return _factcheck_attributed(claim, res, article_url, **kw) if _wants_factcheck(res, settings) else res
     if settings.search_unsourced and settings.exa_api_key:
         return _assess_unsourced(claim, article_url, **kw)
     return ClaimAssessment(claim, "unsourced", None, NO_SOURCE)
@@ -269,7 +272,7 @@ def _is_homepage(url: str) -> bool:
 
 # ---------------------------------------------------------------------------------------------- searched sources
 def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm: LLMClient, settings: Settings, exa_client,
-              published_at: datetime | None, step_cache) -> tuple[SearchPlan, list[Candidate], AgentResult]:
+              published_at: datetime | None, step_cache, legacy_agent: bool = True) -> tuple[SearchPlan, list[Candidate], AgentResult]:
     """Candidate pages for a claim the article gives no link for: plan, then OUR searches and the Exa Agent side by side,
     merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)"""
     who = claim.attributions[0] if attributed else None
@@ -277,7 +280,7 @@ def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm:
     agent = AgentResult(status="disabled")
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="discover") as pool:
         agent_future = None
-        if settings.exa_agent and settings.exa_api_key:
+        if legacy_agent and settings.exa_agent and settings.exa_api_key:
             body = build_body(claim.text, claim.context, article_url, registrable_domain(article_url), published_at,
                               effort=settings.exa_agent_effort, speaker=plan.speaker, venue=plan.venue,
                               occasion=plan.occasion, attributed=attributed)
@@ -320,16 +323,107 @@ def _assess_unsourced(claim, article_url, *, cache, llm, settings, exa_client, p
     evidence passage verbatim (quote-first, fuzzy-checked like every verdict) makes the claim `supported`; the explanation
     says the article itself gave no source, and the page is listed in `found_source_ids`, not `source_ids`. Nothing that
     supports it: the claim stays `unsourced`. A page that does not support it is ignored (never held against the article)."""
-    plan, cands, _agent = _discover(claim, article_url, attributed=False, llm=llm, settings=settings, exa_client=exa_client,
-                                    published_at=published_at, step_cache=step_cache)
+    use_fc = settings.factcheck_agent and bool(settings.exa_api_key)
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="factcheck") as pool:
+        # the fact-check agent needs no plan: it runs next to our own searches and replaces the support-only agent run
+        fut = pool.submit(_run_factcheck, claim, article_url, settings=settings, published_at=published_at, step_cache=step_cache) if use_fc else None
+        plan, cands, _agent = _discover(claim, article_url, attributed=False, llm=llm, settings=settings, exa_client=exa_client,
+                                        published_at=published_at, step_cache=step_cache, legacy_agent=not use_fc)
+        fact = fut.result() if fut else FactResult(status="disabled")
+    fact_urls = {h.url for h in fact.hits}
+    cands = [c for c in cands if c.hit.url not in fact_urls]      # a page both found is verified once, in fact-check mode
     sources = _verify_all(claim, cands, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
+    sources += _verify_factcheck(claim, fact, article_url, cache, llm, settings, published_at, plan, article_text)
     return _found_assessment(claim, sources, plan, settings)
+
+
+# ---------------------------------------------------------------------------------------------- fact-check agent
+_REFUTING = ("contradicted", "distorted")
+
+
+def _run_factcheck(claim: ExtractedClaim, article_url: str, *, settings: Settings, published_at, step_cache,
+                   plan: SearchPlan | None = None, who: str | None = None) -> FactResult:
+    query = build_query(claim.text, claim.context, registrable_domain(article_url), published_at, who=who,
+                        venue=plan.venue if plan else None, occasion=plan.occasion if plan else None)
+    return run_factcheck(query, api_key=settings.exa_api_key, article_url=article_url, effort=settings.factcheck_effort,
+                         timeout_s=settings.factcheck_timeout_s, concurrency=settings.exa_agent_concurrency, cache=step_cache)
+
+
+def _verify_factcheck(claim, fact: FactResult, article_url, cache, llm, settings, published_at, plan, article_text) -> list[SourceAssessment]:
+    """Every URL the agent returned goes through fetch + verify in fact-check mode. Its stance / kind / quote are ignored."""
+    if not fact.hits:
+        return []
+    with ThreadPoolExecutor(max_workers=min(len(fact.hits), 4), thread_name_prefix="verify-fc") as pool:
+        return list(pool.map(lambda h: _assess_source(claim, h.url, None, article_url, cache, llm, settings, published_at,
+                                                      plan=plan, article_text=article_text, found_unsourced=True, factcheck=True), fact.hits))
+
+
+def _wants_factcheck(res: ClaimAssessment, settings: Settings) -> bool:
+    """Attributed claim whose original could not be found and that no independent report confirms."""
+    return bool(settings.factcheck_agent and settings.exa_api_key and res.verdict == "not_checkable"
+                and not any(sa.corroborated or sa.verdict == "supported" for sa in res.sources))
+
+
+def _factcheck_attributed(claim, base: ClaimAssessment, article_url, *, cache, llm, settings, exa_client, published_at,
+                          step_cache, article_text) -> ClaimAssessment:
+    """"According to journalists ..." and no original found: the question becomes whether the FACTS hold. One agent run looks
+    for confirming or refuting pages. Anything that goes wrong leaves the neutral `base` answer."""
+    try:
+        plan = base.plan
+        who = (plan.speaker if plan and plan.speaker else None) or claim.attributions[0]
+        fact = _run_factcheck(claim, article_url, settings=settings, published_at=published_at, step_cache=step_cache, plan=plan, who=who)
+        sources = _verify_factcheck(claim, fact, article_url, cache, llm, settings, published_at, plan, article_text)
+        return _attributed_after_factcheck(claim, base, sources, who, settings)
+    except Exception as exc:                       # never break the analysis for a bonus check
+        log.warning("fact-check for claim %s failed: %s", claim.id, exc)
+        return base
+
+
+def _quality(sa: SourceAssessment) -> tuple:
+    return (sa.verdict != "contradicted", -((sa.verify.fuzzy_score or 0.0) if sa.verify else 0.0))
+
+
+def _refutation_text(top: SourceAssessment) -> str:
+    word = "contradicts" if top.verdict == "contradicted" else "conflicts with"
+    return f"a page that {word} the claim was found: {registrable_domain(top.url)}. {top.verify.explanation if top.verify else ''}".strip()
+
+
+def _attributed_after_factcheck(claim, base: ClaimAssessment, sources: list[SourceAssessment], who: str, settings) -> ClaimAssessment:
+    """Refutation counts only with a verified quote (verify_claim downgrades anything else). Pages that confirm the facts follow the
+    existing corroboration policy (neutral unless CORROBORATION_COUNTS). Both kinds of page: the sources disagree, neutral."""
+    refuting = sorted((sa for sa in sources if sa.verdict in _REFUTING and sa.verify and sa.verify.has_evidence), key=_quality)
+    confirming = sorted((sa for sa in sources if sa.verdict == "supported"), key=_quality)
+    keep = settings.max_evidence_links
+    if refuting and not confirming:
+        top = refuting[0]
+        return ClaimAssessment(claim, top.verdict, None, f"The original statement could not be found, and {_refutation_text(top)}",
+                               list(base.sources) + refuting[:keep], top, base.plan)
+    if refuting:
+        return ClaimAssessment(claim, "not_checkable", None, "Sources disagree: some pages confirm this claim, others contradict it, "
+                               "so it is not held against the article.", list(base.sources) + refuting[:1] + confirming[:1], None, base.plan)
+    if confirming:
+        for sa in confirming[:keep]:
+            sa.corroborated = True
+        top = confirming[0]
+        verdict = "supported" if settings.corroboration_counts else "not_checkable"
+        expl = (f"{NOT_VERIFIED} Independent sources confirm the facts, but the original statement attributed to {who} could not be "
+                f"found: {registrable_domain(top.url)}.")
+        return ClaimAssessment(claim, verdict, None, expl, list(base.sources) + confirming[:keep], top if verdict == "supported" else None, base.plan)
+    return base
 
 
 def _found_assessment(claim: ExtractedClaim, sources: list[SourceAssessment], plan: SearchPlan | None, settings: Settings) -> ClaimAssessment:
     found = [sa for sa in sources if sa.verdict == "supported"]
     found.sort(key=lambda sa: (-(sa.verify.fuzzy_score or 0) if sa.verify else 0))
     found = found[: settings.max_evidence_links]
+    refuting = sorted((sa for sa in sources if sa.verdict in _REFUTING and sa.verify and sa.verify.has_evidence), key=_quality)
+    if refuting and not found:       # only the fact-check agent's pages can be here; the quote is verified like every verdict
+        top = refuting[0]
+        return ClaimAssessment(claim, top.verdict, None, f"{NO_SOURCE} Checked against other sources, {_refutation_text(top)}",
+                               refuting[: settings.max_evidence_links], top, plan)
+    if refuting:
+        return ClaimAssessment(claim, "not_checkable", None, f"{NO_SOURCE} Sources disagree: some pages confirm the claim, others "
+                               "contradict it, so it is not held against the article.", found[:1] + refuting[:1], None, plan)
     if not found:
         return ClaimAssessment(claim, "unsourced", None, NO_SOURCE, plan=plan)
     top = found[0]
@@ -429,10 +523,10 @@ def _cross_check_attributed(claims: list[ExtractedClaim], results: list[ClaimAss
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
                    llm: LLMClient, settings: Settings, published_at: datetime | None = None,
                    loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None,
-                   article_text: str = "", found_unsourced: bool = False) -> SourceAssessment:
+                   article_text: str = "", found_unsourced: bool = False, factcheck: bool = False) -> SourceAssessment:
     fetch = cache.get(url)
-    kind = "named" if (attribution or found_unsourced) else fetch.kind
-    searched = bool(attribution) or found_unsourced            # a page we FOUND, not one the article cites
+    kind = "named" if (attribution or found_unsourced or factcheck) else fetch.kind
+    searched = bool(attribution) or found_unsourced or factcheck   # a page we FOUND, not one the article cites
     venue_hosted, phrase_hit = (cand.venue_hosted, cand.phrase_hit) if cand else (False, False)
     agent_kind = cand.agent_kind if cand else None
     if fetch.status != "ok":
@@ -443,10 +537,11 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     try:
         # Search results can be stale (a 2025 page, an earlier forum): tell the model when the claim was reported, and
         # which occasion / venue the article itself names (a May interview is older than a November article and right)
-        v = verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings,
-                         article_date=published_at.date() if (published_at and searched) else None,
-                         occasion=plan.occasion if (plan and searched) else None,
-                         venue=plan.venue if (plan and searched) else None)
+        v = verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings, factcheck=True) if factcheck else verify_claim(
+            claim.text, fetch.text or "", llm=llm, settings=settings,
+            article_date=published_at.date() if (published_at and searched) else None,
+            occasion=plan.occasion if (plan and searched) else None,
+            venue=plan.venue if (plan and searched) else None)
     except LLMError as exc:
         log.warning("verify failed for %s: %s", url, exc)
         return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.",
@@ -454,6 +549,17 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     verdict, note, corroborated = v.verdict, "", False
     # the venue's own page (Fox Business's report of its own interview) is first-hand even when the model calls it a report
     original_like = v.source_type == "original" or venue_hosted
+    if factcheck:
+        # The agent was asked for pages that confirm OR refute the claim. The verify model judged the FACTS (fact-check mode) and
+        # the quote is fuzzy-checked in verify_claim; a refutation without a verified quote is already `not_checkable`.
+        if verdict == "supported" and article_text:
+            share = syndication_share(article_text, claim.text, fetch.text or "")
+            if share is not None and share >= SYNDICATION_THRESHOLD:
+                verdict, note = "not_checkable", "The page found is a copy or syndication of the article itself, not independent reporting."
+        elif verdict not in ("supported", *_REFUTING):
+            verdict, note = "not_checkable", "A page was found but it neither confirms nor refutes this claim."
+        return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, venue_hosted=venue_hosted, phrase_hit=phrase_hit,
+                                agent_kind=agent_kind, factchecked=True)
     if found_unsourced:
         # No source named: ANY page that supports the claim is a useful source for the reader, original or independent
         # report. It must be independent of the article (a syndicated copy is the article itself); a page that does not

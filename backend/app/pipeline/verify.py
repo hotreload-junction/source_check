@@ -50,6 +50,16 @@ Rules:
 Answer with JSON only, keys in this order:
 {"quote_original": "...", "quote_translation": null, "language": "en", "verdict": "...", "explanation": "...", "source_type": "original|secondary|unclear"}"""
 
+# Appended to SYSTEM_PROMPT only for pages the fact-check agent returned (pipeline/factcheck.py). The article does not cite
+# such a page, so the date / occasion / "who said it" rules do not apply; what counts is whether the FACTS hold.
+FACTCHECK_ADDENDUM = """
+
+FACT-CHECK MODE. This SOURCE was found by a search; the article does not cite it, and it may be older or newer than the article. Ignore the rules above about ARTICLE DATE, OCCASION, NAMED VENUE and about who SAID something: you are judging whether the FACTS in the CLAIM hold. The same strictness applies.
+- "supported": the passage you quote states the core fact of the claim (same entity, event, actor, figure and time).
+- "contradicted" or "distorted": the passage you quote EXPLICITLY states a fact that cannot be true together with the claim: a different owner, buyer, actor, date, figure or outcome for the SAME entity at the SAME time the claim names, or the opposite. Example: the claim says X was bought by A in February 2025; a page from July 2025 says X is owned by B and is being sold by B: contradicted.
+- A different time that does not overlap with the time the claim names (an event years earlier or later) does NOT contradict the claim, unless the passage also states how things stood at the claim's time. A page that merely does not mention the claim's actor is NOT a contradiction.
+- Same topic but nothing that confirms or refutes the claim: "not_mentioned" with an empty quote."""
+
 
 @dataclass
 class VerifyResult:
@@ -102,14 +112,14 @@ def fuzzy_score(quote: str, source_text: str) -> float:
 
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,
                  settings: Settings | None = None, article_date: date | None = None, occasion: str | None = None,
-                 venue: str | None = None) -> VerifyResult:
+                 venue: str | None = None, factcheck: bool = False) -> VerifyResult:
     s = settings or get_settings()
     llm = llm or LLMClient.from_settings(s)
     plain_claim = build_plain(claim_text).text
     shown = build_plain(source_text).text
     truncated = len(shown) > MAX_SOURCE_CHARS
     res = llm.chat_json(
-        s.model_verify, SYSTEM_PROMPT,
+        s.model_verify, SYSTEM_PROMPT + FACTCHECK_ADDENDUM if factcheck else SYSTEM_PROMPT,
         (f"ARTICLE DATE: {article_date.isoformat()}\n" if article_date else "")
         + (f"OCCASION: {occasion}\n" if occasion else "")
         + (f"NAMED VENUE: {venue}\n" if venue else "")

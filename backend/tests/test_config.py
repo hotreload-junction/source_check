@@ -10,7 +10,7 @@ def test_defaults_match_env_example():
     assert s.max_claims == 6
     assert s.max_depth == 3
     assert s.max_concurrent_analyses == 2
-    assert s.prompt_version == "v8"
+    assert s.prompt_version == "v9"
     assert s.extract_votes == 5
 
 

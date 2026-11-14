@@ -433,8 +433,10 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
             cite(sa, None, "named", into=found_ids)
     elif c.attributions:
         who = (a.plan.speaker if a.plan and a.plan.speaker else c.attributions[0]).strip()
-        found = [sa for sa in a.sources if sa.verdict == "supported" or sa.corroborated]
-        found.sort(key=lambda sa: (sa.verdict != "supported", not sa.venue_hosted, -(sa.verify.fuzzy_score or 0) if sa.verify else 0))
+        # fact-check pages that refute the claim are shown like confirming ones: they are what the verdict rests on
+        found = [sa for sa in a.sources if sa.verdict == "supported" or sa.corroborated
+                 or (sa.factchecked and sa.verdict in ("contradicted", "distorted"))]
+        found.sort(key=lambda sa: (sa is not a.best, sa.verdict != "supported", not sa.venue_hosted, -(sa.verify.fuzzy_score or 0) if sa.verify else 0))
         for sa in found[:max_links]:
             row = cite(sa, who, "named")
             if a.best is not None and sa.url == a.best.url:
