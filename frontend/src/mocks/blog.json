@@ -1,0 +1,390 @@
+{
+  "_note": "FICTIONAL example for frontend mocks. All domains are example.* placeholders, not real data.",
+  "job_id": "example-job-4",
+  "status": "done",
+  "progress": {
+    "step": "verdict",
+    "message": "Done",
+    "pct": 100
+  },
+  "error": null,
+  "created_at": "2026-11-14T12:00:00Z",
+  "finished_at": "2026-11-14T12:01:02Z",
+  "result": {
+    "article": {
+      "url": "https://someblog.example.io/post",
+      "domain": "someblog.example.io",
+      "title": "5 reasons the new tram line is a disaster",
+      "published_at": "2026-11-10T17:30:00Z",
+      "text_markdown": "# 5 reasons the new tram line is a disaster\n\nThe tram project is already 300% over budget, as [the council's own figures](https://city-council.example.gov/budget/tram-2026) show. Ridership numbers have collapsed since opening, see [the transit stats](https://transit-stats.example.net/tram/ridership).\n\nLocal shops reported losing half their customers, as [we wrote before](https://someblog.example.io/older-post). Residents were never consulted.\n\nConstruction noise exceeded legal limits on 40 nights, [the local paper reported](https://local-paper.example.com/news/tram-noise)."
+    },
+    "claims": [
+      {
+        "subtype": null,
+        "evidence": {
+          "source_id": "s1",
+          "quote_original": "The project is currently 12% above the approved budget.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 95
+        },
+        "id": "c1",
+        "text": "The tram project is already 300% over budget",
+        "source_ids": [
+          "s1"
+        ],
+        "verdict": "contradicted",
+        "explanation": "The council's figures show 12% over budget, not 300%.",
+        "char_start": 45,
+        "char_end": 89
+      },
+      {
+        "subtype": null,
+        "evidence": null,
+        "id": "c2",
+        "text": "Ridership numbers have collapsed since opening",
+        "source_ids": [
+          "s2"
+        ],
+        "verdict": "not_checkable",
+        "explanation": "The linked page is unreachable. Neutral for the article verdict.",
+        "char_start": 179,
+        "char_end": 225
+      },
+      {
+        "subtype": "self_citation",
+        "evidence": null,
+        "id": "c3",
+        "text": "Local shops reported losing half their customers",
+        "source_ids": [
+          "s3"
+        ],
+        "verdict": "not_checkable",
+        "explanation": "The only source is an earlier post on the same blog, which is not evidence. Neutral for the article verdict.",
+        "char_start": 303,
+        "char_end": 351
+      },
+      {
+        "subtype": null,
+        "evidence": null,
+        "id": "c4",
+        "text": "Residents were never consulted.",
+        "source_ids": [],
+        "verdict": "unsourced",
+        "explanation": "No source is given for this claim.",
+        "char_start": 415,
+        "char_end": 446
+      },
+      {
+        "subtype": null,
+        "evidence": {
+          "source_id": "s4",
+          "quote_original": "Residents filed noise complaints on 40 nights; inspectors found the legal limit exceeded on three occasions.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 92.5
+        },
+        "id": "c5",
+        "text": "Construction noise exceeded legal limits on 40 nights",
+        "source_ids": [
+          "s4"
+        ],
+        "verdict": "distorted",
+        "explanation": "The paper reports 40 nights of complaints but only three confirmed breaches.",
+        "char_start": 448,
+        "char_end": 501
+      }
+    ],
+    "sources": [
+      {
+        "id": "s1",
+        "url": "https://city-council.example.gov/budget/tram-2026",
+        "domain": "city-council.example.gov",
+        "kind": "link",
+        "attribution_text": "the council's own figures",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s2",
+        "url": "https://transit-stats.example.net/tram/ridership",
+        "domain": "transit-stats.example.net",
+        "kind": "link",
+        "attribution_text": "the transit stats",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "unreachable",
+        "fetched_via": null
+      },
+      {
+        "id": "s3",
+        "url": "https://someblog.example.io/older-post",
+        "domain": "someblog.example.io",
+        "kind": "self",
+        "attribution_text": "we wrote before",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "not_fetched",
+        "fetched_via": null
+      },
+      {
+        "id": "s4",
+        "url": "https://local-paper.example.com/news/tram-noise",
+        "domain": "local-paper.example.com",
+        "kind": "link",
+        "attribution_text": "the local paper reported",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "trafilatura"
+      }
+    ],
+    "domains": [
+      {
+        "domain": "someblog.example.io",
+        "created_at": "2019-04-04T00:00:00Z",
+        "age_days": 2781,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": true
+      },
+      {
+        "domain": "city-council.example.gov",
+        "created_at": "2000-02-02T00:00:00Z",
+        "age_days": 9782,
+        "analytics_ids": [
+          "G-CITY1234"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "transit-stats.example.net",
+        "created_at": "2015-08-20T00:00:00Z",
+        "age_days": 4104,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "local-paper.example.com",
+        "created_at": "2003-05-05T00:00:00Z",
+        "age_days": 8594,
+        "analytics_ids": [
+          "G-PAPER555"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "a",
+          "type": "article",
+          "label": "5 reasons the new tram line is a disaster",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c1",
+          "type": "claim",
+          "label": "The tram project is already 300% over budget",
+          "verdict": "contradicted",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c2",
+          "type": "claim",
+          "label": "Ridership numbers have collapsed since opening",
+          "verdict": "not_checkable",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c3",
+          "type": "claim",
+          "label": "Local shops reported losing half their customers",
+          "verdict": "not_checkable",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c4",
+          "type": "claim",
+          "label": "Residents were never consulted.",
+          "verdict": "unsourced",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c5",
+          "type": "claim",
+          "label": "Construction noise exceeded legal limits on 40 nights",
+          "verdict": "distorted",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "s1",
+          "type": "source",
+          "label": "city-council.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s2",
+          "type": "source",
+          "label": "transit-stats.example.net",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s3",
+          "type": "source",
+          "label": "someblog.example.io",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s4",
+          "type": "source",
+          "label": "local-paper.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:someblog.example.io",
+          "type": "domain",
+          "label": "someblog.example.io",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "d:city-council.example.gov",
+          "type": "domain",
+          "label": "city-council.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:transit-stats.example.net",
+          "type": "domain",
+          "label": "transit-stats.example.net",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:local-paper.example.com",
+          "type": "domain",
+          "label": "local-paper.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-a-c1",
+          "source": "a",
+          "target": "c1",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c1-s1",
+          "source": "c1",
+          "target": "s1",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c2",
+          "source": "a",
+          "target": "c2",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c2-s2",
+          "source": "c2",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c3",
+          "source": "a",
+          "target": "c3",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c3-s3",
+          "source": "c3",
+          "target": "s3",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c4",
+          "source": "a",
+          "target": "c4",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-a-c5",
+          "source": "a",
+          "target": "c5",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c5-s4",
+          "source": "c5",
+          "target": "s4",
+          "type": "cites"
+        }
+      ]
+    },
+    "signals": {
+      "evidence": {
+        "fired": true,
+        "claim_ids": [
+          "c1",
+          "c4",
+          "c5"
+        ],
+        "detail": "3 of 5 central claims are not supported by their sources or unsourced (threshold: 2)."
+      },
+      "infrastructure": {
+        "fired": false,
+        "reasons": []
+      },
+      "circle": {
+        "fired": false,
+        "path": null
+      }
+    },
+    "verdict": {
+      "label": "weakly_sourced",
+      "summary": "Three of five central claims are contradicted, distorted or unsourced, but there are no infrastructure signals, so this looks sloppy rather than coordinated."
+    },
+    "audit": {
+      "model_extract": "EXAMPLE-cheap-model",
+      "model_verify": "EXAMPLE-strong-model",
+      "prompt_version": "v1",
+      "fuzzy_threshold": 90,
+      "depth": 1,
+      "duration_s": 63
+    }
+  }
+}

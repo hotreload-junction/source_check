@@ -59,10 +59,10 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 ### Frontend (checkpoint Sat 18:00)
 | id | task | owner | status | notes |
 |---|---|---|---|---|
-| F1 | skeleton against `contracts/examples/*.json` mocks; pick stack, log it in DECISIONS.md | louis-fe | todo | must build to static files served by the backend (or nginx) |
-| F2 | input page: URL field + 3 demo buttons | louis-fe | todo | |
-| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | todo | highlighting in text is the first thing to cut |
-| F4 | live progress via SSE (fallback polling every 2 s), graph builds incrementally | louis-fe | todo | |
+| F1 | skeleton against `contracts/examples/*.json` mocks; pick stack, log it in DECISIONS.md | louis-fe | done | Vite+React+TS; `npm run dev` / `npm run dev:mock` |
+| F2 | input page: URL field + 3 demo buttons | louis-fe | done | top bar of the result view |
+| F3 | result view: article with coloured claims (left), Cytoscape graph (right), operator clusters, click claim -> evidence | louis-fe | doing | Source Trace design (DECISIONS Sat 13:45); clusters shown in source panel + orange flag, no compound box yet |
+| F4 | live progress via SSE (fallback polling every 2 s), graph builds incrementally | louis-fe | doing | built, untested against real backend (B8 pending) |
 | F5 | methodology page: precision, recall, FPR, confusion matrix, error cases, thresholds | louis-fe | todo | **never cut** |
 
 ### Deploy

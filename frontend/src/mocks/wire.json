@@ -1,0 +1,428 @@
+{
+  "_note": "FICTIONAL example for frontend mocks. All domains are example.* placeholders, not real data.",
+  "job_id": "example-job-3",
+  "status": "done",
+  "progress": {
+    "step": "verdict",
+    "message": "Done",
+    "pct": 100
+  },
+  "error": null,
+  "created_at": "2026-11-14T12:00:00Z",
+  "finished_at": "2026-11-14T12:01:02Z",
+  "result": {
+    "article": {
+      "url": "https://wire.example.com/world/2026-11-13",
+      "domain": "wire.example.com",
+      "title": "Port strike ends after 11 days as unions accept pay deal",
+      "published_at": "2026-11-13T09:00:00Z",
+      "text_markdown": "# Port strike ends after 11 days as unions accept pay deal\n\nThe strike ended on Wednesday after union members voted 68% in favour of the deal, [the union said in a statement](https://union.example.org/press/vote-result). The port authority said the cargo backlog would clear within two weeks ([port notice](https://port-authority.example.gov/notices/118)).\n\nEconomists estimate the stoppage cost about 1.2 billion euros, [according to a research brief](https://econ-institute.example.org/briefs/port-strike) that draws on national trade data.\n\nShipping lines had diverted 40 vessels to neighbouring ports, [one carrier posted](https://social.example.com/carrier/status/991)."
+    },
+    "claims": [
+      {
+        "subtype": null,
+        "evidence": {
+          "source_id": "s1",
+          "quote_original": "Members voted 68 percent in favour of the agreement, ending the strike on Wednesday.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 96.5
+        },
+        "id": "c1",
+        "text": "The strike ended on Wednesday after union members voted 68% in favour of the deal",
+        "source_ids": [
+          "s1"
+        ],
+        "verdict": "supported",
+        "explanation": "The union statement gives the same date and vote share.",
+        "char_start": 60,
+        "char_end": 141
+      },
+      {
+        "subtype": null,
+        "evidence": {
+          "source_id": "s2",
+          "quote_original": "We expect the cargo backlog to be cleared within two weeks.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 98
+        },
+        "id": "c2",
+        "text": "The port authority said the cargo backlog would clear within two weeks",
+        "source_ids": [
+          "s2"
+        ],
+        "verdict": "supported",
+        "explanation": "The port notice says the same thing.",
+        "char_start": 221,
+        "char_end": 291
+      },
+      {
+        "subtype": null,
+        "evidence": {
+          "source_id": "s3",
+          "quote_original": "We estimate the total cost of the stoppage at around EUR 1.2 billion.",
+          "quote_translation": null,
+          "language": "en",
+          "fuzzy_score": 94
+        },
+        "id": "c3",
+        "text": "Economists estimate the stoppage cost about 1.2 billion euros",
+        "source_ids": [
+          "s3"
+        ],
+        "verdict": "supported",
+        "explanation": "The brief gives the same estimate and names its data source.",
+        "char_start": 358,
+        "char_end": 419
+      },
+      {
+        "subtype": "social_media",
+        "evidence": null,
+        "id": "c4",
+        "text": "Shipping lines had diverted 40 vessels to neighbouring ports",
+        "source_ids": [
+          "s4"
+        ],
+        "verdict": "not_checkable",
+        "explanation": "The source is a social media post, which is not checked. Neutral for the article verdict.",
+        "char_start": 544,
+        "char_end": 604
+      }
+    ],
+    "sources": [
+      {
+        "id": "s1",
+        "url": "https://union.example.org/press/vote-result",
+        "domain": "union.example.org",
+        "kind": "link",
+        "attribution_text": "the union said in a statement",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s2",
+        "url": "https://port-authority.example.gov/notices/118",
+        "domain": "port-authority.example.gov",
+        "kind": "link",
+        "attribution_text": "port notice",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      },
+      {
+        "id": "s3",
+        "url": "https://econ-institute.example.org/briefs/port-strike",
+        "domain": "econ-institute.example.org",
+        "kind": "link",
+        "attribution_text": "according to a research brief",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "ok",
+        "fetched_via": "trafilatura"
+      },
+      {
+        "id": "s4",
+        "url": "https://social.example.com/carrier/status/991",
+        "domain": "social.example.com",
+        "kind": "social",
+        "attribution_text": "one carrier posted",
+        "depth": 1,
+        "parent_source_id": null,
+        "fetch_status": "not_fetched",
+        "fetched_via": null
+      },
+      {
+        "id": "s5",
+        "url": "https://stats.example.gov/trade/monthly-2026-10",
+        "domain": "stats.example.gov",
+        "kind": "link",
+        "attribution_text": "national trade data",
+        "depth": 2,
+        "parent_source_id": "s3",
+        "fetch_status": "ok",
+        "fetched_via": "context_dev"
+      }
+    ],
+    "domains": [
+      {
+        "domain": "wire.example.com",
+        "created_at": "1998-03-02T00:00:00Z",
+        "age_days": 10484,
+        "analytics_ids": [
+          "G-WIRE0001"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": true
+      },
+      {
+        "domain": "union.example.org",
+        "created_at": "2004-06-11T00:00:00Z",
+        "age_days": 8191,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "port-authority.example.gov",
+        "created_at": "2001-01-15T00:00:00Z",
+        "age_days": 9434,
+        "analytics_ids": [
+          "G-PORT0042"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "econ-institute.example.org",
+        "created_at": "2009-09-30T00:00:00Z",
+        "age_days": 6254,
+        "analytics_ids": [
+          "G-ECON7777"
+        ],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "social.example.com",
+        "created_at": "2006-07-15T00:00:00Z",
+        "age_days": 7427,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      },
+      {
+        "domain": "stats.example.gov",
+        "created_at": "1999-10-01T00:00:00Z",
+        "age_days": 9906,
+        "analytics_ids": [],
+        "adsense_ids": [],
+        "cluster_id": null,
+        "is_article_domain": false
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "a",
+          "type": "article",
+          "label": "Port strike ends after 11 days as unions accept pay deal",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c1",
+          "type": "claim",
+          "label": "The strike ended on Wednesday after union members voted 68% ",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c2",
+          "type": "claim",
+          "label": "The port authority said the cargo backlog would clear within",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c3",
+          "type": "claim",
+          "label": "Economists estimate the stoppage cost about 1.2 billion euro",
+          "verdict": "supported",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "c4",
+          "type": "claim",
+          "label": "Shipping lines had diverted 40 vessels to neighbouring ports",
+          "verdict": "not_checkable",
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "s1",
+          "type": "source",
+          "label": "union.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s2",
+          "type": "source",
+          "label": "port-authority.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s3",
+          "type": "source",
+          "label": "econ-institute.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s4",
+          "type": "source",
+          "label": "social.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "s5",
+          "type": "source",
+          "label": "stats.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 2
+        },
+        {
+          "id": "d:wire.example.com",
+          "type": "domain",
+          "label": "wire.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 0
+        },
+        {
+          "id": "d:union.example.org",
+          "type": "domain",
+          "label": "union.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:port-authority.example.gov",
+          "type": "domain",
+          "label": "port-authority.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:econ-institute.example.org",
+          "type": "domain",
+          "label": "econ-institute.example.org",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:social.example.com",
+          "type": "domain",
+          "label": "social.example.com",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        },
+        {
+          "id": "d:stats.example.gov",
+          "type": "domain",
+          "label": "stats.example.gov",
+          "verdict": null,
+          "cluster_id": null,
+          "depth": 1
+        }
+      ],
+      "edges": [
+        {
+          "id": "e-a-c1",
+          "source": "a",
+          "target": "c1",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c1-s1",
+          "source": "c1",
+          "target": "s1",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c2",
+          "source": "a",
+          "target": "c2",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c2-s2",
+          "source": "c2",
+          "target": "s2",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c3",
+          "source": "a",
+          "target": "c3",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c3-s3",
+          "source": "c3",
+          "target": "s3",
+          "type": "cites"
+        },
+        {
+          "id": "e-a-c4",
+          "source": "a",
+          "target": "c4",
+          "type": "makes_claim"
+        },
+        {
+          "id": "e-c4-s4",
+          "source": "c4",
+          "target": "s4",
+          "type": "cites"
+        },
+        {
+          "id": "e-s3-s5",
+          "source": "s3",
+          "target": "s5",
+          "type": "cites"
+        }
+      ]
+    },
+    "signals": {
+      "evidence": {
+        "fired": false,
+        "claim_ids": [],
+        "detail": "0 of 4 central claims are not supported by their sources or unsourced (threshold: 2)."
+      },
+      "infrastructure": {
+        "fired": false,
+        "reasons": []
+      },
+      "circle": {
+        "fired": false,
+        "path": null
+      }
+    },
+    "verdict": {
+      "label": "well_sourced",
+      "summary": "Three of four central claims match their sources word for word; the fourth cites a social media post, which counts as neutral."
+    },
+    "audit": {
+      "model_extract": "EXAMPLE-cheap-model",
+      "model_verify": "EXAMPLE-strong-model",
+      "prompt_version": "v1",
+      "fuzzy_threshold": 90,
+      "depth": 2,
+      "duration_s": 81.5
+    }
+  }
+}
