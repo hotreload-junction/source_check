@@ -1,17 +1,18 @@
-// Source trust profile for the root panel: how established the origin sources are, how independent they are,
-// plus a short rule-based summary. Context for the reader, never a verdict signal (DECISIONS: source quality is
-// context). The weights below are a transparent heuristic; the UI shows a position and words, not a number.
+// Top-bar "Propaganda <-> Objective" view (PLAN F7). Context for the reader, never a verdict signal
+// (DECISIONS: source quality is context). The bar position is the backend article verdict (bar.ts);
+// the table restates backend facts per criterion. Cell strength (0..1) only sets the colour intensity.
 
-import { markerPos, supportedShare } from './bar';
+import { markerPos } from './bar';
 import type { Tree, View } from './tree';
-import { srcName } from './theme';
 import type { ClaimVerdict, Domain, RspEntry, Source, SourceType } from './types';
 
-export interface Gauge { pos: number | null; word: string; basis: string } // pos 0..1, 1 = good; null = not enough data
-export interface Trust { legitimacy: Gauge; diversity: Gauge; positives: string[]; negatives: string[]; summary: string }
+export interface Cell { items: string[]; strength: number } // strength 0 = no argument, 1 = strong argument
+export type RowKey = 'sources' | 'fit' | 'variety' | 'wording' | 'other';
+export interface Row { key: RowKey; label: string; basis: string; pro: Cell; con: Cell } // pro = objectivity, con = propaganda
 
-const TYPE_BASE: Record<SourceType, number> = { official: 0.9, academic: 0.9, reference: 0.75, news: 0.65, press_release: 0.4, blog: 0.4, social: 0.2, unknown: 0.5 };
-const TYPE_WORD: Record<SourceType, string> = { official: 'official', academic: 'academic', reference: 'reference', news: 'news', press_release: 'press release', blog: 'blog', social: 'social media', unknown: 'unknown' };
+const cell = (items: string[], s: number): Cell => ({ items, strength: items.length ? Math.max(0, Math.min(1, s)) : 0 });
+const names = (l: string[]) => (l.length <= 2 ? l.join(' and ') : `${l.slice(0, 2).join(', ')} and ${l.length - 2} more`);
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 export type RspVerdict = 'deprecated' | 'unreliable' | 'reliable' | 'mixed';
 
@@ -25,6 +26,8 @@ export function rspVerdict(rows: RspEntry[]): RspVerdict | null {
   return 'mixed';
 }
 
+const TYPE_BASE: Record<SourceType, number> = { official: 0.9, academic: 0.9, reference: 0.75, news: 0.65, press_release: 0.4, blog: 0.4, social: 0.2, unknown: 0.5 };
+const TYPE_WORD: Record<SourceType, string> = { official: 'official', academic: 'academic', reference: 'reference', news: 'news', press_release: 'press release', blog: 'blog', social: 'social media', unknown: 'unknown' };
 const typeOf = (s: Source): SourceType => s.source_type ?? (s.kind === 'telegram' || s.kind === 'social' ? 'social' : 'unknown');
 
 /** 0..1 standing of one origin source; null = nothing known about it (never guessed). */
@@ -41,15 +44,39 @@ function rate(s: Source, d: Domain | undefined): number | null {
   return base;
 }
 
-const names = (l: string[]) => (l.length <= 2 ? l.join(' and ') : `${l.slice(0, 2).join(', ')} and ${l.length - 2} more`);
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+/** Bar position 0..1 (0 = propaganda); null for insufficient_evidence. */
+export function barPos(v: View, t: Tree): number | null {
+  if (!v.verdict) return null;
+  const p = markerPos(v.verdict.label, t.claims.filter((c) => c.claim!.central !== false).map((c) => c.claim!.verdict));
+  return p == null ? null : p / 100;
+}
 
-export function trustProfile(v: View, t: Tree): Trust {
+// Loaded-language word list for the wording row (English). Shown with every match, so it can be checked.
+const LOADED: [string, RegExp][] = [
+  ['regime', /\bregimes?\b/gi], ['puppet', /\bpuppets?\b/gi], ['junta', /\bjuntas?\b/gi], ['nazi', /\b(neo-?)?nazis?\b/gi],
+  ['fascist', /\bfascis(t|ts|m)\b/gi], ['globalist', /\bglobalists?\b/gi], ['traitor', /\btraitors?\b/gi], ['so-called', /\bso-called\b/gi],
+  ['false flag', /\bfalse[- ]flag\b/gi], ['staged', /\bstaged\b/gi], ['fabricated', /\bfabricated\b/gi], ['mainstream media', /\bmainstream media\b/gi],
+  ['deep state', /\bdeep state\b/gi], ['russophobia', /\brussophob\w*/gi], ['warmonger', /\bwarmonger\w*/gi], ['collective west', /\bcollective west\b/gi],
+  ['hysteria', /\bhysteri(a|cal)\b/gi], ['shocking', /\bshocking\b/gi], ['outrageous', /\boutrageous\b/gi], ['cover-up', /\bcover[- ]ups?\b/gi],
+  ['propaganda', /\bpropaganda\b/gi], ['lies', /\blies\b/gi], ['wake up', /\bwake up\b/gi], ['sheeple', /\bsheeple\b/gi],
+];
+
+export function wordingCheck(text: string): { words: number; hits: [string, number][]; excl: number } {
+  const prose = text.replace(/\]\([^)]*\)/g, ']'); // drop link targets, keep link text
+  const words = prose.split(/\s+/).filter(Boolean).length;
+  const hits = LOADED.map(([w, re]) => [w, (prose.match(re) ?? []).length] as [string, number]).filter(([, n]) => n > 0);
+  const excl = (prose.match(/!(?!\[)/g) ?? []).length;
+  return { words, hits, excl };
+}
+
+const BAD: Record<Exclude<ClaimVerdict, 'supported' | 'not_checkable'>, string> = {
+  contradicted: 'contradicted by the cited source', distorted: 'distorted compared with the cited source', not_mentioned: 'not found in the cited source', unsourced: 'given without any source',
+};
+
+export function criteria(v: View, t: Tree): Row[] {
   const dom = new Map(v.domains.map((d) => [d.domain, d]));
   const artD = v.domains.find((d) => d.is_article_domain);
-
-  // origin sources = where a trace ends; one entry per domain
-  const byDomain = new Map<string, Source>();
+  const byDomain = new Map<string, Source>(); // origin sources = where a trace ends; one per domain
   t.nodes.filter((n) => n.kind === 'source' && !n.kids.length && n.source?.domain && n.source.kind !== 'self').forEach((n) => {
     if (!byDomain.has(n.source!.domain!)) byDomain.set(n.source!.domain!, n.source!);
   });
@@ -59,94 +86,109 @@ export function trustProfile(v: View, t: Tree): Trust {
     return s.domain === v.article.domain || !!d?.is_article_domain || (!!artD?.cluster_id && d?.cluster_id === artD.cluster_id);
   };
   const external = origins.filter((s) => !own(s));
+  const rspOf = (s: Source) => rspVerdict(dom.get(s.domain!)?.wikipedia_rsp ?? []);
+  const doms = (l: Source[]) => names(l.map((s) => s.domain!));
 
-  // legitimacy
+  // 1. how good the sources are
   const rated = origins.map((s) => ({ s, r: rate(s, dom.get(s.domain!)) })).filter((x): x is { s: Source; r: number } => x.r != null);
-  const lpos = rated.length ? rated.reduce((a, x) => a + x.r, 0) / rated.length : null;
-  const legitimacy: Gauge = {
-    pos: lpos,
-    word: lpos == null ? 'Not enough data' : lpos >= 0.7 ? 'Established' : lpos >= 0.45 ? 'Mixed' : 'Doubtful',
-    basis: origins.length
-      ? `${rated.length} of ${plural(origins.length, 'origin source')} rated from source type and reputation lists${rated.length < origins.length ? ` · ${origins.length - rated.length} unclassified, left out` : ''}`
-      : 'No origin source to rate',
+  const n = rated.length || 1;
+  const strong = origins.filter((s) => typeOf(s) === 'official' || typeOf(s) === 'academic');
+  const weak = origins.filter((s) => ['press_release', 'blog', 'social'].includes(typeOf(s)));
+  const net = origins.filter((s) => dom.get(s.domain!)?.known_network);
+  const sPro: string[] = [];
+  const sCon: string[] = [];
+  if (strong.length) sPro.push(`${strong.length} of ${origins.length} origin sources are official or academic (${doms(strong)}).`);
+  const rel = origins.filter((s) => rspOf(s) === 'reliable');
+  if (rel.length) sPro.push(`Wikipedia's Perennial Sources list rates ${doms(rel)} as generally reliable.`);
+  for (const [k, txt] of [['deprecated', 'deprecated'], ['unreliable', 'generally unreliable'], ['mixed', 'topic-dependent or without consensus']] as const) {
+    const l = origins.filter((s) => rspOf(s) === k);
+    if (l.length) sCon.push(`Wikipedia's Perennial Sources list rates ${doms(l)} as ${txt}.`);
+  }
+  if (net.length) sCon.push(`${doms(net)} is on a published influence-network list (${dom.get(net[0].domain!)!.known_network}).`);
+  if (weak.length) sCon.push(`${weak.length} of ${origins.length} origin sources are press releases, blogs or social posts (${doms(weak)}): self-published, no independent check.`);
+  const sources: Row = {
+    key: 'sources', label: 'Quality of the sources',
+    basis: origins.length ? `${rated.length} of ${plural(origins.length, 'origin source')} rated by source type and reputation lists${rated.length < origins.length ? `; ${origins.length - rated.length} unclassified, left out` : ''}` : 'No origin source found',
+    pro: cell(sPro, rated.filter((x) => x.r >= 0.7).reduce((a, x) => a + (x.r - 0.5) * 2, 0) / n),
+    con: cell(sCon, rated.filter((x) => x.r < 0.5).reduce((a, x) => a + (0.5 - x.r) * 2, 0) / n),
   };
 
-  // diversity: independent operators (shared analytics/AdSense ID = one operator) and source types
+  // 2. how well the claims match their sources (central claims; not_checkable is neutral)
+  const central = t.claims.filter((c) => c.claim!.central !== false);
+  const checkable = central.filter((c) => c.claim!.verdict !== 'not_checkable');
+  const sup = checkable.filter((c) => c.claim!.verdict === 'supported');
+  const fPro: string[] = [];
+  const fCon: string[] = [];
+  if (sup.length) {
+    const scores = sup.map((c) => c.claim!.evidence?.fuzzy_score).filter((x): x is number => x != null);
+    fPro.push(`${sup.length} of ${checkable.length} checkable claims are backed by a verbatim quote from their source${scores.length ? ` (lowest quote match ${Math.round(Math.min(...scores))})` : ''}.`);
+  }
+  (Object.keys(BAD) as (keyof typeof BAD)[]).forEach((k) => {
+    const l = checkable.filter((c) => c.claim!.verdict === k);
+    if (l.length) fCon.push(`${l.length === 1 ? 'Claim' : 'Claims'} ${l.map((c) => c.claimIdx).join(', ')} ${l.length === 1 ? 'is' : 'are'} ${BAD[k]}.`);
+  });
+  const fit: Row = {
+    key: 'fit', label: 'Claims match their sources',
+    basis: `${checkable.length} of ${plural(central.length, 'central claim')} checkable; not checkable is neutral`,
+    pro: cell(fPro, checkable.length ? sup.length / checkable.length : 0),
+    con: cell(fCon, checkable.length ? (checkable.length - sup.length) / checkable.length : 0),
+  };
+
+  // 3. variety: independent operators (shared analytics/AdSense ID = one operator) and source types
   const operators = new Set(external.map((s) => dom.get(s.domain!)?.cluster_id ?? s.domain!));
   const types = new Set(external.map(typeOf).filter((x) => x !== 'unknown'));
   const opC = Math.min(1, Math.max(0, (operators.size - 1) / 3));
   const tyC = types.size ? Math.min(1, (types.size - 1) / 2) : null;
-  const dpos = !origins.length ? null : external.length ? (tyC == null ? opC : (opC + tyC) / 2) : 0;
-  const diversity: Gauge = {
-    pos: dpos,
-    word: dpos == null ? 'Not enough data' : dpos >= 0.7 ? 'Diverse' : dpos >= 0.4 ? 'Some variety' : 'Narrow',
-    basis: origins.length ? `${plural(operators.size, 'independent operator')} · ${plural(types.size, 'source type')} among ${plural(origins.length, 'origin source')}` : 'No origin source to compare',
-  };
-
-  // short summary + what speaks for / against
-  const rsp = (k: RspVerdict) => origins.filter((s) => rspVerdict(dom.get(s.domain!)?.wikipedia_rsp ?? []) === k).map((s) => s.domain!);
-  const net = origins.filter((s) => dom.get(s.domain!)?.known_network);
-  const strong = origins.filter((s) => ['official', 'academic'].includes(typeOf(s))).map((s) => s.domain!);
-  const weak = origins.filter((s) => ['press_release', 'blog', 'social'].includes(typeOf(s))).map((s) => s.domain!);
+  const div = external.length ? (tyC == null ? opC : (opC + tyC) / 2) : 0;
   const ownN = origins.length - external.length;
-
-  const positives: string[] = [];
-  const negatives: string[] = [];
-  if (strong.length) positives.push(`${strong.length} of ${origins.length} origin sources are official or academic (${names(strong)}).`);
-  if (rsp('reliable').length) positives.push(`Wikipedia's Perennial Sources list rates ${names(rsp('reliable'))} as generally reliable.`);
-  if (operators.size >= 3) positives.push(`${operators.size} independent operators stand behind the sources.`);
-  if (types.size >= 3) positives.push(`The sources are of ${types.size} different types (${[...types].map((x) => TYPE_WORD[x]).join(', ')}).`);
-  if (rated.length && !rsp('deprecated').length && !rsp('unreliable').length && !net.length) positives.push('No origin source is rated unreliable or listed in an influence network.');
-
-  if (rsp('deprecated').length) negatives.push(`${names(rsp('deprecated'))} is deprecated on Wikipedia's Perennial Sources list.`);
-  if (rsp('unreliable').length) negatives.push(`${names(rsp('unreliable'))} is rated generally unreliable on Wikipedia's Perennial Sources list.`);
-  if (rsp('mixed').length) negatives.push(`${names(rsp('mixed'))}: Wikipedia rates the reliability as topic-dependent or without consensus.`);
-  if (net.length) negatives.push(`${names(net.map((s) => s.domain!))} is on a published influence-network list (${dom.get(net[0].domain!)!.known_network}).`);
-  if (weak.length) negatives.push(`${weak.length} of ${origins.length} origin sources are press releases, blogs or social posts (${names(weak)}): self-published, no independent check.`);
-  if (ownN) negatives.push(`${plural(ownN, 'origin source')} belong${ownN === 1 ? 's' : ''} to the article's own operator.`);
-  else if (external.length > 1 && operators.size === 1) negatives.push('All origin sources belong to one operator.');
-  else if (external.length === 1) negatives.push('The claims rest on a single origin source.');
-
-  const standing = lpos == null ? 'Too few could be classified to rate their standing.' : lpos >= 0.7 ? 'Most are established or official.' : lpos >= 0.45 ? 'Their standing is mixed.' : 'Most are weak or unreliable.';
-  const summary = origins.length
-    ? `The claims trace back to ${plural(origins.length, 'origin source')} from ${plural(operators.size + (ownN ? 1 : 0), 'operator')}. ${standing}`
-    : 'No origin source was found for the central claims, so source trust cannot be judged.';
-  return { legitimacy, diversity, positives: positives.slice(0, 4), negatives: negatives.slice(0, 4), summary };
-}
-
-export interface Overview { pos: number | null; positives: string[]; negatives: string[] } // pos 0..1: 0 = propaganda, 1 = objective
-
-const BAD: ClaimVerdict[] = ['distorted', 'contradicted', 'not_mentioned', 'unsourced'];
-
-/**
- * Top-bar position + what pulls towards objectivity / propaganda. No score is invented: the position is the
- * backend article verdict's zone nudged by the supported share (bar.ts); the lists only restate backend facts
- * (verdicts, fired signals) plus the source trust lines. not_checkable never counts against the article.
- */
-export function overview(v: View, t: Tree, tp: Trust): Overview {
-  const central = t.claims.map((c) => c.claim!).filter((c) => c.central !== false);
-  const verdicts = central.map((c) => c.verdict);
-  const p = v.verdict ? markerPos(v.verdict.label, verdicts) : null;
-  const sg = v.signals;
-  const { supported, checkable } = supportedShare(verdicts);
-  const bad = verdicts.filter((x) => BAD.includes(x)).length;
-  const label = (id: string) => {
-    const n = t.by[id];
-    return id === v.articleId ? 'the article' : n?.kind === 'claim' ? `claim ${n.claimIdx}` : n?.source ? srcName(n.source) : id;
+  const vPro: string[] = [];
+  const vCon: string[] = [];
+  if (operators.size >= 2) vPro.push(`${operators.size} independent operators stand behind the sources.`);
+  if (types.size >= 2) vPro.push(`The sources are of ${types.size} different types (${[...types].map((x) => TYPE_WORD[x]).join(', ')}).`);
+  if (ownN) vCon.push(`${plural(ownN, 'origin source')} belong${ownN === 1 ? 's' : ''} to the article's own operator.`);
+  if (external.length > 1 && operators.size === 1) vCon.push('All other origin sources share one operator.');
+  else if (external.length === 1) vCon.push('The claims rest on a single independent origin source.');
+  else if (origins.length && !external.length) vCon.push('No independent origin source.');
+  if (external.length > 1 && types.size === 1) vCon.push(`All sources are of one type (${TYPE_WORD[[...types][0]]}).`);
+  const variety: Row = {
+    key: 'variety', label: 'Variety of the sources',
+    basis: origins.length ? `${plural(operators.size, 'independent operator')}, ${plural(types.size, 'source type')} among ${plural(origins.length, 'origin source')}` : 'No origin source found',
+    pro: cell(vPro, div),
+    con: cell(vCon, Math.max(1 - div, origins.length ? ownN / origins.length : 0)),
   };
 
-  const positives: string[] = [];
-  const negatives: string[] = [];
-  if (supported) positives.push(`${supported} of ${checkable} checkable central claims are confirmed by their sources.`);
-  if (sg && !sg.evidence.fired && !sg.infrastructure.fired && !sg.circle.fired && !sg.laundering?.fired) positives.push('None of the propaganda signals fired (evidence, infrastructure, citation circle, laundering).');
-  positives.push(...tp.positives);
+  // 4. wording: loaded-language word list on the article text
+  const w = wordingCheck(v.article.text);
+  const density = w.words ? ((w.hits.reduce((a, [, k]) => a + k, 0) + w.excl * 0.5) * 100) / w.words : 0;
+  const wPro: string[] = [];
+  const wCon: string[] = [];
+  if (w.hits.length) wCon.push(`Loaded terms: ${w.hits.map(([t2, k]) => `“${t2}”${k > 1 ? ` ${k}×` : ''}`).join(', ')}.`);
+  if (w.excl >= 3) wCon.push(`${w.excl} exclamation marks.`);
+  if (w.words >= 80 && !w.hits.length && w.excl < 3) wPro.push(`No terms from the loaded-language list in ${w.words} words.`);
+  const wording: Row = {
+    key: 'wording', label: 'Wording',
+    basis: w.words ? `Word-list check (${LOADED.length} English terms, exclamation marks), not an AI judgement` : 'Article text not available',
+    pro: cell(wPro, 0.35), // absence of loaded words is weak evidence
+    con: cell(wCon, density / 1.5),
+  };
 
-  if (sg?.evidence.fired) negatives.push(`Evidence signal: ${sg.evidence.detail}`);
-  else if (bad) negatives.push(`${bad} of ${central.length} central claims are distorted, contradicted, not in their source or unsourced.`);
-  if (sg?.infrastructure.fired) negatives.push(`Infrastructure signal: ${sg.infrastructure.reasons.join(' · ')}`);
-  if (sg?.circle.fired && sg.circle.path) negatives.push(`Citation circle: ${sg.circle.path.map(label).join(' → ')}`);
-  if (sg?.laundering?.fired) negatives.push(`Laundering signal: ${sg.laundering.reasons.join(' · ')}`);
-  negatives.push(...tp.negatives);
+  // 5. everything else: infrastructure, citation circle, laundering
+  const sg = v.signals;
+  const oPro: string[] = [];
+  const oCon: string[] = [];
+  if (sg?.infrastructure.fired) oCon.push(`Infrastructure: ${sg.infrastructure.reasons.join(' · ')}.`);
+  if (sg?.circle.fired && sg.circle.path) {
+    const lab = (id: string) => (id === v.articleId ? 'the article' : t.by[id]?.kind === 'claim' ? `claim ${t.by[id].claimIdx}` : t.by[id]?.source?.domain ?? id);
+    oCon.push(`Citation circle: ${sg.circle.path.map(lab).join(' → ')}.`);
+  }
+  if (sg?.laundering?.fired) oCon.push(`Laundering: ${sg.laundering.reasons.join(' · ')}.`);
+  if (sg && !oCon.length) oPro.push('No shared-operator, young-domain, citation-circle or laundering signal.');
+  const other: Row = {
+    key: 'other', label: 'Other signals',
+    basis: 'Infrastructure (analytics/AdSense IDs, domain age, network lists), citation circles, laundering',
+    pro: cell(oPro, 0.4),
+    con: cell(oCon, 0.5 + 0.25 * oCon.length),
+  };
 
-  return { pos: p == null ? null : p / 100, positives, negatives };
+  return [sources, fit, variety, wording, other];
 }
