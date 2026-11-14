@@ -65,10 +65,10 @@ def test_passage_links_fall_back_to_the_claim_text_and_give_up_when_nothing_matc
 
 
 # ------------------------------------------------------------------ end to end
-def test_default_depth_is_1_and_never_touches_depth_2_links():
+def test_depth_1_never_touches_depth_2_links():
     pages = pages_with("https://sister.example/x")
     ev = []
-    r = run2(pages, settings=SETTINGS, events=ev).result      # SETTINGS has max_depth 1
+    r = run2(pages, settings=Settings(**{**SETTINGS.model_dump(), "max_depth": 1}), events=ev).result
     assert r["audit"]["depth"] == 1 and all(s["depth"] == 1 for s in r["sources"])
     assert "depth2" not in [d["step"] for e, d in ev if e == "progress"]
     assert r["signals"]["circle"] == {"fired": False, "path": None}

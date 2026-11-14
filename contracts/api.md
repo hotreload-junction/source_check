@@ -126,7 +126,7 @@ GraphEdge: {id, source, target,
             type: "makes_claim" | "cites" | "hosted_on" | "shares_infra" | "cites_back"}
 ```
 `cites_back` marks an edge that closes a citation circle (depth 2).
-Depth 2 (`MAX_DEPTH=2`, `audit.depth: 2`): a depth-2 source is cited by a depth-1 source, so it has `parent_source_id`
+Depth 2 (the default; `MAX_DEPTH=1` switches it off; `audit.depth: 2`): a depth-2 source is cited by a depth-1 source, so it has `parent_source_id`
 and a `cites` edge **source -> source** (`depth: 2` on the node). A depth-2 link to the article's own domain is a
 `kind: "self"`, `fetch_status: "not_fetched"` source. `cites_back` goes from the cited source (article domain or a
 domain in the article's operator cluster) to the article node `a`; `signals.circle.path` =
@@ -164,7 +164,7 @@ error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
 
 The article gives no URL, so the backend searches for the statement (plan -> Exa search -> verify). The named person or
 outlet is only the **attribution**, not a source: the page the search found IS the claim's source (depth 1), and what that
-page cites follows as depth 2 (`MAX_DEPTH=2`, same as for linked sources). Additive, no new fields:
+page cites follows as depth 2 (default `MAX_DEPTH=2`, same as for linked sources). Additive, no new fields:
 
 ```
 claim  --cites-->  Source{kind:"named", depth:1, url:"https://www.foxbusiness.com/...", attribution_text:"Jensen Huang", fetch_status:"ok"}

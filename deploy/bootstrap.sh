@@ -12,8 +12,8 @@ for env_name in live preview; do
   dir="$root/$env_name"; mkdir -p "$dir/releases"
   host="$([ "$env_name" = live ] && echo "$LIVE_HOST" || echo "$PREVIEW_HOST")"
   if [ ! -f "$dir/.env" ]; then
-    # PROMPT_VERSION is never pinned on the VPS: the default in backend/app/config.py is the truth (Leo, 14 Nov)
-    grep -v '^PROMPT_VERSION=' "$src/.env.example" > "$dir/.env"; chmod 600 "$dir/.env"
+    # PROMPT_VERSION and MAX_DEPTH are never pinned on the VPS: the defaults in backend/app/config.py are the truth (Leo, 14 Nov)
+    grep -Ev '^(PROMPT_VERSION|MAX_DEPTH)=' "$src/.env.example" > "$dir/.env"; chmod 600 "$dir/.env"
     printf '\n# --- VPS (%s) ---\nMARIADB_PASSWORD=%s\nSITE_HOST=%s\nPUBLIC_BASE_URL=https://%s\n' \
       "$env_name" "$(openssl rand -hex 16)" "$host" "$host" >> "$dir/.env"
     echo "bootstrap: wrote $dir/.env (add the API keys: AI_ROUTER_*, CONTEXT_DEV_*, EXA_*)"
