@@ -14,7 +14,7 @@ const source = (id: string, extra: Partial<Source> = {}): Source => ({
 });
 const view = (claims: Claim[], sources: Source[]): View => ({
   articleId: 'a', article: { title: 't', url: 'u', domain: 'd', text: '', published_at: null },
-  claims, sources, domains: [], edges: [], signals: null, verdict: null, audit: null, done: true,
+  claims, sources, domains: [], edges: [], signals: null, verdict: null, audit: null, focus: null, done: true,
 });
 
 describe('buildTree', () => {

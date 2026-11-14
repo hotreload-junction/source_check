@@ -2,7 +2,7 @@
 // Each source appears once (docs/graph-view.md): its first citing claim owns it in the tree, other
 // claims reach it through extra edges. Claims without sources get a "no source" stub.
 
-import type { Claim, ClaimVerdict, Domain, GraphEdge, GraphNode, Result, Signals, Source } from './types';
+import type { Claim, ClaimVerdict, Domain, Focus, GraphEdge, GraphNode, Result, Signals, Source } from './types';
 
 export interface View {
   articleId: string;
@@ -14,6 +14,7 @@ export interface View {
   signals: Signals | null;
   verdict: Result['verdict'] | null;
   audit: Result['audit'] | null;
+  focus: Focus | null;
   done: boolean;
 }
 
@@ -55,7 +56,7 @@ export function fromResult(r: Result): View {
     articleId: art ? art.id : 'a',
     article: { title: r.article.title, url: r.article.url, domain: r.article.domain, text: r.article.text_markdown, published_at: r.article.published_at },
     claims: r.claims, sources: r.sources, domains: r.domains, edges: r.graph.edges,
-    signals: r.signals, verdict: r.verdict, audit: r.audit, done: true,
+    signals: r.signals, verdict: r.verdict, audit: r.audit, focus: r.focus ?? null, done: true,
   };
 }
 
@@ -79,7 +80,7 @@ export function fromLive(l: Live, url: string): View {
   return {
     articleId: art ? art.id : 'a',
     article: { title: art ? art.label : url, url, domain, text: '', published_at: null },
-    claims, sources, domains: [], edges: l.edges, signals: null, verdict: null, audit: null, done: false,
+    claims, sources, domains: [], edges: l.edges, signals: null, verdict: null, audit: null, focus: null, done: false,
   };
 }
 

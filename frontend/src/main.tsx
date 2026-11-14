@@ -4,7 +4,7 @@ import App from './App';
 import { Landing } from './Landing';
 import './styles.css';
 
-// Hash routes: #/ landing, #/trace?url=<article url> or #/trace?demo=<key> analysis view.
+// Hash routes: #/ landing, #/trace?url=<article url>[&q=<question>] or #/trace?demo=<key> analysis view.
 function Root() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -14,7 +14,7 @@ function Root() {
   }, []);
   if (!hash.startsWith('#/trace')) return <Landing />;
   const q = new URLSearchParams(hash.split('?')[1] ?? '');
-  return <App key={hash} initial={{ url: q.get('url') ?? undefined, demo: q.get('demo') ?? undefined }} />;
+  return <App key={hash} initial={{ url: q.get('url') ?? undefined, demo: q.get('demo') ?? undefined, question: q.get('q') ?? undefined }} />;
 }
 
 createRoot(document.getElementById('root')!).render(

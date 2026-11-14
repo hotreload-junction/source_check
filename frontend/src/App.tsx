@@ -16,11 +16,13 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
   return next;
 };
 
-export default function App({ initial }: { initial: { url?: string; demo?: string } }) {
+export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string } }) {
   const [demos, setDemos] = useState<DemoCase[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [url, setUrl] = useState('');
   const [input, setInput] = useState('');
+  const [qInput, setQInput] = useState('');            // F6: optional reader question, as typed
+  const [question, setQuestion] = useState('');        // F6: the question of the analysis on screen
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [live, setLive] = useState<Live>(emptyLive);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -90,17 +92,17 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   const pickDemo = (d: DemoCase) => {
     const tk = reset();
-    setActive(d.key); setUrl(d.url); setInput('');
+    setActive(d.key); setUrl(d.url); setInput(''); setQInput(''); setQuestion('');
     load(d.job_id, tk).catch(fail(tk));
     fitSoon(80);
   };
 
   // force = bypass the URL cache and recompute every step (contract: POST /api/analyses {force: true}).
   // The demo buttons keep pointing at their precomputed job ids, so a forced run never replaces a demo case.
-  const startUrl = (u: string, force: boolean) => {
+  const startUrl = (u: string, force: boolean, q = '') => {
     const tk = reset();
-    setActive(null); setUrl(u);
-    api.start(u, force)
+    setActive(null); setUrl(u); setQuestion(q);
+    api.start(u, force, q || undefined)
       .then((r) => { if (tk !== token.current) return; return r.status === 'done' ? load(r.job_id, tk) : follow(r.job_id, tk); })
       .catch(fail(tk));
   };
@@ -108,11 +110,11 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   const analyze = (ev: FormEvent) => {
     ev.preventDefault();
     const u = input.trim();
-    if (u) startUrl(u, false);
+    if (u) startUrl(u, false, qInput.trim());
   };
 
   const running = !!url && !view.done && !error;
-  const reanalyze = () => { if (url && !running) startUrl(url, true); };
+  const reanalyze = () => { if (url && !running) startUrl(url, true, question); };
 
   useEffect(() => {
     api.demo().then(
@@ -124,7 +126,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
       },
       (e) => { if (!initial.url) setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`); },
     );
-    if (initial.url) { setInput(initial.url); startUrl(initial.url, false); }
+    if (initial.url) { setInput(initial.url); setQInput(initial.question ?? ''); startUrl(initial.url, false, (initial.question ?? '').trim()); }
     return () => closeEvents.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -143,7 +145,9 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
       reviewed: (n) => { const e = judgedEdge(n); return !!e && ov[e.id] != null && ov[e.id] !== e.verdict; },
       flagged: new Set(tree.nodes.filter((n) => n.source && n.source.domain && infra.some((r) => r.includes(n.source!.domain!))).map((n) => n.id)),
       articleColor: view.verdict ? ARTICLE_V[view.verdict.label].c : CL.p,
-      supported: tree.claims.filter((c) => c.claim!.verdict === 'supported').length, // backend verdicts, not local review
+      // the ring counts CENTRAL claims only: a claim found through the reader's question never changes the verdict (F6)
+      supported: tree.claims.filter((c) => c.claim!.central !== false && c.claim!.verdict === 'supported').length, // backend verdicts, not local review
+      nCentral: tree.claims.filter((c) => c.claim!.central !== false).length,
     };
   }, [tree, view, rev, N, ov]);
 
@@ -182,7 +186,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
     return () => window.removeEventListener('keydown', k);
   }, [dd, sel, focus, fitSoon]);
 
-  const nC = tree.claims.length, nS = tree.nodes.filter((n) => n.kind === 'source').length;
+  const nC = ctx.nCentral, nS = tree.nodes.filter((n) => n.kind === 'source').length;
   let status: string;
   if (error) status = error;
   else if (!view.done) status = progress ? `${progress.message} (${progress.pct}%)` : url ? 'Starting analysis …' : 'Loading …';
@@ -210,12 +214,21 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
             <div key={d.key} onClick={() => pickDemo(d)} style={{ cursor: 'pointer', padding: '6px 13px', borderRadius: 99, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.ink}`, background: active === d.key ? TH.ink : 'transparent', color: active === d.key ? TH.bg : TH.ink }}>{d.label}</div>
           ))}
         </div>
-        <form onSubmit={analyze} style={{ display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 220, maxWidth: 520 }}>
+        <form onSubmit={analyze} style={{ display: 'flex', gap: 6, flex: '1 1 260px', minWidth: 220, maxWidth: 620 }}>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Paste an article URL"
             type="url"
+            style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 }}
+          />
+          <input
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+            maxLength={500}
+            placeholder="Optional: your question"
+            aria-label="Optional question about the article"
+            title="Optional: what are you unsure about in this article? We find the sentence and check it too. The article verdict stays the same."
             style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 13 }}
           />
           <button type="submit" style={{ cursor: 'pointer', padding: '6px 12px', border: `1.5px solid ${TH.ink}`, borderRadius: 8, font: 'inherit', fontWeight: 600, fontSize: 13, background: TH.ink, color: TH.bg }}>Analyze</button>
@@ -248,6 +261,8 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
         </div>
       </div>
 
+      {(question || view.focus) && <FocusBar question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
+
       <div style={{ flex: 1, minHeight: 480, display: 'flex', borderTop: `1px solid ${TH.line}` }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <Canvas ref={canvas} ctx={ctx} sel={sel} focus={focus} dd={dd} setDd={setDd} classify={classify} pick={pick} clearFocus={clearFocus} />
@@ -274,6 +289,18 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
           {sn && <Panel ctx={ctx} n={sn} pick={pick} close={closeSel} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// F6: the reader's question and what became of it (the note is built by the backend from the verdicts)
+function FocusBar({ question, note, status }: { question: string; note: string | null; status: 'found' | 'not_in_article' | 'failed' | null }) {
+  const c = status === 'found' ? TH.ink : status ? CL.p : TH.line;
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '0 18px 12px', padding: '9px 16px', border: `2px dashed ${c}`, background: TH.card, borderRadius: TH.rad, flex: 'none', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600, whiteSpace: 'nowrap' }}>Your question</span>
+      <span style={{ fontWeight: 600, fontSize: 14, overflowWrap: 'anywhere' }}>“{question}”</span>
+      <span style={{ flex: '1 1 260px', fontSize: 12.5, color: TH.mut, lineHeight: 1.4 }}>{note ?? 'Finding the sentence your question is about …'}</span>
     </div>
   );
 }

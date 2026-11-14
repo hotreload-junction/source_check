@@ -12,6 +12,7 @@ export interface Ctx {
   cld: (n: TNode) => boolean;
   edgeVerdict: (e: TEdge) => ClaimVerdict | null; // with local reviewer override
   claimVerdict: (n: TNode) => ClaimVerdict; // with local reviewer override
+  nCentral: number;                         // F6: claims that count for the article verdict (not found only via the question)
   overridden: (e: TEdge) => boolean;
   reviewed: (n: TNode) => boolean;
   flagged: Set<string>; // source ids named by the infrastructure signal
@@ -188,11 +189,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const isSel = sel === n.id || (stub && sel === n.fc);
     let badge = '…';
     if (cl) {
-      if (root) badge = `${ctx.supported}/${tree.claims.length}`;
+      if (root) badge = `${ctx.supported}/${ctx.nCentral}`;
       else if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : `${Math.max(1, n.citedBy.length)}×`;
     }
-    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth === 2 ? ' · depth 2' : ''}`;
+    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth === 2 ? ' · depth 2' : ''}`;
     const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
     const glyph = root ? GLY.article : cm ? GLY.claim : stub ? GLY.none : GLY[n.source!.kind] ?? GLY.link;
@@ -213,6 +214,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
           padding: col ? '16px 12px 12px' : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
           display: 'flex', flexDirection: col ? 'column' : 'row', gap: col ? 8 : 12, alignItems: 'center', textAlign: col ? 'center' : 'left',
           boxShadow: isSel ? `0 0 0 4px ${c}66, 0 6px 18px #0002` : TH.sh,
+          outline: cm && n.claim!.focus ? `2.5px dashed ${TH.ink}` : undefined, outlineOffset: 6, // F6: matches the reader's question
           transition: 'opacity .5s, transform .5s, border-color .4s, box-shadow .2s, scale .15s', zIndex: 3,
         }}
       >

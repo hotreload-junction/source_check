@@ -204,6 +204,17 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
         {ctx.reviewed(n) && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>AI verdict: {CLAIM_V[c.verdict].label}. The colour shows your local review.</div>}
         {v === 'not_checkable' && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>Not checkable is neutral: it never counts against the article.</div>}
       </div>
+      {c.focus && (
+        <div style={{ ...box, marginTop: 12, border: `2px dashed ${TH.ink}` }}>
+          <div style={cap}>Your question</div>
+          {ctx.view.focus && <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, overflowWrap: 'anywhere' }}>“{ctx.view.focus.question}”</div>}
+          <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}>
+            {c.central === false
+              ? 'This sentence was checked because of your question. It is not one of the article\'s central claims, so it does not change the article verdict.'
+              : 'This is one of the article\'s central claims, so it already counts for the article verdict.'}
+          </div>
+        </div>
+      )}
       {ev && (
         <Section title="Evidence" right={<span style={{ fontSize: 11.5, color: TH.mut }}>verbatim from {(evSrc ? srcName(evSrc) : ev.source_id)}</span>}>
           <div style={{ ...box, fontSize: 14, lineHeight: 1.55 }}>

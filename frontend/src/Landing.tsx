@@ -5,6 +5,7 @@ import type { DemoCase } from './types';
 
 export function Landing() {
   const [input, setInput] = useState('');
+  const [question, setQuestion] = useState('');
   const [demos, setDemos] = useState<DemoCase[]>([]);
 
   useEffect(() => { api.demo().then(setDemos, () => setDemos([])); }, []);
@@ -12,7 +13,8 @@ export function Landing() {
   const go = (ev: FormEvent) => {
     ev.preventDefault();
     const u = input.trim();
-    if (u) location.hash = `#/trace?url=${encodeURIComponent(u)}`;
+    const q = question.trim();
+    if (u) location.hash = `#/trace?url=${encodeURIComponent(u)}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   };
 
   return (
@@ -44,6 +46,17 @@ export function Landing() {
           <button type="submit" style={{ cursor: 'pointer', padding: '14px 24px', border: `${TH.bw / 2}px solid ${TH.ink}`, borderRadius: 12, font: 'inherit', fontWeight: 700, fontSize: 16, background: TH.ink, color: TH.bg }}>
             Trace sources
           </button>
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            maxLength={500}
+            placeholder="Optional: what are you unsure about? e.g. Is the 40% figure real?"
+            aria-label="Optional question about the article"
+            style={{ flex: '1 1 100%', minWidth: 0, padding: '11px 16px', borderRadius: 12, border: `1.5px solid ${TH.line}`, background: TH.card, font: 'inherit', fontSize: 14 }}
+          />
+          <div style={{ flex: '1 1 100%', fontSize: 12, color: TH.mut, lineHeight: 1.4 }}>
+            Leave it empty to check the whole article. With a question we find the sentence it is about and check it against its sources as well; the article verdict stays the same.
+          </div>
         </form>
 
         {demos.length > 0 && (

@@ -2,6 +2,7 @@
 // Demo buttons load cached results; any other URL replays the Pravda example as a live SSE run.
 import demo from '../../contracts/examples/demo.json';
 import pravda from '../../contracts/examples/analysis_done.json';
+import focusCase from '../../contracts/examples/analysis_focus.json';
 import methodology from '../../contracts/examples/methodology.json';
 import blog from './mocks/blog.json';
 import wire from './mocks/wire.json';
@@ -12,6 +13,7 @@ const JOBS: Record<string, Analysis> = {
   'example-job-1': pravda as unknown as Analysis,
   'example-job-3': wire as unknown as Analysis,
   'example-job-4': blog as unknown as Analysis,
+  'example-job-focus': focusCase as unknown as Analysis, // F6: any URL with a question
 };
 const LIVE = 'mock-live';
 const wait = <T,>(v: T, ms = 150) => new Promise<T>((res) => setTimeout(() => res(v), ms));
@@ -19,7 +21,8 @@ const wait = <T,>(v: T, ms = 150) => new Promise<T>((res) => setTimeout(() => re
 export const mockApi: Api = {
   mock: true,
   demo: () => wait(demo as DemoCase[]),
-  start(url, force = false) {
+  start(url, force = false, question) {
+    if (question) return wait({ job_id: 'example-job-focus', status: 'done' as const, cached: true });
     const d = (demo as DemoCase[]).find((x) => x.url === url);
     return wait(d && !force ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
   },

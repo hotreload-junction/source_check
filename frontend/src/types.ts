@@ -23,6 +23,16 @@ export interface Claim {
   subtype: 'self_citation' | 'social_media' | null;
   evidence: Evidence | null;
   explanation: string;
+  central?: boolean; // F6: false = found only through the reader's question, does not count for the verdict
+  focus?: boolean;   // F6: matches the reader's question (Result.focus)
+}
+
+// F6: optional reader question about one point of the article
+export interface Focus {
+  question: string;
+  status: 'found' | 'not_in_article' | 'failed';
+  claim_ids: string[];
+  note: string;
 }
 
 export interface Source {
@@ -79,6 +89,7 @@ export interface Result {
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
   signals: Signals;
   verdict: { label: ArticleVerdict; summary: string };
+  focus?: Focus | null; // optional: older cached results lack it
   audit: {
     model_extract: string;
     model_verify: string;
@@ -86,6 +97,7 @@ export interface Result {
     fuzzy_threshold: number;
     depth: 1 | 2;
     duration_s: number;
+    focus_prompt_version?: string | null;
   };
 }
 
