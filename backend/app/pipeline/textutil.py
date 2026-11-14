@@ -251,6 +251,25 @@ def syndication_share(article_md: str, claim_text: str, page_text: str, *, sente
     return hits / len(others)
 
 
+COPY_SENTENCE_SCORE = 92.0      # a sentence of the article counts as present in the page at this partial_ratio
+COPY_SAMPLE = 10                # article sentences compared (cost: each is a fuzzy search over the whole page)
+
+
+def looks_like_copy(article_md: str, page_md: str, claim_text: str) -> bool:
+    """True when the page repeats the ARTICLE (a mirror, a syndicated copy): several of the article's other sentences
+    occur in it as well. An independent report shares the one fact with the article, not its wording. Too short an
+    article (fewer than 3 other long sentences) cannot be judged -> False."""
+    claim = normalize_for_match(build_plain(claim_text).text)
+    others = [t for _, _, t in sentence_units(article_md) if len(t) >= 60 and normalize_for_match(t) != claim]
+    if len(others) < 3:
+        return False
+    step = max(len(others) // COPY_SAMPLE, 1)
+    sample = others[::step][:COPY_SAMPLE]
+    page = normalize_for_match(build_plain(page_md).text)
+    hits = sum(1 for t in sample if fuzz.partial_ratio(normalize_for_match(t), page) >= COPY_SENTENCE_SCORE)
+    return hits >= max(2, -(-len(sample) * 2 // 5))      # at least 40% of the sample, never fewer than 2
+
+
 # ---- article body (DECISIONS: extraction scope) --------------------------------------------------------------------
 BODY_MATCH = 90.0          # partial_ratio of a sentence against the extracted main text
 MIN_BODY_CHARS = 150       # less than this is a failed extraction, not a short article: no filter then

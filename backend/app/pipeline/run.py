@@ -28,6 +28,7 @@ from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
+from .copies import find_article_copies
 from .depth2 import expand_sources
 from .extract import ExtractedClaim, extract_claims
 from .textutil import article_body_filter, build_plain
@@ -148,6 +149,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     for d in link_domains:
         rdap_pool.submit(rdap.lookup, d)
 
+    # mirrors of the article on other domains: searched while the claims are verified, joined before the infrastructure step
+    copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
+    copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
+                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
+
     # 3. sources + verify ------------------------------------------------------------------------------------
     progress("fetch_sources", f"Checking the sources of {len(claims)} claims", 25)
     reg = _Registry()
@@ -175,6 +181,15 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     pages = [SourcePage(domain=r["domain"], html=r.get("_html")) for r in reg.rows if r["domain"] and r["id"] not in searched]
     for r in reg.rows:
         r.pop("_html", None)
+    if copies_future is not None:
+        try:
+            copies = copies_future.result(timeout=30)
+        except Exception:      # slow or failed: no mirrors is the neutral answer
+            copies = []
+        pages += [SourcePage(domain=c.domain, html=c.html) for c in copies]
+        if copies:
+            progress("infra_signals", f"Found the same text on {len(copies)} other domains", 86)
+    copies_pool.shutdown(wait=False)
     infra = analyze_infrastructure(article_host, art.html, pages, rdap.lookup)
 
     # 4b. depth 2 (M1, MAX_DEPTH>=2): what the sources themselves cite; a link back to the article = citation circle
@@ -203,7 +218,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     # documented networks (published lists) for the article and every source the article (or a source) cites
     net_reasons = _network_reasons(art.final_url or url, url, reg.rows, infra.domains, searched)
     channel_ids, linked = channel_sourced_claims(claim_dicts, reg.rows)
-    decision = decide([ClaimInput(c["id"], c["verdict"]) for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
+    decision = decide([ClaimInput(c["id"], c["verdict"], c["verdict"] == "supported" and not c["source_ids"] and bool(c.get("found_source_ids")))
+                       for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
                       circle_path(circles), network_reasons=net_reasons,
                       declared_reposts=[d.line for d in declared_reposts(text_md)],
                       channel_claim_ids=channel_ids, linked_claims=linked)

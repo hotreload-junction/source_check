@@ -20,6 +20,7 @@ from ..fetch.urls import is_same_domain, normalize_url, registrable_domain
 
 log = logging.getLogger("citetrace.exa")
 EXA_URL = "https://api.exa.ai/search"
+EXA_SIMILAR_URL = "https://api.exa.ai/findSimilar"
 # One analysis can fire 40+ searches (up to 7 per attributed claim, all claims at once): measured live, that gets HTTP 429.
 # At most this many requests are in flight in the whole process, and a 429 is retried after a pause, never cached.
 EXA_CONCURRENCY = 4
@@ -143,3 +144,40 @@ def _safe_norm(url: str) -> str | None:
         return normalize_url(url)
     except ValueError:
         return None
+
+
+def find_copies(url: str, *, api_key: str, client: httpx.Client | None = None, timeout: float = 25.0, cache=None,
+                limit: int = 10, max_chars: int = 20_000) -> list[dict]:
+    """Pages on OTHER domains that Exa finds similar to `url`, with Exa's own copy of their text: [{"url", "text"}].
+    Used to find mirrors of an article (the same text on a network of sites). Never raises; a failed search is cached briefly."""
+    if not api_key or not url:
+        return []
+    from .. import cache as cachemod
+
+    step_cache = cache if cache is not None else cachemod.get_default()
+    ckey = cachemod.make_key("exa_copies", url)
+    hit = step_cache.get("exa_copies", ckey)
+    if hit is not None:
+        return hit
+    body = {"url": url, "numResults": limit, "excludeDomains": [registrable_domain(url)],
+            "contents": {"text": {"maxCharacters": max_chars}}}
+    for attempt in range(EXA_RETRIES):
+        try:
+            with _exa_slots:
+                r = (client or httpx).post(EXA_SIMILAR_URL, json=body, headers={"x-api-key": api_key}, timeout=timeout)
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("exa findSimilar failed: %s", type(exc).__name__)
+            return []
+        if r.status_code == 429:
+            time.sleep(min(float(r.headers.get("retry-after", 0) or 0) or 1.5 * (attempt + 1), 6.0))
+            continue
+        out: list[dict] = []
+        if r.status_code == 200:
+            try:
+                out = [{"url": it["url"], "text": it.get("text") or ""} for it in (r.json().get("results") or [])
+                       if isinstance(it, dict) and it.get("url")]
+            except ValueError:
+                out = []
+        step_cache.put("exa_copies", ckey, out, None if out else cachemod.FAILURE_TTL_S // 12)
+        return out
+    return []

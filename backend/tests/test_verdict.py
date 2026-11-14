@@ -110,3 +110,14 @@ def test_signals_match_contract_shape():
 
 def test_thresholds_for_methodology():
     assert v.thresholds()["young_domain_days"] == 90 and v.thresholds()["min_bad_claims"] == 2
+
+
+def test_claims_confirmed_only_by_search_cannot_make_an_article_well_sourced():
+    claims = [ClaimInput("c1", "supported", True), ClaimInput("c2", "supported", True), ClaimInput("c3", "supported")]
+    out = decide(claims)["verdict"]
+    assert out["label"] == "weakly_sourced" and "names no source" in out["summary"]
+    half = [ClaimInput("c1", "supported", True), ClaimInput("c2", "supported")]
+    assert decide(half)["verdict"]["label"] == "well_sourced"              # exactly half is not "more than half"
+    unchecked = [ClaimInput("c1", "supported", True), ClaimInput("c2", "not_checkable"), ClaimInput("c3", "not_checkable"), ClaimInput("c4", "supported")]
+    assert decide(unchecked)["verdict"]["label"] == "well_sourced"          # not_checkable claims are not in the share
+    assert "max_search_only_share" in v.thresholds()

@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     # Also LLM-verify Exa candidates that do not look first-hand (other outlets). They can only ever corroborate
     # (never decide), so skipping them saves ~40% of verify calls; turn on for the 'other reporting confirms' note.
     verify_secondary: bool = False
+    # Look for copies of the article on other domains (Exa findSimilar): their infrastructure joins the infrastructure signal
+    find_copies: bool = True
 
     # Demo cache + methodology data (both must work with every external API down)
     demo_dir: str = ""          # default: backend/demo

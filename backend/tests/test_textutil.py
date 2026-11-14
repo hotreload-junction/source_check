@@ -74,3 +74,21 @@ def test_dw_topic_pages_are_navigation_not_citations():
     art = "https://www.dw.com/en/some-story-about-things/a-79947535"
     assert is_navigation_link("https://www.dw.com/en/nato/t-19016346", art)
     assert not is_navigation_link("https://www.dw.com/en/what-have-the-talks-achieved-for-ukraine/a-79930613", art)
+
+
+# ----- copies of the article (mirror network): the page repeats the article's own sentences
+_COPY_ARTICLE = (
+    "The regional council approved the new transport budget after a long debate on Tuesday evening. "
+    "Opposition members criticised the plan for ignoring rural bus lines that serve thousands of commuters. "
+    "The mayor defended the decision and promised a review of the rural timetable within six months. "
+    "Unions announced a protest outside the town hall on Friday morning against the planned cuts."
+)
+
+
+def test_looks_like_copy_detects_a_mirror_but_not_an_independent_report():
+    from app.pipeline.textutil import looks_like_copy
+    mirror = "Mirror site. " + _COPY_ARTICLE + " Subscribe to our channel."
+    independent = "The council voted on transport money this week; opposition politicians were unhappy and unions plan to demonstrate."
+    assert looks_like_copy(_COPY_ARTICLE, mirror, "") is True
+    assert looks_like_copy(_COPY_ARTICLE, independent, "") is False
+    assert looks_like_copy("Too short to judge.", mirror, "") is False

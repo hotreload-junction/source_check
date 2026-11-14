@@ -33,6 +33,8 @@ INSUFFICIENT_RATIO = 0.5      # more than this share of claims not_checkable -> 
 MIN_SIGNALS_FOR_PATTERN = 2   # different signals needed for propaganda_pattern
 MIN_CHANNEL_CLAIMS = 2        # laundering signal: >= this many claims whose only cited links are Telegram/social posts,
 CHANNEL_MAJORITY = 0.5        # ... and they are MORE than this share of the claims that cite any link at all
+MAX_SEARCH_ONLY_SHARE = 0.5   # more than this share of the checkable claims confirmed ONLY by search (the article names no
+                              # source for them) -> not `well_sourced`: other outlets confirm the facts, the article cites nothing
 
 BAD_CLAIM_VERDICTS = frozenset({"distorted", "contradicted", "not_mentioned", "unsourced"})
 
@@ -46,6 +48,7 @@ def thresholds() -> dict[str, float]:
         "min_signals_for_pattern": MIN_SIGNALS_FOR_PATTERN,
         "min_channel_claims": MIN_CHANNEL_CLAIMS,
         "channel_majority": CHANNEL_MAJORITY,
+        "max_search_only_share": MAX_SEARCH_ONLY_SHARE,
     }
 
 
@@ -53,6 +56,7 @@ def thresholds() -> dict[str, float]:
 class ClaimInput:
     id: str
     verdict: str  # contract ClaimVerdict
+    search_only: bool = False  # supported only by pages the search found, the article names no source
 
 
 def evidence_signal(claims: Sequence[ClaimInput]) -> dict:
@@ -145,9 +149,17 @@ def _label(claims: Sequence[ClaimInput], signals: dict) -> dict:
         return {"label": "weakly_sourced",
                 "summary": "Several central claims are unsupported by their sources or unsourced, "
                            "but no sign of coordinated infrastructure was found."}
+    checkable = [c for c in claims if c.verdict != "not_checkable"]
+    search_only = [c for c in checkable if c.search_only]
+    if checkable and len(search_only) / len(checkable) > MAX_SEARCH_ONLY_SHARE:
+        return {"label": "weakly_sourced",
+                "summary": f"{len(search_only)} of {len(checkable)} checkable claims are confirmed by independent reports found by "
+                           "search, but the article itself names no source for them."}
+    note = (f" {len(search_only)} of {len(checkable)} checkable claims are confirmed only by independent reports found by search: "
+            "the article names no source for them.") if search_only else ""
     if fired:
         return {"label": "well_sourced",
                 "summary": f"One warning signal fired ({_NAMES[fired[0]]}), but a single signal is not enough for a "
-                           "propaganda pattern; the checkable claims hold up."}
+                           "propaganda pattern; the checkable claims hold up." + note}
     return {"label": "well_sourced",
-            "summary": "No two independent warning signals fired; the checkable claims hold up."}
+            "summary": "No two independent warning signals fired; the checkable claims hold up." + note}
