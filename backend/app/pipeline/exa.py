@@ -19,8 +19,12 @@ class NamedSourceHit:
 
 
 def resolve_named_source(attribution: str, claim_text: str, *, api_key: str,
-                         client: httpx.Client | None = None, timeout: float = 20.0) -> NamedSourceHit | None:
-    """Best Exa match for an attribution in the context of its claim, or None (never raises)."""
+                         client: httpx.Client | None = None, timeout: float = 20.0,
+                         exclude_domain: str | None = None) -> NamedSourceHit | None:
+    """Best Exa match for an attribution in the context of its claim, or None (never raises).
+
+    `exclude_domain`: skip results from the article's own domain (that would be a self-citation, not a source).
+    """
     if not api_key or not attribution.strip():
         return None
     query = f"{attribution.strip()} {claim_text.strip()}"[:350]
@@ -34,7 +38,9 @@ def resolve_named_source(attribution: str, claim_text: str, *, api_key: str,
     except (httpx.HTTPError, ValueError) as exc:
         log.warning("exa failed: %s", type(exc).__name__)
         return None
+    from ..fetch.urls import is_same_domain
+
     for item in results:
-        if item.get("url"):
+        if item.get("url") and not (exclude_domain and is_same_domain(item["url"], exclude_domain)):
             return NamedSourceHit(item["url"], item.get("title"), item.get("publishedDate"), attribution)
     return None
