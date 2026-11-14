@@ -48,7 +48,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 | B4 | verify (strong LLM): verbatim quote original + translation + verdict; rapidfuzz check vs source text, downgrade on miss | leo-be | done | store `PROMPT_VERSION`, model, score |
 | B5 | infra signals: GA/GTM/AdSense IDs via regex on raw HTML, RDAP domain age, operator clusters | leo-bg | done | `backend/app/signals/` |
 | B6 | `backend/app/verdict.py`: two-signal rule + unit tests for every row of the table | leo-bg | done | thresholds as named constants, one place |
-| B7 | CLI `python -m app.cli <url>` -> JSON per contract; run on the 3 demo cases | leo-be | doing | **checkpoint Sat 12:00** |
+| B7 | CLI `python -m app.cli <url>` -> JSON per contract; run on the 3 demo cases | leo-be | done | **checkpoint Sat 12:00** |
 
 ### Backend: API (checkpoint Sat 18:00)
 | id | task | owner | status | notes |

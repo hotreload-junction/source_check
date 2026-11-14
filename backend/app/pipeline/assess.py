@@ -109,7 +109,8 @@ class _FetchCache:
 
 def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fetcher, llm: LLMClient,
                   settings: Settings | None = None, exa_client: httpx.Client | None = None,
-                  max_workers: int | None = None, published_at: datetime | None = None) -> list[ClaimAssessment]:
+                  max_workers: int | None = None, published_at: datetime | None = None,
+                  on_claim: Callable[[int, "ClaimAssessment"], None] | None = None) -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
     deadline = time.monotonic() + s.claim_deadline_s
@@ -118,7 +119,7 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
     futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
                            published_at=published_at) for c in claims]
     results: list[ClaimAssessment] = []
-    for claim, fut in zip(claims, futures):
+    for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
             results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
         except FutureTimeout:
@@ -127,6 +128,8 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
             fut.cancel()
             results.append(ClaimAssessment(claim, "not_checkable", None,
                                            "Checking the sources took too long, so this claim was left unverified."))
+        if on_claim:    # called in claim order from this thread: the SSE stream can show each claim as it is final
+            on_claim(i, results[-1])
     pool.shutdown(wait=False)      # stragglers finish in the background and are ignored
     cache.join_html(timeout=max(min(deadline - time.monotonic(), 10.0), 1.0))
     return results
@@ -136,7 +139,8 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
                  settings: Settings, exa_client: httpx.Client | None = None,
                  published_at: datetime | None = None) -> ClaimAssessment:
     if claim.links:
-        sources = [_assess_source(claim, l.url, None, article_url, cache, llm, settings)
+        sources = [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
+                                  loose_link=(l.scope == "paragraph"))
                    for l in claim.links[:MAX_SOURCES_PER_CLAIM]]
         return _aggregate(claim, sources)
     if not claim.attributions:
@@ -197,7 +201,8 @@ def _candidates(attribution, claim, article_url, llm, settings, exa_client, publ
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
-                   llm: LLMClient, settings: Settings, published_at: datetime | None = None) -> SourceAssessment:
+                   llm: LLMClient, settings: Settings, published_at: datetime | None = None,
+                   loose_link: bool = False) -> SourceAssessment:
     fetch = cache.get(url)
     kind = "named" if attribution else fetch.kind
     if fetch.status != "ok":
@@ -219,6 +224,13 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
         note = ("Other reporting confirms the statement, but the original source (official statement, transcript "
                 "or full interview) could not be found." if corroborated else
                 "Only secondary reporting was found, not the original source.")
+    elif loose_link and verdict != "supported":
+        # The link sits in the claim's PARAGRAPH, not its sentence (DECISIONS Q18 allows both). Live example: one link
+        # at the end of a paragraph belonged to the last sentence, and the two sentences before it were judged
+        # "not_mentioned" against it. A loosely attached link can confirm a claim, never count against it.
+        verdict = "not_checkable"
+        note = ("The article links this page elsewhere in the same paragraph, not for this exact sentence, and it does "
+                "not confirm the claim; this is not held against the article.")
     elif kind == "named" and verdict != "supported":
         # An Exa match is a GUESS at the document the article refers to. Live example: a ministry briefing from
         # BEFORE a trip was "distorted" against a report written after it. Only a match that confirms the claim

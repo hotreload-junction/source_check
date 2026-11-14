@@ -319,3 +319,11 @@ def test_sources_do_not_retry_5xx_but_articles_still_do():
     assert len(cd) == 1                                                  # one try, then the direct GET
     cd.clear()
     assert f.fetch_article(ART).via == "context_dev" and len(cd) == 3   # 503, 503, 200
+
+
+def test_text_cut_off_at_a_continuation_marker_is_paywall_not_ok():
+    body = "<html><body><article><p>" + ("The company said profits rose strongly in the third quarter. " * 20) + "</p><p>Story Continues</p></article></body></html>"
+    r = make(lambda req: httpx.Response(200, text=body, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART)
+    assert r.status == "paywall" and "cut off" in r.error
+    full = body.replace("Story Continues", "The outlook remains positive.")
+    assert make(lambda req: httpx.Response(200, text=full, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART).status == "ok"

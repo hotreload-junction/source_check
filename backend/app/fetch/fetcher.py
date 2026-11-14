@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from .meta import parse_published
 from .urls import classify_url
 
 log = logging.getLogger("citetrace.fetch")
@@ -80,6 +81,7 @@ class FetchResult:
     final_url: str | None = None
     subtype: str | None = None     # self_citation | social_media (claim subtype)
     error: str | None = None
+    published_at: str | None = None  # ISO 8601 UTC, from the page's meta tags / JSON-LD
     extra: dict = field(default_factory=dict)
 
 
@@ -119,6 +121,7 @@ class Fetcher:
                 res.html = html_future.result()
         if res.html is None and self.key:  # blocked for direct GET: one full-page Context.dev call
             res.html = self._context_full_html(url, self.article_wait_s)
+        res.published_at = parse_published(res.html)
         return res
 
     def fetch_source(self, url: str, article_url: str, *, with_html: bool = True) -> FetchResult:
@@ -314,6 +317,17 @@ def _status_for_http(code: int) -> str:
     return "unreachable"  # 404/410/5xx/timeouts: dead link, neutral
 
 
+# A page that stops with one of these was cut off (live: Yahoo Finance ends at "Story Continues"). Whatever the
+# article says after the cut is unknown, so absence of a claim proves nothing.
+CUTOFF_MARKERS = ("story continues", "continue reading", "continue with the full", "read the full story", "read more on",
+                  "to read the full", "sign in to continue", "subscribe to continue", "view the full article")
+
+
+def ends_cut_off(text: str) -> bool:
+    tail = text[-400:].lower()
+    return any(m in tail for m in CUTOFF_MARKERS)
+
+
 def _finish(url: str, kind: str, text: str, via: str, *, html: str | None, title: str | None,
             final_url: str | None) -> FetchResult:
     text = (text or "").strip()
@@ -322,6 +336,9 @@ def _finish(url: str, kind: str, text: str, via: str, *, html: str | None, title
         status = "paywall" if any(p in low for p in PAYWALL_MARKERS) else "blocked"
         return FetchResult(url, kind, status, via=via, text=text or None, html=html, title=title,
                            final_url=final_url, error=f"extracted text too short ({len(text)} chars)")
+    if ends_cut_off(text):
+        return FetchResult(url, kind, "paywall", via=via, text=text, html=html, title=title, final_url=final_url,
+                           error="text ends with a continuation marker (page is cut off)")
     if any(p in low for p in PAYWALL_MARKERS) and len(text) < 1500:
         return FetchResult(url, kind, "paywall", via=via, text=text, html=html, title=title,
                            final_url=final_url, error="paywall marker on short text")

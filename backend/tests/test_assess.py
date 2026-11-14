@@ -315,3 +315,18 @@ def test_slow_html_fetch_does_not_block_the_result():
     quick = Settings(_env_file=None, model_verify="vm", prompt_version="vT", claim_deadline_s=1.5)
     (a,) = assess_claims([claim(1, ["https://src.test/a"])], ART, fetcher=f, llm=make_llm(), settings=quick)
     assert time.time() - t < 3.5 and a.verdict == "supported" and a.best.fetch.html is None   # skipped, neutral
+
+
+def test_paragraph_scope_link_can_confirm_but_never_count_against():
+    from app.pipeline.textutil import LinkRef
+    url = "https://src.test/x"
+
+    def loose_claim(i):
+        return ExtractedClaim(f"c{i}", f"Claim number {i} text.", 0, 10, [LinkRef(url, "a", "paragraph")], [])
+    for verdict in ("not_mentioned", "distorted", "contradicted"):
+        (a,), _ = run([loose_claim(1)], {url: page(url)}, llm=make_llm(verdict, QUOTE if verdict != "not_mentioned" else ""))
+        assert a.verdict == "not_checkable" and "not held against" in a.explanation, verdict
+    (a,), _ = run([loose_claim(1)], {url: page(url)}, llm=make_llm("supported", QUOTE))
+    assert a.verdict == "supported"
+    (a,), _ = run([claim(1, [url])], {url: page(url)}, llm=make_llm("not_mentioned", ""))   # sentence-scope: still counts
+    assert a.verdict == "not_mentioned"
