@@ -11,13 +11,15 @@
     "label": "Wire service (Reuters/AP)",
     "url": "https://wire.example.com/world/2026-11-13",
     "job_id": "example-job-3",
-    "expected_verdict": "well_sourced"
+    "expected_verdict": "well_sourced",
+    "question": "unemployment fell by 40%"
   },
   {
     "key": "blog",
     "label": "Sloppy blog, dead links",
     "url": "https://someblog.example.io/post",
     "job_id": "example-job-4",
-    "expected_verdict": "weakly_sourced"
+    "expected_verdict": "weakly_sourced",
+    "question": "this supplement cures colds"
   }
 ]

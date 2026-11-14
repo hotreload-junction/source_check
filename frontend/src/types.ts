@@ -128,7 +128,7 @@ export interface Analysis {
   result: Result | null;
 }
 
-export interface DemoCase { key: string; label: string; url: string; job_id: string; expected_verdict: ArticleVerdict }
+export interface DemoCase { key: string; label: string; url: string; job_id: string; expected_verdict: ArticleVerdict; question?: string }
 
 export interface StartResponse { job_id: string; status: Analysis['status']; cached: boolean }
 

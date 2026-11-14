@@ -1,28 +1,82 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api } from './api';
-import { Logo } from './Logo';
-import { CL, GLY, MONO, TH } from './theme';
+import { CL, MONO, TH } from './theme';
 import type { DemoCase } from './types';
 
 const BAR = `linear-gradient(to bottom, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
 const STEPS = ['Paste an article URL', 'Every source is traced to bedrock', 'Read a score for each link'];
+const URL_RE = /(?:https?:\/\/|www\.)[^\s]+/gi;
+const GLOBE = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18';
 
-function hostOf(url: string): string | null {
-  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
+function hostOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
+/** Pulls links out of `raw`: the first becomes the article link (unless `current` is set), later ones are dropped. */
+function absorb(raw: string, current: string | null) {
+  let url = current;
+  let extra = false;
+  const rest = raw.replace(URL_RE, (m) => {
+    const clean = m.replace(/[),.;!?]+$/, '');
+    const href = /^www\./i.test(clean) ? `https://${clean}` : clean;
+    try { new URL(href); } catch { return m; }
+    if (url) extra = true; else url = href;
+    return ' ';
+  }).replace(/\s+/g, ' ').trimStart();
+  return { url, rest, extra };
+}
+
+// Square article chip: dark globe icon + text. Used for the pasted link and in the examples.
+function Chip({ label, title, onRemove }: { label: string; title?: string; onRemove?: () => void }) {
+  return (
+    <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', borderRadius: 12, background: '#f1f1f0', border: `1px solid ${TH.line}`, fontWeight: 500, maxWidth: '100%' }}>
+      <span style={{ flex: 'none', width: 28, height: 28, borderRadius: 8, background: TH.ink, display: 'grid', placeItems: 'center' }}>
+        <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'none', stroke: '#fff', strokeWidth: 1.6, strokeLinecap: 'round' }}><path d={GLOBE} /></svg>
+      </span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      {onRemove && (
+        <button type="button" onClick={onRemove} aria-label="Remove link" style={{ cursor: 'pointer', border: 'none', background: 'transparent', color: TH.mut, font: 'inherit', fontSize: 18, lineHeight: 1, padding: '0 0 0 2px' }}>×</button>
+      )}
+    </span>
+  );
 }
 
 export function Landing() {
-  const [input, setInput] = useState('');
-  const [question, setQuestion] = useState('');
+  const [url, setUrl] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [note, setNote] = useState('');
   const [demos, setDemos] = useState<DemoCase[]>([]);
 
   useEffect(() => { api.demo().then(setDemos, () => setDemos([])); }, []);
 
+  const take = (raw: string) => {
+    const r = absorb(raw, url);
+    setUrl(r.url);
+    setText(r.rest);
+    setNote(r.extra ? 'One link per check. The extra link was removed.' : '');
+  };
+
+  // Typing a link only turns into a chip on space; pasting does it at once.
+  const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted.search(URL_RE) === -1) return;
+    e.preventDefault();
+    const s = e.currentTarget.selectionStart ?? text.length;
+    const en = e.currentTarget.selectionEnd ?? s;
+    take(text.slice(0, s) + pasted + text.slice(en));
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !text && url) { setUrl(null); setNote(''); }
+    else if (e.key === ' ' && text.search(URL_RE) !== -1) { e.preventDefault(); take(`${text} `); }
+  };
+
+  const ready = absorb(text, url).url !== null;
+
   const go = (ev: FormEvent) => {
     ev.preventDefault();
-    const u = input.trim();
-    const q = question.trim();
-    if (u) location.hash = `#/trace?url=${encodeURIComponent(u)}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+    const r = absorb(text, url);
+    const q = r.rest.trim();
+    if (r.url) location.hash = `#/trace?url=${encodeURIComponent(r.url)}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   };
 
   return (
@@ -46,40 +100,39 @@ export function Landing() {
 
           <form onSubmit={go} style={{ maxWidth: 740 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: 22 }}>
-              <input
-                autoFocus
-                required
-                type="url"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="A link to an article"
-                aria-label="Article URL"
-                style={{ flex: 1, minWidth: 0, padding: '14px 14px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 20 }}
-              />
-              <button type="submit" style={{ cursor: 'pointer', padding: '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: 18, background: TH.ink, color: '#fff' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 8 }}>
+                {url && <Chip label={hostOf(url)} title={url} onRemove={() => { setUrl(null); setNote(''); }} />}
+                <input
+                  autoFocus
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onPaste={onPaste}
+                  onKeyDown={onKeyDown}
+                  maxLength={500}
+                  placeholder={url ? 'Add a question or the quote you want checked (optional)' : 'Paste an article link'}
+                  aria-label={url ? 'Optional question or quote about the article' : 'Article link'}
+                  style={{ flex: '1 1 200px', minWidth: 0, padding: '12px 6px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: 20 }}
+                />
+              </div>
+              <button type="submit" disabled={!ready} style={{ cursor: ready ? 'pointer' : 'not-allowed', alignSelf: 'flex-end', padding: '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: 18, background: ready ? TH.ink : '#d8d8dc', color: ready ? '#fff' : '#9a9aa2' }}>
                 Check
               </button>
             </div>
-            <input
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              maxLength={500}
-              placeholder="Optional: what are you unsure about? e.g. Is the 40% figure real?"
-              aria-label="Optional question about the article"
-              title="Leave empty to check the whole article. With a question we also check the sentence it is about; the article verdict stays the same."
-              style={{ width: '100%', marginTop: 10, padding: '11px 16px', borderRadius: 14, border: `1.5px solid ${TH.line}`, background: 'transparent', font: 'inherit', fontSize: 14 }}
-            />
+            {note && <div role="status" style={{ marginTop: 8, fontSize: 13, color: CL.o }}>{note}</div>}
           </form>
 
           {demos.length > 0 && (
-            <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, color: TH.mut }}>Try</span>
-              {demos.map((d) => (
-                <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: TH.ink, padding: '8px 16px 8px 12px', borderRadius: 99, fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', border: `1.5px solid ${TH.line}`, background: TH.card }}>
-                  <Logo domain={hostOf(d.url)} glyph={GLY.link} color={TH.mut} size={16} />
-                  {d.label}
-                </a>
-              ))}
+            <div style={{ marginTop: 30 }}>
+              <div style={{ fontSize: 15, color: TH.mut, marginBottom: 10 }}>Try asking</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+                {demos.map((d) => (
+                  <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 10px', maxWidth: '100%', textDecoration: 'none', color: TH.ink, padding: '14px 22px', borderRadius: 22, fontSize: 18, border: `1px solid ${TH.line}`, background: TH.card }}>
+                    {d.question ? `Is it true that ${d.question}, as stated in` : 'Is it true what'}
+                    <Chip label={d.label} />
+                    {d.question ? '?' : 'says?'}
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>

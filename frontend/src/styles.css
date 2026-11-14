@@ -7,3 +7,4 @@ a:hover { color: #6b6b70; }
 @keyframes stPulse { 0%, 100% { stroke-opacity: .2; } 50% { stroke-opacity: .75; } }
 a[href], button, [style*="cursor: pointer"] { transition: scale .15s ease; }
 a[href]:hover, button:hover, [style*="cursor: pointer"]:hover { scale: 1.05; }
+button:disabled:hover { scale: 1; }

@@ -12,7 +12,7 @@ All JSON is UTF-8, snake_case, timestamps ISO 8601 UTC. Base path `/api`.
 | POST | `/api/analyses` | start (or reuse cached) analysis. Body `{"url": "...", "force": false}` |
 | GET | `/api/analyses/{job_id}` | job status + result when done (`Analysis`) |
 | GET | `/api/analyses/{job_id}/events` | Server-Sent Events stream of progress (below) |
-| GET | `/api/demo` | the 3 demo cases: `[{"key","label","url","job_id","expected_verdict"}]` |
+| GET | `/api/demo` | the 3 demo cases: `[{"key","label","url","job_id","expected_verdict","question"?}]` (`question` optional: display text for the landing example row) |
 | GET | `/api/methodology` | `Methodology` (from `eval/results/metrics.json`) |
 
 ### POST /api/analyses
