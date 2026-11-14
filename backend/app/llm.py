@@ -91,6 +91,9 @@ class LLMClient:
                 content = payload["choices"][0]["message"]["content"] or ""
             except (ValueError, KeyError, IndexError, TypeError) as exc:
                 raise LLMError(f"unexpected router response: {exc}") from exc
+            if not content.strip():   # observed live: sporadic empty completions -> retry
+                last = "empty completion"
+                continue
             usage = payload.get("usage") or {}
             return LLMResult(
                 data=parse_json_loose(content), model=payload.get("model", model),

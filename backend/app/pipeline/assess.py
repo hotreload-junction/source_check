@@ -25,7 +25,7 @@ from ..llm import LLMClient, LLMError
 from ..models import ClaimVerdictRecord
 from datetime import datetime
 
-from .exa import find_candidates
+from .exa import find_candidates, suggest_official_domains
 from .extract import ExtractedClaim
 from .verify import VerifyResult, verify_claim
 
@@ -109,8 +109,7 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
 
     sources: list[SourceAssessment] = []
     for attribution in claim.attributions[:MAX_ATTRIBUTIONS]:
-        for hit in find_candidates(attribution, claim.text, api_key=settings.exa_api_key, client=exa_client,
-                                   exclude_url=article_url, around=published_at):
+        for hit in _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at):
             if len(sources) >= MAX_NAMED_VERIFY:
                 break
             sa = _assess_source(claim, hit.url, attribution, article_url, cache, llm, settings)
@@ -122,6 +121,16 @@ def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache,
         return ClaimAssessment(claim, "not_checkable", None,
                                f"The claim is attributed to {names}, but no original source could be located.")
     return _aggregate(claim, sources)
+
+
+def _candidates(attribution, claim, article_url, llm, settings, exa_client, published_at):
+    """Official-site hits first (model-suggested domains), then the general ranked search; deduplicated."""
+    kw = dict(api_key=settings.exa_api_key, client=exa_client, exclude_url=article_url, around=published_at)
+    domains = suggest_official_domains(attribution, claim.text, llm=llm, model=settings.model_extract)
+    hits = find_candidates(attribution, claim.text, include_domains=domains, **kw) if domains else []
+    seen = {h.url for h in hits}
+    hits += [h for h in find_candidates(attribution, claim.text, **kw) if h.url not in seen]
+    return hits
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v2"
+    prompt_version: str = "v3"
 
     # Scraping / search
     context_dev_api_key: str = ""

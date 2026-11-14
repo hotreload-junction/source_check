@@ -8,7 +8,7 @@ from app.config import Settings
 from app.llm import LLMClient, LLMError, parse_json_loose
 from datetime import datetime
 
-from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source
+from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source, suggest_official_domains
 from app.pipeline.extract import extract_claims
 
 FX = Path(__file__).parent / "fixtures" / "extract"
@@ -134,3 +134,33 @@ def test_candidates_date_window_and_limit():
     seen.clear()
     find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen))
     assert "startPublishedDate" not in seen[0]
+
+
+def test_official_domains_restrict_search_with_short_query_and_rank_first():
+    seen = []
+    hits = find_candidates("The World Bank", "x" * 400, api_key="k", client=_exa(["https://www.worldbank.org/a"], seen),
+                           include_domains=["worldbank.org"])
+    assert seen[0]["includeDomains"] == ["worldbank.org"] and len(seen[0]["query"]) <= 160
+    assert hits[0].primary_hint == 3
+
+
+def test_suggest_official_domains_cleans_and_never_raises():
+    def llm_with(content):
+        return llm_returning(content)
+    cases = {json.dumps({"domains": ["https://www.WorldBank.org/en/home", "documents.worldbank.org", "not a domain", "worldbank.org"]}):
+             ["worldbank.org", "documents.worldbank.org"],
+             json.dumps({"domains": []}): [], json.dumps({"domains": "oops"}): [], json.dumps({"other": 1}): []}
+    for content, want in cases.items():
+        assert suggest_official_domains("The World Bank", "claim", llm=llm_with(content), model="m") == want
+    assert suggest_official_domains("X", "c", llm=llm_returning("x", status=500), model="m") == []
+
+
+def test_llm_empty_completion_is_retried():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        content = "" if len(calls) == 1 else json.dumps({"claims": []})
+        return httpx.Response(200, json={"model": "m", "choices": [{"message": {"content": content}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=2, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert llm.chat_json("m", "s", "u").data == {"claims": []} and len(calls) == 2

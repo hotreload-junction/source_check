@@ -27,10 +27,10 @@ SYSTEM_PROMPT = """You check whether a SOURCE text supports a CLAIM taken from a
 First find the passage in the SOURCE that is most relevant to the claim and copy it VERBATIM (character for character, in the source's own language, at most 3 sentences). Only then give the verdict.
 
 Verdicts:
-- "supported": the source itself states what the claim says (same facts, numbers, attribution, scope).
-- "distorted": the source covers the same matter but the claim changes its meaning: different numbers, wrong speaker, stronger or weaker wording, dropped qualifiers or context, an opinion presented as fact.
+- "supported": the source states the CORE assertion of the claim (same event, figure, speaker and meaning). Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them.
+- "distorted": the source covers the same matter, but something it states CONFLICTS with the claim or changes its meaning: a different number, date or name, the wrong speaker, a stronger or weaker wording ("may" turned into "will"), a dropped qualifier that changes the sense, an opinion presented as fact. A detail that is merely missing from the source is NOT distortion.
 - "contradicted": the source says the opposite of the claim.
-- "not_mentioned": the source does not address the claim at all. Use an empty quote.
+- "not_mentioned": the core assertion is not in the source (also when the source only touches a loosely related topic). Use an empty quote.
 
 Rules:
 - Never invent or "clean up" the quote. If you cannot copy a passage that exists in the SOURCE, use "not_mentioned" with an empty quote.
