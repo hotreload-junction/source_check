@@ -4,7 +4,6 @@ import { CL, MONO, TH } from './theme';
 import type { DemoCase } from './types';
 
 const BAR = `linear-gradient(to bottom, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
-const STEPS = ['Paste an article URL', 'Every source is traced to bedrock', 'Read a score for each link'];
 const URL_RE = /(?:https?:\/\/|www\.)[^\s]+/gi;
 const GLOBE = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18';
 
@@ -135,15 +134,6 @@ export function Landing() {
               </div>
             </div>
           )}
-        </div>
-
-        <div style={{ display: 'flex', gap: '12px 40px', flexWrap: 'wrap', paddingTop: 22, borderTop: `1px solid ${TH.line}`, fontSize: 16, color: TH.mut }}>
-          {STEPS.map((s, i) => (
-            <span key={s}>
-              <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 13, color: TH.ink, marginRight: 8 }}>{`0${i + 1}`}</span>
-              {s}
-            </span>
-          ))}
         </div>
       </div>
     </div>
