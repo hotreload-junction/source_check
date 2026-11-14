@@ -9,6 +9,9 @@ from __future__ import annotations
 import html as htmllib
 import logging
 import re
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
 
 import httpx
@@ -25,6 +28,43 @@ PAYWALL_MARKERS = (
     "subscribe to read", "subscribe to continue", "subscription required", "sign in to read",
     "become a member to", "register to continue", "for subscribers only", "already a subscriber",
 )
+
+
+class RateLimiter:
+    """Sliding-window limiter shared by all fetches (Context.dev key: 10 requests/min, measured live).
+
+    `acquire(max_wait)` returns False instead of blocking beyond `max_wait` seconds, so callers can fall
+    back to trafilatura rather than stall a live demo.
+    """
+
+    def __init__(self, per_minute: int = 10, clock=time.monotonic, sleep=time.sleep):
+        self.per_minute = per_minute
+        self._clock, self._sleep = clock, sleep
+        self._hits: deque[float] = deque()
+        self._blocked_until = 0.0
+        self._lock = threading.Lock()
+
+    def penalize(self, seconds: float) -> None:
+        """Server said 429 with Retry-After: stop sending until then."""
+        with self._lock:
+            self._blocked_until = max(self._blocked_until, self._clock() + seconds)
+
+    def acquire(self, max_wait: float = 0.0) -> bool:
+        deadline = self._clock() + max_wait
+        while True:
+            with self._lock:
+                now = self._clock()
+                while self._hits and now - self._hits[0] >= 60:
+                    self._hits.popleft()
+                wait = max(self._blocked_until - now, 0.0)
+                if not wait and len(self._hits) < self.per_minute:
+                    self._hits.append(now)
+                    return True
+                if not wait:
+                    wait = 60 - (now - self._hits[0])
+            if self._clock() + wait > deadline:
+                return False
+            self._sleep(min(wait, 1.0))
 
 
 @dataclass
@@ -44,17 +84,30 @@ class FetchResult:
 
 class Fetcher:
     def __init__(self, *, context_dev_key: str = "", timeout: float = 20.0,
-                 client: httpx.Client | None = None):
+                 client: httpx.Client | None = None, retries: int = 2, backoff_s: float = 1.0,
+                 limiter: RateLimiter | None = None, article_wait_s: float = 45.0):
         self.key = context_dev_key
         self.timeout = timeout
+        self.retries = retries
+        self.backoff_s = backoff_s
+        self.limiter = limiter or RateLimiter()
+        self.article_wait_s = article_wait_s
         self.client = client or httpx.Client(
             timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}
         )
 
+    @classmethod
+    def from_settings(cls, settings=None) -> "Fetcher":
+        from ..config import get_settings
+
+        s = settings or get_settings()
+        return cls(context_dev_key=s.context_dev_api_key, timeout=s.fetch_timeout_s,
+                   limiter=RateLimiter(s.context_dev_rpm))
+
     # ------------------------------------------------------------------ public
     def fetch_article(self, url: str) -> FetchResult:
         """The analysed article itself: always fetched, raw HTML kept for infra signals."""
-        res = self._fetch_web(url, kind="link")
+        res = self._fetch_web(url, kind="link", wait=self.article_wait_s)
         if res.html is None and res.status == "ok":
             res.html = self._raw_html(url)
         return res
@@ -70,29 +123,51 @@ class Fetcher:
         return self._fetch_web(url, kind="link")
 
     # --------------------------------------------------------------- web pages
-    def _fetch_web(self, url: str, kind: str) -> FetchResult:
+    def _fetch_web(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
         if self.key:
-            res = self._context_dev(url, kind)
+            res = self._context_dev(url, kind, wait)
             if res.status == "ok":
                 return res
-            log.info("context.dev failed for %s (%s), falling back", url, res.error)
+            log.warning("context.dev failed for %s (%s), falling back", url, res.error)
+            fallback = self._trafilatura(url, kind)
+            fallback.extra["context_dev_error"] = res.error
+            return fallback
         return self._trafilatura(url, kind)
 
-    def _context_dev(self, url: str, kind: str) -> FetchResult:
+    def _context_dev(self, url: str, kind: str, wait: float = 0.0) -> FetchResult:
         body = {
             "url": url,
             "formats": {"markdown": True, "html": True},
             "markdownParams": {"includeLinks": True, "includeImages": False},
             "sharedParams": {"mainContentOnly": True},
-            "timeout": {"milliseconds": int(self.timeout * 1000), "behavior": "fail"},
         }
-        try:
-            r = self.client.post(
-                CONTEXT_DEV_URL, json=body, headers={"Authorization": f"Bearer {self.key}"},
-                timeout=self.timeout + 5,
-            )
-        except httpx.HTTPError as exc:
-            return FetchResult(url, kind, "unreachable", error=f"context_dev: {type(exc).__name__}")
+        r: httpx.Response | None = None
+        err = ""
+        for attempt in range(self.retries + 1):
+            if attempt:
+                time.sleep(self.backoff_s * attempt)
+            if not self.limiter.acquire(wait):
+                return FetchResult(url, kind, "unreachable", error="context_dev: local rate limit")
+            try:
+                r = self.client.post(
+                    CONTEXT_DEV_URL, json=body, headers={"Authorization": f"Bearer {self.key}"},
+                    timeout=self.timeout + 5,
+                )
+            except httpx.HTTPError as exc:
+                r, err = None, f"context_dev: {type(exc).__name__}"
+                continue
+            if r.status_code == 429:  # rate limited: no retry, caller falls back; pause everyone
+                try:
+                    self.limiter.penalize(float(r.headers.get("retry-after", 60)))
+                except ValueError:
+                    self.limiter.penalize(60)
+                return FetchResult(url, kind, "blocked", error="context_dev http 429")
+            if r.status_code in (500, 502, 503, 504, 408):  # transient: retry
+                err = f"context_dev http {r.status_code}"
+                continue
+            break
+        if r is None:
+            return FetchResult(url, kind, "unreachable", error=err)
         if r.status_code != 200:
             return FetchResult(url, kind, _status_for_http(r.status_code), error=f"context_dev http {r.status_code}")
         try:
