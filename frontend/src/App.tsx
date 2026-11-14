@@ -187,14 +187,14 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
     return () => window.removeEventListener('keydown', k);
   }, [dd, sel, focus, fitSoon]);
 
-  const nC = ctx.nCentral, nS = tree.nodes.filter((n) => n.kind === 'source').length;
+  const nC = ctx.nCentral;
   let status: string;
   if (error) status = error;
   else if (!view.done) status = progress ? `${progress.message} (${progress.pct}%)` : url ? 'Starting analysis …' : 'Loading …';
   else if (rev === 0) status = 'Reading the document …';
   else if (rev <= nC) status = `Extracting claim ${rev} of ${nC} …`;
   else if (!done) { const cur = tree.nodes.find((n) => n.ord === rev); status = cur?.source ? `Checking source: ${srcName(cur.source)} …` : 'Checking sources …'; }
-  else status = `${nC} claims and ${nS} sources traced to the origin.`;
+  else status = '';
 
   const av = view.verdict ? ARTICLE_V[view.verdict.label] : null;
   const sn = sel ? tree.by[sel] ?? null : null;
