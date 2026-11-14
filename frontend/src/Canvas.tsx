@@ -274,7 +274,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
           display: 'flex', flexDirection: col ? 'column' : 'row', gap: col ? 8 : 12, alignItems: 'center', textAlign: col ? 'center' : 'left',
           boxShadow: isSel ? `0 0 0 4px ${c}66, 0 6px 18px #0002` : TH.sh,
           outline: cm && n.claim!.focus ? `2.5px dashed ${TH.ink}` : undefined, outlineOffset: 6, // F6: matches the reader's question
-          transition: 'opacity .5s, transform .5s, border-color .4s, box-shadow .2s, scale .15s', zIndex: 3,
+          transition: 'opacity .5s, transform .5s, border-color .4s, box-shadow .2s', zIndex: 3,
+          scale: 'none', // opt out of the global hover scale: grown cards would overlap their neighbours
         }}
       >
         {!load ? (
@@ -389,7 +390,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: cl ? TH.card : skg, backgroundSize: '400px 100%',
                   animation: cl ? 'none' : 'stShimmer 1.3s linear infinite', minWidth: cl ? 0 : 46, border: `2px solid ${c}`, borderRadius: 99,
                   padding: compact ? '5px 10px 5px 12px' : '1px 7px 1px 9px', fontFamily: MONO, fontSize: compact ? 12.5 : 11.5, fontWeight: 700, color: cl ? TH.ink : 'transparent', whiteSpace: 'nowrap',
-                  transition: 'border-color .4s, scale .15s', boxShadow: open ? `0 0 0 3px ${c}55` : 'none',
+                  transition: 'border-color .4s', boxShadow: open ? `0 0 0 3px ${c}55` : 'none',
+                  scale: 'none', // opt out of the global hover scale: grown pills would overlap their neighbours
                 }}
               >
                 {cl ? edgeLabel(ctx, e) : '…'}
