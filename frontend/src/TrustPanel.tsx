@@ -11,13 +11,24 @@ const SKELETON: CSSProperties = { background: `linear-gradient(90deg, ${TH.ink}1
 const hex = (a: number) => Math.round(a * 255).toString(16).padStart(2, '0');
 const WORD = (s: number) => (s >= 0.67 ? 'strong' : s >= 0.34 ? 'moderate' : 'weak');
 
-/** One cell: the whole column carries a light tint, the argument's strength deepens it. */
-function Td({ c, cell }: { c: string; cell: Cell }) {
+const IconOk = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+);
+const IconWarn = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+);
+
+/** One cell: the whole column carries a light tint, the argument's strength deepens it. Icon + side label sit at the start of the cell. */
+function Td({ c, cell, icon, label, first }: { c: string; cell: Cell; icon: JSX.Element; label: string; first?: boolean }) {
   return (
-    <td style={{ verticalAlign: 'top', padding: '9px 12px', background: c + hex(0.07 + cell.strength * 0.33), borderTop: `1px solid ${TH.card}`, fontSize: 12.5, lineHeight: 1.45 }}>
+    <td style={{ verticalAlign: 'top', padding: '10px 12px', background: c + hex(0.07 + cell.strength * 0.33), borderTop: `1px solid ${TH.line}`, borderLeft: first ? undefined : `1px solid ${TH.line}`, fontSize: 12.5, lineHeight: 1.45 }}>
       {cell.items.length ? (
         <>
-          {cell.items.map((t) => <div key={t} style={{ overflowWrap: 'anywhere', marginTop: 2 }}>{t}</div>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: c }}>
+            <span style={{ width: 18, height: 18, borderRadius: 6, background: c, color: '#fff', display: 'inline-grid', placeItems: 'center', flex: 'none' }}>{icon}</span>
+            {label}
+          </div>
+          {cell.items.map((t) => <div key={t} style={{ overflowWrap: 'anywhere', marginTop: 4 }}>{t}</div>)}
           <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 10.5, fontWeight: 700, color: c }}>{WORD(cell.strength)}</div>
         </>
       ) : (
@@ -63,23 +74,17 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
       {open && rows && (
         <div style={{ ...card, position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', zIndex: 40, maxHeight: '66vh', overflow: 'auto', boxShadow: '0 12px 36px #0003', padding: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <thead>
-              <tr>
-                <th scope="col" style={{ padding: '10px 12px', textAlign: 'left', fontSize: 13, background: CL.g + hex(0.22), color: TH.ink }}>✓ What speaks for objectivity</th>
-                <th scope="col" style={{ padding: '10px 12px', textAlign: 'left', fontSize: 13, background: CL.r + hex(0.22), color: TH.ink }}>! What speaks for propaganda</th>
-              </tr>
-            </thead>
-            {rows.map((r) => (
-              <tbody key={r.key}>
+            {rows.map((r, i) => (
+              <tbody key={r.key} style={i ? { borderTop: `1px solid ${TH.line}` } : undefined}>
                 <tr>
-                  <th scope="colgroup" colSpan={2} style={{ padding: '9px 12px 5px', textAlign: 'left', background: TH.card, borderTop: `1px solid ${TH.line}` }}>
+                  <th scope="colgroup" colSpan={2} style={{ padding: '9px 12px 5px', textAlign: 'left', background: TH.card }}>
                     <span style={{ fontSize: 12.5, fontWeight: 700 }}>{r.label}</span>
                     <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: TH.mut }}>{r.basis}</span>
                   </th>
                 </tr>
                 <tr>
-                  <Td c={CL.g} cell={r.pro} />
-                  <Td c={CL.r} cell={r.con} />
+                  <Td c={CL.g} cell={r.pro} icon={<IconOk />} label="Objectivity" first />
+                  <Td c={CL.r} cell={r.con} icon={<IconWarn />} label="Propaganda" />
                 </tr>
               </tbody>
             ))}
