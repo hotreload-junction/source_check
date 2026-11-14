@@ -68,7 +68,7 @@ export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; o
       </div>
 
       {open && rows && (
-        <div style={{ ...card, marginTop: 8, maxHeight: '40vh', overflow: 'auto', boxShadow: TH.sh, padding: 0 }}>
+        <div style={{ ...card, marginTop: 8, boxShadow: TH.sh, padding: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '30%' }} />

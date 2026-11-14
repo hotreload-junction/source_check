@@ -243,21 +243,22 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
         <TopBtn onClick={skip}>Show instantly</TopBtn>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '0 18px 10px', padding: '6px 14px', border: `${TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: TH.rad, boxShadow: TH.sh, flex: 'none' }}>
-        <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={32} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
-            <span>{view.article.domain}{view.article.published_at ? ` · published ${fmtDate(view.article.published_at)}` : ''}</span>
-            {url && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
+      <div style={{ margin: '0 18px 10px', padding: '6px 14px', border: `${TH.bw}px solid ${TH.line}`, background: TH.card, borderRadius: TH.rad, boxShadow: TH.sh, flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Logo domain={view.article.domain || null} glyph={GLY.article} color={TH.ink} size={32} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{view.article.title || 'No article loaded'}</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 5, fontSize: 12, color: TH.mut, flexWrap: 'wrap' }}>
+              <span>{view.article.domain}{view.article.published_at ? ` · published ${fmtDate(view.article.published_at)}` : ''}</span>
+              {url && <span style={{ fontFamily: MONO, fontSize: 11, padding: '2px 7px', border: `1px solid ${TH.line}`, borderRadius: 6, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{url}</span>}
+            </div>
           </div>
+          {status && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
         </div>
-        {status && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
+        {(question || view.focus) && <FocusRow question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
       </div>
 
       <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
-
-      {(question || view.focus) && <FocusBar question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
 
       <div style={{ flex: 1, minHeight: 480, display: 'flex', borderTop: `1px solid ${TH.line}` }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -289,11 +290,11 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   );
 }
 
-// F6: the reader's question and what became of it (the note is built by the backend from the verdicts)
-function FocusBar({ question, note, status }: { question: string; note: string | null; status: 'found' | 'not_in_article' | 'failed' | null }) {
+// F6: the reader's question and what became of it (the note is built by the backend from the verdicts); sits inside the article card
+function FocusRow({ question, note, status }: { question: string; note: string | null; status: 'found' | 'not_in_article' | 'failed' | null }) {
   const c = status === 'found' ? TH.ink : status ? CL.p : TH.line;
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '0 18px 12px', padding: '9px 16px', border: `2px dashed ${c}`, background: TH.card, borderRadius: TH.rad, flex: 'none', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 8, padding: '9px 2px 4px', borderTop: `2px dashed ${c}`, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600, whiteSpace: 'nowrap' }}>Your question</span>
       <span style={{ fontWeight: 600, fontSize: 14, overflowWrap: 'anywhere' }}>“{question}”</span>
       <span style={{ flex: '1 1 260px', fontSize: 12.5, color: TH.mut, lineHeight: 1.4 }}>{note ?? 'Finding the sentence your question is about …'}</span>
