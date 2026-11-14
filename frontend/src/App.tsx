@@ -252,7 +252,7 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
         {status && <div style={{ width: 'min(280px,26%)', fontSize: 11.5, color: error ? CL.r : TH.mut, lineHeight: 1.35, textAlign: 'right' }}>{status}</div>}
       </div>
 
-      <TrustBar ctx={ctx} ready={done} />
+      <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
 
       {(question || view.focus) && <FocusBar question={view.focus?.question ?? question} note={view.focus?.note ?? null} status={view.focus?.status ?? null} />}
 

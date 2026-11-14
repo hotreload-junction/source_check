@@ -35,15 +35,15 @@ function Td({ c, cell }: { c: string; cell: Cell }) {
 }
 
 /** Top bar: one big Propaganda <-> Objective slider; click opens a two-column table of what speaks for objectivity / propaganda per criterion. */
-export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
+export function TrustBar({ ctx, ready, onToggle }: { ctx: Ctx; ready: boolean; onToggle?: () => void }) {
   const [open, setOpen] = useState(false);
   const calc = ready && !!ctx.view.verdict && !!ctx.view.signals;
   const pos = useMemo(() => (calc ? barPos(ctx.view, ctx.tree) : null), [calc, ctx.view, ctx.tree]);
   const rows = useMemo(() => (calc ? criteria(ctx.view, ctx.tree) : null), [calc, ctx.view, ctx.tree]);
   const none = pos == null;
-  const toggle = () => calc && setOpen((o) => !o);
+  const toggle = () => { if (calc) { setOpen((o) => !o); onToggle?.(); } };
   return (
-    <div style={{ position: 'relative', margin: '0 18px 12px', flex: 'none' }}>
+    <div style={{ margin: '0 18px 12px', flex: 'none' }}>
       <div
         role="button"
         tabIndex={calc ? 0 : -1}
@@ -68,7 +68,7 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
       </div>
 
       {open && rows && (
-        <div style={{ ...card, position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', zIndex: 40, maxHeight: '66vh', overflow: 'auto', boxShadow: '0 12px 36px #0003', padding: 0 }}>
+        <div style={{ ...card, marginTop: 8, maxHeight: '40vh', overflow: 'auto', boxShadow: TH.sh, padding: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '30%' }} />
