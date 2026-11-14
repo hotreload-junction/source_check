@@ -1,5 +1,5 @@
 // Mock backend for `npm run dev:mock`: contract examples + fictional fixtures, no network.
-// Demo buttons load cached results; any other URL replays the Pravda example as a live SSE run.
+// Demo buttons load cached results (force = replay the Pravda example as a live SSE run); any other URL is refused.
 import demo from '../../contracts/examples/demo.json';
 import pravda from '../../contracts/examples/analysis_done.json';
 import focusCase from '../../contracts/examples/analysis_focus.json';
@@ -22,9 +22,11 @@ export const mockApi: Api = {
   mock: true,
   demo: () => wait(demo as DemoCase[]),
   start(url, force = false, question) {
-    if (question) return wait({ job_id: 'example-job-focus', status: 'done' as const, cached: true });
     const d = (demo as DemoCase[]).find((x) => x.url === url);
-    return wait(d && !force ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
+    // Any other URL used to replay the Pravda example, which looked like a real (wrong) result for the reader's article.
+    if (!d) return Promise.reject(new Error('Mock mode (no backend): only the demo articles work here. Run "npm run dev" in frontend/ with the backend on :8000 to analyse this URL.'));
+    if (question) return wait({ job_id: 'example-job-focus', status: 'done' as const, cached: true });
+    return wait(!force ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
   },
   get: (id) => wait(JOBS[id] ?? JOBS['example-job-1']),
   methodology: () => wait(methodology as Methodology),
