@@ -127,8 +127,7 @@ export function criteria(v: View, t: Tree): Row[] {
   const fPro: string[] = [];
   const fCon: string[] = [];
   if (sup.length) {
-    const scores = sup.map((c) => c.claim!.evidence?.fuzzy_score).filter((x): x is number => x != null);
-    fPro.push(`${sup.length} of ${checkable.length} checkable claims are backed by a verbatim quote from their source${scores.length ? ` (lowest quote match ${Math.round(Math.min(...scores))})` : ''}.`);
+    fPro.push(`${sup.length} of ${checkable.length} checkable claims are backed by a verbatim quote from their source.`);
   }
   (Object.keys(BAD) as (keyof typeof BAD)[]).forEach((k) => {
     const l = checkable.filter((c) => c.claim!.verdict === k);

@@ -389,7 +389,6 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
             <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: 'translate(-50%,-50%)', opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : 2 }}>
               <div
                 onClick={(ev) => { stop(ev); setDd(open ? null : e.id); }}
-                title={e.evidence && e.claim?.evidence ? `Quote match ${Math.round(e.claim.evidence.fuzzy_score)}` : ''}
                 style={{
                   cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: cl ? TH.card : skg, backgroundSize: '400px 100%',
                   animation: cl ? 'none' : 'stShimmer 1.3s linear infinite', minWidth: cl ? 0 : 46, border: `2px solid ${c}`, borderRadius: 99,
@@ -437,25 +436,11 @@ function Btn({ onClick, children, label, big }: { onClick: () => void; children:
 
 export const cap: CSSProperties = { fontSize: 11, letterSpacing: '.07em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600 };
 
-// The only real per-edge number (docs/graph-view.md): rapidfuzz score of the evidence quote vs. the fetched source.
-export function QuoteMatch({ score, threshold }: { score: number; threshold: number | null }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 34px', alignItems: 'center', gap: 10, fontSize: 12 }}>
-      <div style={{ position: 'relative', height: 8, borderRadius: 4, background: TH.line }}>
-        <div style={{ height: '100%', width: `${score}%`, borderRadius: 4, background: threshold != null && score < threshold ? CL.o : TH.ink }} />
-        {threshold != null && <div title={`Threshold ${threshold}`} style={{ position: 'absolute', top: -3, bottom: -3, left: `${threshold}%`, width: 2, background: CL.r }} />}
-      </div>
-      <span style={{ fontFamily: MONO, fontWeight: 700, textAlign: 'right' }}>{Math.round(score)}</span>
-    </div>
-  );
-}
-
 function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx; e: TEdge; c: string; up: boolean; compact: boolean; close: () => void; classify: (e: TEdge, v: ClaimVerdict) => void; pick: (n: TNode) => void }) {
   const claim = e.claim;
   const ev = e.evidence && claim?.evidence ? claim.evidence : null;
   const cur = ctx.edgeVerdict(e);
   const judged = e.type === 'cites' && e.verdict != null;
-  const thr = ctx.view.audit?.fuzzy_threshold ?? null;
   // Desktop: a card hanging off the label, scaled with the graph. Phone: a bottom sheet in a portal, because
   // a fixed element inside the transformed graph would be positioned (and shrunk) relative to the graph.
   const card = (
@@ -475,7 +460,6 @@ function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx;
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
         <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{edgeLabel(ctx, e)}</span>
-        {ev && <span title="Quote match of the evidence quote against the fetched source text" style={{ fontFamily: MONO, fontWeight: 700, fontSize: 14 }}>{Math.round(ev.fuzzy_score)}</span>}
         {compact && <button type="button" onClick={(x) => { stop(x); close(); }} aria-label="Close" style={{ cursor: 'pointer', flex: 'none', width: 36, height: 36, marginRight: -6, borderRadius: 8, border: `1px solid ${TH.line}`, background: TH.card, color: TH.ink, font: 'inherit', fontSize: 14 }}>✕</button>}
       </div>
       {claim && e.type !== 'sub' && e.type !== 'back' && <div style={{ marginTop: 8, color: TH.mut }}>Claim: <span style={{ color: TH.ink }}>{claim.text}</span></div>}
@@ -506,12 +490,6 @@ function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx;
           </div>
           <div style={{ marginTop: 6, fontSize: 11, color: TH.mut }}>{ctx.overridden(e) ? 'Your review is shown. ' : ''}Local review only; the article verdict comes from the backend.</div>
         </>
-      )}
-      {ev && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ color: TH.mut, fontSize: 12, marginBottom: 5 }}>Quote match vs. fetched source text{thr != null ? ` (threshold ${thr})` : ''}</div>
-          <QuoteMatch score={ev.fuzzy_score} threshold={thr} />
-        </div>
       )}
       <div onClick={(x) => { stop(x); pick(e.to.kind === 'nosrc' ? e.from : e.to); }} style={{ marginTop: 12, cursor: 'pointer', textAlign: 'center', padding: compact ? 12 : 7, borderRadius: 8, background: TH.ink, color: TH.bg, fontWeight: 600 }}>
         {e.to.kind === 'nosrc' ? 'Open claim' : 'Open source'}

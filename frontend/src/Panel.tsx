@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { cap, edgeColor, edgeLabel, QuoteMatch, sourceColor, TONE, type Ctx } from './Canvas';
+import { cap, edgeColor, edgeLabel, sourceColor, TONE, type Ctx } from './Canvas';
 import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
 import { useCompact } from './responsive';
@@ -48,7 +48,6 @@ function Row({ k, children, warn }: { k: string; children: ReactNode; warn?: boo
   );
 }
 
-const thrText = (thr: number | null) => `Quote match vs. fetched source text${thr != null ? ` (threshold ${thr})` : ''}`;
 
 export function Panel({ ctx, n, pick, close, compact = false }: { ctx: Ctx; n: TNode; pick: (n: TNode) => void; close: () => void; compact?: boolean }) {
   const { tree, view } = ctx;
@@ -73,13 +72,11 @@ export function Panel({ ctx, n, pick, close, compact = false }: { ctx: Ctx; n: T
     ring = <Ring deg={total ? (ctx.supported / total) * 360 : 0} c={ctx.articleColor} text={`${ctx.supported}/${total}`} label={av ? av.label : 'Calculating'} />;
     logo = <Logo domain={view.article.domain} glyph={GLY.article} color={TH.ink} size={lg} />;
   } else if (cm) {
-    const v = ctx.claimVerdict(n), ev = n.claim!.evidence;
+    const v = ctx.claimVerdict(n);
     kind = `Claim ${n.claimIdx}`;
     ti = n.claim!.text;
     meta = 'Extracted from the document' + (ctx.reviewed(n) ? ' · your review' : '');
-    ring = ev
-      ? <Ring deg={ev.fuzzy_score * 3.6} c={CLAIM_V[v].c} text={String(Math.round(ev.fuzzy_score))} label={CLAIM_V[v].label} />
-      : <Ring deg={360} c={CLAIM_V[v].c} text={CLAIM_V[v].sym} label={CLAIM_V[v].label} />;
+    ring = <Ring deg={360} c={CLAIM_V[v].c} text={CLAIM_V[v].sym} label={CLAIM_V[v].label} />;
     logo = <Logo glyph={GLY.claim} color={TH.ink} size={lg} />;
   } else {
     const s = n.source!;
@@ -203,7 +200,6 @@ function RootSections({ ctx }: { ctx: Ctx }) {
 function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
   const c = n.claim!, v = ctx.claimVerdict(n), ev = c.evidence;
   const evSrc = ev ? ctx.view.sources.find((s) => s.id === ev.source_id) : null;
-  const thr = ctx.view.audit?.fuzzy_threshold ?? null;
   return (
     <>
       <div style={{ ...box, marginTop: 20 }}>
@@ -232,8 +228,6 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
           <div style={{ ...box, fontSize: 14, lineHeight: 1.55 }}>
             <span style={{ background: CLAIM_V[v].c + '40', borderBottom: `2px solid ${CLAIM_V[v].c}`, borderRadius: 3, fontWeight: 600 }}>“{ev.quote_original}”</span>
             {ev.quote_translation && <div style={{ marginTop: 8, fontSize: 13, color: TH.mut }}>{ev.language.toUpperCase()} → EN: “{ev.quote_translation}”</div>}
-            <div style={{ marginTop: 12, fontSize: 12, color: TH.mut, marginBottom: 5 }}>{thrText(thr)}</div>
-            <QuoteMatch score={ev.fuzzy_score} threshold={thr} />
           </div>
         </Section>
       )}
@@ -249,7 +243,6 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
   const reasons = ctx.view.signals?.infrastructure.reasons.filter((r) => !!s.domain && r.includes(s.domain)) ?? [];
   const links = ctx.tree.edges.filter((e) => e.to.id === n.id && e.type === 'cites');
   const passages = ctx.view.claims.filter((c) => c.evidence?.source_id === n.id);
-  const thr = ctx.view.audit?.fuzzy_threshold ?? null;
   return (
     <>
       {links.map((e) => (
@@ -262,12 +255,6 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
           {e.verdict != null
             ? <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{e.claim!.explanation}</div>
             : <div style={{ marginTop: 6, fontSize: 13, color: TH.mut }}>Cited by the claim, but its verdict rests on another source.</div>}
-          {e.evidence && e.claim!.evidence && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, color: TH.mut, marginBottom: 5 }}>{thrText(thr)}</div>
-              <QuoteMatch score={e.claim!.evidence.fuzzy_score} threshold={thr} />
-            </div>
-          )}
         </div>
       ))}
 
