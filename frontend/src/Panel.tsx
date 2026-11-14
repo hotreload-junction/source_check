@@ -83,8 +83,6 @@ export function Panel({ ctx, n, pick, close, compact = false }: { ctx: Ctx; n: T
     kind = n.kids.length ? 'Intermediate source' : s.depth >= 3 ? `Deeper source (depth ${s.depth}) · origin` : s.depth === 2 ? 'Source of a source · origin' : 'Source';
     ti = srcName(s);
     meta = `${KIND[s.kind]} · ${FETCH[s.fetch_status]}${s.fetched_via ? ' via ' + s.fetched_via.replace('_', '.') : ''}`;
-    const cnt = Math.max(1, n.citedBy.length);
-    ring = <Ring deg={360} c={sourceColor(ctx, n)} text={`${cnt}×`} label={n.citedBy.length > 1 ? `Cited by ${cnt} claims` : 'Cited once'} />;
     logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(srcName(s))} size={lg} />;
   }
 
