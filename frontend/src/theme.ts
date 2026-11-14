@@ -39,6 +39,11 @@ export const FETCH: Record<Source['fetch_status'], string> = {
 };
 
 const PAL = ['#3b5bdb', '#7048e8', '#0b7285', '#a61e4d', '#5c6b7a', '#9c5a1a', '#2b8a3e', '#364fc7'];
+/** Display name of a source: its domain, else the attribution text from the article (unresolved named source). */
+export function srcName(s: { domain: string | null; attribution_text: string | null; url: string | null }): string {
+  return s.domain || s.attribution_text || s.url || 'Unnamed source';
+}
+
 export function pal(key: string): string {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 997;

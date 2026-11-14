@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { cap, edgeColor, edgeLabel, QuoteMatch, sourceColor, type Ctx } from './Canvas';
 import { Logo } from './Logo';
 import { locate, segments, type Mark } from './text';
-import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal } from './theme';
+import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
 import type { TNode } from './tree';
 
 const box: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` };
@@ -79,11 +79,11 @@ export function Panel({ ctx, n, pick, close }: { ctx: Ctx; n: TNode; pick: (n: T
   } else {
     const s = n.source!;
     kind = n.kids.length ? 'Intermediate source' : s.depth === 2 ? 'Source of a source · origin' : 'Source';
-    ti = s.domain;
+    ti = srcName(s);
     meta = `${KIND[s.kind]} · ${FETCH[s.fetch_status]}${s.fetched_via ? ' via ' + s.fetched_via.replace('_', '.') : ''}`;
     const cnt = Math.max(1, n.citedBy.length);
     ring = <Ring deg={360} c={sourceColor(ctx, n)} text={`${cnt}×`} label={n.citedBy.length > 1 ? `Cited by ${cnt} claims` : 'Cited once'} />;
-    logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(s.domain)} size={60} />;
+    logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(srcName(s))} size={60} />;
   }
 
   return (
@@ -204,7 +204,7 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
         {v === 'not_checkable' && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>Not checkable is neutral: it never counts against the article.</div>}
       </div>
       {ev && (
-        <Section title="Evidence" right={<span style={{ fontSize: 11.5, color: TH.mut }}>verbatim from {evSrc?.domain ?? ev.source_id}</span>}>
+        <Section title="Evidence" right={<span style={{ fontSize: 11.5, color: TH.mut }}>verbatim from {(evSrc ? srcName(evSrc) : ev.source_id)}</span>}>
           <div style={{ ...box, fontSize: 14, lineHeight: 1.55 }}>
             <span style={{ background: CLAIM_V[v].c + '40', borderBottom: `2px solid ${CLAIM_V[v].c}`, borderRadius: 3, fontWeight: 600 }}>“{ev.quote_original}”</span>
             {ev.quote_translation && <div style={{ marginTop: 8, fontSize: 13, color: TH.mut }}>{ev.language.toUpperCase()} → EN: “{ev.quote_translation}”</div>}
@@ -219,9 +219,9 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
 
 function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode) => void }) {
   const s = n.source!;
-  const d = ctx.view.domains.find((x) => x.domain === s.domain);
+  const d = s.domain ? ctx.view.domains.find((x) => x.domain === s.domain) : undefined;
   const cluster = d?.cluster_id ? ctx.view.domains.filter((x) => x.cluster_id === d.cluster_id && x.domain !== d.domain) : [];
-  const reasons = ctx.view.signals?.infrastructure.reasons.filter((r) => r.includes(s.domain)) ?? [];
+  const reasons = ctx.view.signals?.infrastructure.reasons.filter((r) => !!s.domain && r.includes(s.domain)) ?? [];
   const links = ctx.tree.edges.filter((e) => e.to.id === n.id && e.type === 'cites');
   const passages = ctx.view.claims.filter((c) => c.evidence?.source_id === n.id);
   const thr = ctx.view.audit?.fuzzy_threshold ?? null;
@@ -248,7 +248,7 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
 
       <Section title="Domain and infrastructure">
         <div style={box}>
-          <Row k="Domain">{s.domain}</Row>
+          <Row k="Domain">{s.domain ?? 'Unknown (named source without a link)'}</Row>
           {s.attribution_text && <Row k="Attribution in article">“{s.attribution_text}”</Row>}
           <Row k="Fetch">{FETCH[s.fetch_status]}{s.fetched_via ? ` via ${s.fetched_via.replace('_', '.')}` : ''}</Row>
           {d ? (

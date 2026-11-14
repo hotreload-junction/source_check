@@ -3,7 +3,7 @@ import { api } from './api';
 import { Canvas, type CanvasHandle, type Ctx } from './Canvas';
 import { Logo } from './Logo';
 import { Panel } from './Panel';
-import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate } from './theme';
+import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH, fmtDate, srcName } from './theme';
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
 import type { Analysis, ClaimVerdict, DemoCase, Progress } from './types';
 
@@ -127,7 +127,7 @@ export default function App() {
       claimVerdict: (n) => { const e = judgedEdge(n); return (e && ov[e.id]) || n.claim!.verdict; },
       overridden: (e) => ov[e.id] != null && ov[e.id] !== e.verdict,
       reviewed: (n) => { const e = judgedEdge(n); return !!e && ov[e.id] != null && ov[e.id] !== e.verdict; },
-      flagged: new Set(tree.nodes.filter((n) => n.source && infra.some((r) => r.includes(n.source!.domain))).map((n) => n.id)),
+      flagged: new Set(tree.nodes.filter((n) => n.source && n.source.domain && infra.some((r) => r.includes(n.source!.domain!))).map((n) => n.id)),
       articleColor: view.verdict ? ARTICLE_V[view.verdict.label].c : CL.p,
       supported: tree.claims.filter((c) => c.claim!.verdict === 'supported').length, // backend verdicts, not local review
     };
@@ -174,7 +174,7 @@ export default function App() {
   else if (!view.done) status = progress ? `${progress.message} (${progress.pct}%)` : url ? 'Starting analysis …' : 'Loading …';
   else if (rev === 0) status = 'Reading the document …';
   else if (rev <= nC) status = `Extracting claim ${rev} of ${nC} …`;
-  else if (!done) { const cur = tree.nodes.find((n) => n.ord === rev); status = cur?.source ? `Checking source: ${cur.source.domain} …` : 'Checking sources …'; }
+  else if (!done) { const cur = tree.nodes.find((n) => n.ord === rev); status = cur?.source ? `Checking source: ${srcName(cur.source)} …` : 'Checking sources …'; }
   else status = `${nC} claims and ${nS} sources traced to the origin.`;
 
   const av = view.verdict ? ARTICLE_V[view.verdict.label] : null;

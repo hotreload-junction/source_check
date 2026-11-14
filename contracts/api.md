@@ -93,8 +93,8 @@ explanation: str              # one sentence: why this verdict
 ### Source
 ```
 id: "s1"
-url: str
-domain: str
+url: str|null        # null for a named source Exa could not resolve
+domain: str|null     # null together with url; show attribution_text instead (clients must not assume a string)
 kind: "link" | "named" | "telegram" | "social" | "self"
    # named = attribution without link, resolved via Exa (url may be null if not found)
 attribution_text: str|null    # e.g. "according to the Finnish Ministry of Defence"

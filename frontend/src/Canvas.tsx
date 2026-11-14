@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type MouseEvent as RME, type PointerEvent as RPE, type ReactNode } from 'react';
 import { Logo } from './Logo';
-import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal } from './theme';
+import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal, srcName } from './theme';
 import type { TEdge, TNode, Tree, View } from './tree';
 import type { ClaimVerdict } from './types';
 
@@ -193,10 +193,10 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : `${Math.max(1, n.citedBy.length)}×`;
     }
     const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth === 2 ? ' · depth 2' : ''}`;
-    const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : n.source!.domain;
+    const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
     const glyph = root ? GLY.article : cm ? GLY.claim : stub ? GLY.none : GLY[n.source!.kind] ?? GLY.link;
-    const lcol = root ? TH.bg : cm ? TH.ink : stub ? CL.r : pal(n.source!.domain);
+    const lcol = root ? TH.bg : cm ? TH.ink : stub ? CL.r : pal(srcName(n.source!));
     const ls = root ? 56 : cm ? 40 : stub ? 28 : 64;
     const pfg = root ? TH.bg : src && cl ? (c === CL.y || c === CL.p ? '#10141a' : '#ffffff') : TH.ink;
     const tint = cl ? (src ? c : c + '3a') : root ? TH.bg + '33' : TH.line;
@@ -396,7 +396,7 @@ function EdgeCard({ ctx, e, c, up, classify, pick }: { ctx: Ctx; e: TEdge; c: st
       {claim && e.type !== 'sub' && e.type !== 'back' && <div style={{ marginTop: 8, color: TH.mut }}>Claim: <span style={{ color: TH.ink }}>{claim.text}</span></div>}
       {e.type === 'cites' && !judged && <div style={{ marginTop: 4 }}>The claim cites this source, but its verdict rests on another source.</div>}
       {(judged || e.type === 'nosrc') && claim?.explanation && <div style={{ marginTop: 4 }}>{claim.explanation}</div>}
-      {e.type === 'sub' && <div style={{ marginTop: 8 }}>{e.from.source?.domain} cites {e.to.source?.domain}. Sources of sources are not judged per claim.</div>}
+      {e.type === 'sub' && <div style={{ marginTop: 8 }}>{e.from.source ? srcName(e.from.source) : 'A source'} cites {e.to.source ? srcName(e.to.source) : 'another source'}. Sources of sources are not judged per claim.</div>}
       {e.type === 'back' && <div style={{ marginTop: 8 }}>This citation leads back to the article or its operator cluster (citation circle).</div>}
       {ev && (
         <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: TH.bg }}>

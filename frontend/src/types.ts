@@ -28,7 +28,7 @@ export interface Claim {
 export interface Source {
   id: string;
   url: string | null;
-  domain: string;
+  domain: string | null;   // null for a named source (no link) that could not be resolved
   kind: 'link' | 'named' | 'telegram' | 'social' | 'self';
   attribution_text: string | null;
   depth: 1 | 2;
