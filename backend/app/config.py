@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v7"
+    prompt_version: str = "v8"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     max_claims: int = 6
     # independent readings of the article for claim selection; a sentence needs a strict majority (see extract.py)
     extract_votes: int = 5
-    max_depth: int = 2          # 2 = depth 2 (what the sources cite, no extra LLM calls) + citation-circle signal; 1 switches it off
+    max_depth: int = 3          # 3 = depth 2-3 source chain crawl (no extra LLM calls) + citation-circle signal; 1 switches it off
 
     # Also LLM-verify Exa candidates that do not look first-hand (other outlets). They can only ever corroborate
     # (never decide), so skipping them saves ~40% of verify calls; turn on for the 'other reporting confirms' note.

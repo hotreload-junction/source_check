@@ -28,7 +28,7 @@ SYSTEM_PROMPT = """You check whether a SOURCE text supports a CLAIM taken from a
 First find the passage in the SOURCE that is most relevant to the claim and copy it VERBATIM (character for character, in the source's own language, at most 3 sentences). Only then give the verdict.
 
 Verdicts:
-- "supported": the passage you quote itself makes the CORE assertion of the claim (same event, figure, speaker and meaning). A passage on the same topic that does not say this is NOT support. Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them.
+- "supported": the passage you quote itself makes the CORE assertion of the claim (same event, figure, speaker and meaning). A passage on the same topic that does not say this is NOT support. Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them. However, if the claim asserts a cause, reason, scandal, or second substantive allegation (e.g., "resigned following revelations of X", "did Y because of Z", or named individuals/entities central to the allegation), a source that only confirms the bare event without mentioning that cause or substantive allegation does NOT support the claim: answer "not_mentioned" (or "distorted" if the source gives a different reason).
 - "distorted": the source covers the same matter, but something it states CONFLICTS with the claim or changes its meaning: a different number, date or name, the wrong speaker, a stronger or weaker wording ("may" turned into "will"), a dropped qualifier that changes the sense, an opinion presented as fact. A detail that is merely missing from the source is NOT distortion.
 - "contradicted": the source says the opposite of the claim.
 - "not_mentioned": the core assertion is not in the source (also when the source only touches a loosely related topic). Use an empty quote.
@@ -77,7 +77,27 @@ def _norm(s: str) -> str:
 def fuzzy_score(quote: str, source_text: str) -> float:
     """partial_ratio of the quote against the source (contract: Evidence.fuzzy_score)."""
     plain = _norm(build_plain(source_text).text)
-    return float(fuzz.partial_ratio(_norm(quote), plain)) if plain else 0.0
+    if not plain:
+        return 0.0
+    nq = _norm(quote)
+    score = float(fuzz.partial_ratio(nq, plain))
+    if ("..." in nq or "…" in nq) and score < 90.0:
+        parts = [p.strip() for p in re.split(r"(?:\.\.\.|…)+", nq) if p.strip()]
+        if len(parts) >= 2 and all(len(p) >= 20 for p in parts):
+            cursor, seg_scores = 0, []
+            for p in parts:
+                if len(plain) - cursor < len(p):
+                    seg_scores = []
+                    break
+                al = fuzz.partial_ratio_alignment(p, plain[cursor:], score_cutoff=90.0)
+                if al is None:
+                    seg_scores = []
+                    break
+                seg_scores.append(float(al.score))
+                cursor += max(al.dest_end, 1)
+            if seg_scores:
+                score = max(score, min(seg_scores))
+    return score
 
 
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,

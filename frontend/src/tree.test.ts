@@ -43,6 +43,16 @@ describe('buildTree', () => {
     expect(t.md).toBe(3);
   });
 
+  it('places depth-3 sources recursively under depth-2 sources', () => {
+    const s1 = source('s1', { depth: 1 });
+    const s2 = source('s2', { depth: 2, parent_source_id: 's1' });
+    const s3 = source('s3', { depth: 3, parent_source_id: 's2' });
+    const t = buildTree(view([claim('c1', ['s1'])], [s1, s2, s3]), new Map());
+    expect(t.by.s3.parent!.id).toBe('s2');
+    expect(t.by.s3.d).toBe(4);
+    expect(t.md).toBe(4);
+  });
+
   it('keeps reveal order stable when new data arrives', () => {
     const order = new Map<string, number>();
     buildTree(view([claim('c1', ['s1'])], [source('s1')]), order);

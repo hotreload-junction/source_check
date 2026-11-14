@@ -467,3 +467,69 @@ def test_cross_check_never_touches_claims_that_have_a_link_or_an_attribution():
     res = assess_claims([claim(1), claim(2, links=["https://src.test/x"])], ART, fetcher=f, llm=_two_claims_llm("supported"),
                         settings=SEARCH, exa_client=_exa_only_for_claim_1())
     assert res[0].verdict == "supported" and res[1].best.url == "https://src.test/x"
+
+
+def test_homepage_link_is_loose_and_neutral_on_not_mentioned():
+    (a,), _ = run(
+        [claim(1, ["https://example.org/"])],
+        {"https://example.org/": page("https://example.org/")},
+        llm=make_llm("not_mentioned", ""),
+    )
+    assert a.verdict == "not_checkable" and "not cited for this exact claim" in a.explanation
+
+
+def test_neutral_linked_source_falls_back_to_attributed_search():
+    def handler(request):
+        user = json.loads(request.content)["messages"][1]["content"]
+        if "SOURCE:" not in user:
+            c = json.dumps({"speaker": "Finnish Ministry", "venue": None, "occasion": None, "queries": ["ministry-q"], "phrases": []})
+        else:
+            c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en",
+                            "verdict": "supported", "explanation": "ok.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    pages = {
+        "https://t.co/abc123": page("https://t.co/abc123", status="not_fetched", kind="social", subtype="social_media"),
+        "https://www.orig.gov.test/interview": page("https://www.orig.gov.test/interview"),
+    }
+    (a,), _ = run([claim(1, links=["https://t.co/abc123"], attrs=["Finnish Ministry"])], pages, llm=llm, exa=exa_client())
+    assert a.verdict == "supported" and a.best.url == "https://www.orig.gov.test/interview"
+
+
+def test_cross_check_checks_unsourced_against_supported_linked_source():
+    c1 = claim(1, links=["https://src.test/study"])
+    c2 = claim(2)
+    f = FakeFetcher({"https://src.test/study": page("https://src.test/study")})
+    res = assess_claims([c1, c2], ART, fetcher=f, llm=_two_claims_llm("supported"), settings=SEARCH,
+                        exa_client=exa_client(url=None))
+    assert res[0].verdict == "supported" and res[1].verdict == "supported"
+    assert res[1].best.url == "https://src.test/study"
+
+
+def test_cross_check_attributed_reuses_same_speaker_source_across_claims():
+    orig_url = "https://www.orig.gov.test/paper"
+
+    def handler(request):
+        user = json.loads(request.content)["messages"][1]["content"]
+        if "SOURCE:" not in user:
+            q = "query-miss-claim-1" if "Claim number 1" in user else "query-hit-claim-2"
+            c = json.dumps({"speaker": "Sarah Betti", "venue": None, "occasion": None, "queries": [q], "phrases": []})
+        else:
+            c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en",
+                            "verdict": "supported", "explanation": "ok.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+
+    def exa_handler(request):
+        hit = "query-hit-claim-2" in request.content.decode()
+        return httpx.Response(200, json={"results": [{"url": orig_url, "title": "Paper"}] if hit else []})
+
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    exa = httpx.Client(transport=httpx.MockTransport(exa_handler))
+    f = FakeFetcher({orig_url: page(orig_url)})
+    res = assess_claims(
+        [claim(1, attrs=["Dr. Sarah Betti"]), claim(2, attrs=["Sarah Betti"])],
+        ART, fetcher=f, llm=llm, settings=Settings(**{**SEARCH.model_dump(), "model_extract": "mx", "verify_secondary": True}), exa_client=exa,
+    )
+    assert res[0].verdict == "supported" and res[0].best.url == orig_url
+    assert res[1].verdict == "supported" and res[1].best.url == orig_url

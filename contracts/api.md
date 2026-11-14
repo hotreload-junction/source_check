@@ -66,7 +66,7 @@ graph:    {nodes: GraphNode[], edges: GraphEdge[]}
 signals:  Signals
 verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
 focus:    Focus | null       # null when no question was sent
-audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2, duration_s,
+audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2|3, duration_s,
            focus_prompt_version: str|null}   # null without a question
 ```
 ```
@@ -118,8 +118,8 @@ domain: str|null     # null together with url; show attribution_text instead (cl
 kind: "link" | "named" | "telegram" | "social" | "self"
    # named = attribution without link, resolved via Exa (url may be null if not found)
 attribution_text: str|null    # e.g. "according to the Finnish Ministry of Defence"
-depth: 1 | 2
-parent_source_id: str|null    # for depth 2
+depth: 1 | 2 | 3
+parent_source_id: str|null    # for depth >= 2
 fetch_status: "ok" | "unreachable" | "paywall" | "blocked" | "not_fetched"
 fetched_via: "context_dev" | "trafilatura" | "telegram" | null
 source_type: "official" | "press_release" | "academic" | "reference" | "news" | "blog" | "social" | "unknown" | null
@@ -157,22 +157,23 @@ RspEntry: {source: str, statuses: ("generally_reliable"|"no_consensus"|"generall
 ### GraphNode / GraphEdge (Cytoscape-ready)
 ```
 GraphNode: {id, type: "article"|"claim"|"source"|"domain", label, verdict: ClaimVerdict|null,
-            cluster_id: str|null, depth: 0|1|2}
+            cluster_id: str|null, depth: 0|1|2|3}
 GraphEdge: {id, source, target,
             type: "makes_claim" | "cites" | "hosted_on" | "shares_infra" | "cites_back"}
 ```
-`cites_back` marks an edge that closes a citation circle (depth 2).
-Depth 2 (the default; `MAX_DEPTH=1` switches it off; `audit.depth: 2`): a depth-2 source is cited by a depth-1 source, so it has `parent_source_id`
-and a `cites` edge **source -> source** (`depth: 2` on the node). A depth-2 link to the article's own domain is a
+`cites_back` marks an edge that closes a citation circle (depth >= 2).
+Multi-hop source tracing (default `MAX_DEPTH=3`; `MAX_DEPTH=1` switches it off; `audit.depth: 1|2|3`): a depth-N source
+(N >= 2) is cited by a depth-(N-1) source in the passage relevant to the claim, so it has `parent_source_id` and a
+`cites` edge **source -> source** (`depth: N` on the node). A deeper link back to the article's own domain is a
 `kind: "self"`, `fetch_status: "not_fetched"` source. `cites_back` goes from the cited source (article domain or a
 domain in the article's operator cluster) to the article node `a`; `signals.circle.path` =
-`["a", "<claim>", "<depth-1 source>", "<cited source>", "a"]`.
+`["a", "<claim>", "<depth-1 source>", ..., "<cited source>", "a"]`.
 
 ### Signals
 ```
 evidence:       {fired: bool, claim_ids: str[], detail: str}
 infrastructure: {fired: bool, reasons: str[]}        # e.g. "a.com and b.net share G-ABC123"
-circle:         {fired: bool, path: str[] | null}    # node ids, depth 2 only
+circle:         {fired: bool, path: str[] | null}    # node ids, depth >= 2 only
 laundering:     {fired: bool, claim_ids: str[], reasons: str[]}   # republished Telegram/social channel posts
 ```
 `infrastructure.reasons` also names hosts on a published network list (`backend/app/signals/known_networks.py`,
@@ -199,8 +200,8 @@ error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
 ## Attributed claims without a link ("X said ...", "in a May interview with Fox Business, he ...")
 
 The article gives no URL, so the backend searches for the statement (plan -> Exa search -> verify). The named person or
-outlet is only the **attribution**, not a source: the page the search found IS the claim's source (depth 1), and what that
-page cites follows as depth 2 (default `MAX_DEPTH=2`, same as for linked sources). Additive, no new fields:
+outlet is only the **attribution**, not a source: the pages the search found ARE the claim's sources (depth 1), and what those pages cite follows recursively as depth 2..`MAX_DEPTH`
+(default `MAX_DEPTH=3`, same as for linked sources). Additive, no new fields:
 
 ```
 claim  --cites-->  Source{kind:"named", depth:1, url:"https://www.foxbusiness.com/...", attribution_text:"Jensen Huang", fetch_status:"ok"}

@@ -373,3 +373,58 @@ def test_prefer_sourced_unchanged_when_under_limit_or_all_unsourced():
     assert prefer_sourced(list(range(8)), set(range(8)), 6, 2) == [0, 1, 2, 3, 4, 5]
     # many sourced: only the reserved number of unsourced slots, when unsourced exist
     assert prefer_sourced(list(range(10)), {2, 3, 4, 5, 6, 7, 8, 9}, 6, 2) == [0, 1, 2, 3, 4, 5]
+
+
+def test_no_comment_boilerplate_excluded_from_claims():
+    from app.pipeline.textutil import sentence_units
+
+    md = "The ministry confirmed 12 schools closed last week after the heavy storm.\n\nMoscow has not commented on the strike."
+    units = sentence_units(md)
+    assert len(units) == 2
+    res = extract_claims(md, "", llm=votes_returning([[(0, []), (1, ["Moscow"])]]),
+                         settings=SETTINGS.model_copy(update={"extract_votes": 1}))
+    assert [c.text for c in res.claims] == ["The ministry confirmed 12 schools closed last week after the heavy storm."]
+
+
+def test_carry_attributions_inherits_speaker_across_continuation_quotes():
+    from app.pipeline.textutil import sentence_units
+
+    md = (
+        "Kremlin spokesman Dmitry Peskov rejected the accusation on Friday. "
+        "\u201cWe will respond immediately,\u201d the statement continued.\n\n"
+        "\u201cEvery allegation is baseless,\u201d he told reporters later.\n\n"
+        "## Background reaction\n\n"
+        "\u201cIndependent observers urged restraint,\u201d no clear speaker here."
+    )
+    assert len(sentence_units(md)) == 4
+    res = extract_claims(
+        md, "",
+        llm=votes_returning([[(0, ["Dmitry Peskov"]), (1, []), (2, []), (3, [])]]),
+        settings=SETTINGS.model_copy(update={"extract_votes": 1}),
+    )
+    assert [c.attributions for c in res.claims] == [["Dmitry Peskov"], ["Dmitry Peskov"], ["Dmitry Peskov"], []]
+
+
+def test_prefer_sourced_diversifies_sources_and_skips_near_duplicates():
+    from app.pipeline.extract import prefer_sourced
+    from app.pipeline.textutil import LinkRef
+
+    majority = [0, 1, 2, 3, 4, 5]
+    links = {
+        0: [LinkRef("https://reuters.com/story-a", "Reuters", "sentence")],
+        1: [LinkRef("https://reuters.com/story-a", "Reuters", "sentence")],
+        2: [LinkRef("https://reuters.com/story-b", "Reuters", "sentence")],
+        3: [LinkRef("https://bbc.com/story-c", "BBC", "sentence")],
+        4: [LinkRef("https://apnews.com/story-d", "AP", "sentence")],
+    }
+    attrs = {i: [] for i in majority}
+    texts = {
+        0: "Trade talks resumed in Geneva on Tuesday morning after months of delay.",
+        1: "Trade talks resumed in Geneva on Tuesday morning after months of long delay.",
+        2: "Negotiators agreed to freeze new agricultural tariffs for twelve months.",
+        3: "European ministers welcomed the interim ceasefire on tariff escalation.",
+        4: "Dockworkers ended a three-day walkout at Rotterdam container terminals.",
+        5: "Local shipping volumes declined by four percent during October.",
+    }
+    out = prefer_sourced(majority, {0, 1, 2, 3, 4}, limit=4, min_unsourced=1, links=links, attrs=attrs, texts=texts)
+    assert out == [0, 2, 3, 5]

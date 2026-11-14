@@ -193,7 +193,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       else if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : `${Math.max(1, n.citedBy.length)}×`;
     }
-    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth === 2 ? ' · depth 2' : ''}`;
+    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : `${KIND_SHORT[n.source!.kind]}${n.source!.depth >= 2 ? ` · depth ${n.source!.depth}` : ''}`;
     const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
     const glyph = root ? GLY.article : cm ? GLY.claim : stub ? GLY.none : GLY[n.source!.kind] ?? GLY.link;

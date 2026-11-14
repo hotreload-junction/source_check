@@ -335,3 +335,33 @@ def test_invisible_characters_are_removed_from_page_text():
     body = "<html><body><article><p>" + ("The ministry said \u2060on Tuesday that the programme will expand\u200b coverage to forty districts. " * 8) + "</p></article></body></html>"
     r = make(lambda req: httpx.Response(200, text=body, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART)
     assert r.status == "ok" and "\u2060" not in r.text and "\u200b" not in r.text and "said on Tuesday" in r.text
+
+
+def test_redirect_to_social_is_neutral_and_skips_raw_html():
+    def handler(request):
+        assert request.url.host == "api.context.dev"
+        payload = {
+            "url": "https://short.example/go",
+            "markdown": {"requested": True, "success": True, "data": "Post text with enough characters " * 20},
+            "metadata": {"title": "Post", "finalUrl": "https://x.com/user/status/1"},
+        }
+        return httpx.Response(200, json=payload)
+
+    r = make(handler, key="k").fetch_source("https://short.example/go", ART)
+    assert (r.kind, r.status, r.subtype, r.final_url) == ("social", "not_fetched", "social_media", "https://x.com/user/status/1")
+    assert r.html is None
+
+
+def test_repeated_continue_reading_cards_do_not_trigger_paywall():
+    from app.fetch.fetcher import ends_cut_off
+
+    cards = (
+        ("Speaker bio paragraph with plenty of background context on global talks. " * 8)
+        + "\nContinue reading\n"
+        + ("Another talk summary card in the page body. " * 12)
+        + "\nContinue reading\n"
+        + ("More unrelated listing text across the page. " * 10)
+        + "\nContinue reading"
+    )
+    assert ends_cut_off(cards) is False
+    assert ends_cut_off(("Main article paragraph with real content. " * 12) + "\nStory Continues") is True

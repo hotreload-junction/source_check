@@ -112,3 +112,22 @@ def test_article_date_is_passed_to_the_model_only_when_given():
     seen.clear()
     verify_claim("Claim.", EN_SOURCE, settings=SETTINGS, llm=llm_returning(out("not_mentioned", ""), seen))
     assert "ARTICLE DATE" not in seen[0]["messages"][1]["content"]
+
+
+def test_fuzzy_score_matches_ordered_ellipsis_segments_and_rejects_bad_ones():
+    src = (
+        "First relevant clause confirms exports jumped 14 percent in the third quarter. "
+        "Unrelated procedural paragraph inserted between the two findings in the paper. "
+        "Second confirmed clause notes customs delays remained low across all ports."
+    )
+    valid_dots = "First relevant clause confirms exports jumped 14 percent in the third quarter. ... Second confirmed clause notes customs delays remained low across all ports."
+    valid_unicode = "First relevant clause confirms exports jumped 14 percent in the third quarter.\u2026Second confirmed clause notes customs delays remained low across all ports."
+    reversed_order = "Second confirmed clause notes customs delays remained low across all ports. ... First relevant clause confirms exports jumped 14 percent in the third quarter."
+    fabricated_part = "First relevant clause confirms exports jumped 14 percent in the third quarter. ... Completely invented claim about energy embargoes."
+    too_short_part = "Exports jumped 14%. ... Second confirmed clause notes customs delays remained low across all ports."
+
+    assert fuzzy_score(valid_dots, src) >= 90.0
+    assert fuzzy_score(valid_unicode, src) >= 90.0
+    assert fuzzy_score(reversed_order, src) < 90.0
+    assert fuzzy_score(fabricated_part, src) < 90.0
+    assert fuzzy_score(too_short_part, src) < 90.0

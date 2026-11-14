@@ -13,9 +13,9 @@ from urllib.parse import urlsplit
 from rapidfuzz import fuzz
 
 IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
-# [text](url "title"); link text may contain one level of nested [] (e.g. image inside link)
-LINK_RE = re.compile(r"(?<!!)\[((?:[^\[\]]|\[[^\]]*\])*)\]\(\s*<?(https?://[^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
-_SENT_BREAK = re.compile(r"(?<=[.!?…])[\"”’»)\]]*\s+(?=[\"“‘«(\[]?[A-Z0-9А-ЯЁ])|\n")
+# [text](url "title" or 'title'); link text may contain one level of nested [] (e.g. image inside link)
+LINK_RE = re.compile(r"(?<!!)\[((?:[^\[\]]|\[[^\]]*\])*)\]\(\s*<?(https?://[^)\s>]+)>?(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)")
+_SENT_BREAK = re.compile(r"(?<=[.!?…])[\"”’»)\]]*(\s+)(?=[\"“‘«(\[]?[A-Z0-9А-ЯЁ])|\n")
 
 
 @dataclass
@@ -111,11 +111,15 @@ def paragraph_bounds(md: str, start: int, end: int) -> tuple[int, int]:
 def sentence_bounds(md: str, start: int, end: int) -> tuple[int, int]:
     p0, p1 = paragraph_bounds(md, start, end)
     s0 = p0
-    for m in _SENT_BREAK.finditer(md, p0, end):   # not endpos=start: the lookahead must see the claim
-        if m.end() <= start:
-            s0 = m.end()
-    m = _SENT_BREAK.search(md, end, p1)
-    s1 = m.start() if m else p1
+    breaks = _break_offsets(md[p0:p1], _SENT_BREAK)
+    for b_start, b_end in breaks:
+        if p0 + b_end <= start:
+            s0 = p0 + b_end
+    s1 = p1
+    for b_start, _ in breaks:
+        if p0 + b_start >= end:
+            s1 = p0 + b_start
+            break
     return s0, max(s1, end)
 
 
@@ -184,8 +188,55 @@ def plain_anchor(text: str) -> str:
     return build_plain(text).text.strip()
 
 
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])[\"”’»)\]]*\s+(?=[\"“‘«(\[]?[A-ZА-ЯЁ0-9])")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])[\"”’»)\]]*(\s+)(?=[\"“‘«(\[]?[A-ZА-ЯЁ0-9])")
 MIN_UNIT_CHARS = 30
+
+
+def _quote_spans(text: str) -> list[tuple[int, int]]:
+    """Matched quote intervals within each line so multi-sentence quotes/titles stay intact without spilling past unclosed quotes."""
+    spans: list[tuple[int, int]] = []
+    straight: int | None = None
+    curly: list[int] = []
+    low: list[int] = []
+    guil: list[int] = []
+    for i, ch in enumerate(text):
+        if ch == "\n":
+            straight = None
+            curly.clear(); low.clear(); guil.clear()
+        elif ch == "\u00ab":
+            guil.append(i)
+        elif ch == "\u00bb":
+            if guil:
+                spans.append((guil.pop(), i + 1))
+        elif ch == "\u201e":
+            low.append(i)
+        elif ch == "\u201c":
+            if low:
+                spans.append((low.pop(), i + 1))
+            else:
+                curly.append(i)
+        elif ch == "\u201d":
+            if curly:
+                spans.append((curly.pop(), i + 1))
+        elif ch == '"':
+            if straight is not None and i > 0 and not text[i - 1].isspace():
+                spans.append((straight, i + 1))
+                straight = None
+            elif i == 0 or text[i - 1].isspace() or text[i - 1] in "([{:—–-":
+                straight = i
+    return spans
+
+
+def _break_offsets(text: str, pattern: re.Pattern) -> list[tuple[int, int]]:
+    """Sentence-separator (start, end) offsets in `text`, keeping closing quotes/parens and skipping balanced inline quotes."""
+    spans = _quote_spans(text)
+    breaks: list[tuple[int, int]] = []
+    for m in pattern.finditer(text):
+        sep_s, sep_e = (m.start(1), m.end(1)) if m.lastindex else (m.start(), m.end())
+        if m.lastindex and any(qs < sep_e <= qe for qs, qe in spans):
+            continue
+        breaks.append((sep_s, sep_e))
+    return breaks
 
 
 def _dedupe_key(text: str) -> str:
@@ -213,10 +264,15 @@ def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110,
         view = build_plain(line)
         if len(view.text) < MIN_UNIT_CHARS:
             continue
-        pos = 0
-        for part in _SENTENCE_SPLIT.split(view.text):
-            i = view.text.find(part, pos)
-            pos = i + len(part)
+        breaks = _break_offsets(view.text, _SENTENCE_SPLIT)
+        starts = [0] + [be for _, be in breaks]
+        ends = [bs for bs, _ in breaks] + [len(view.text)]
+        for s_i, e_i in zip(starts, ends):
+            while s_i < e_i and view.text[s_i].isspace():
+                s_i += 1
+            while e_i > s_i and view.text[e_i - 1].isspace():
+                e_i -= 1
+            part = view.text[s_i:e_i]
             if len(part) < MIN_UNIT_CHARS:
                 continue
             if keep is not None and not keep(part):
@@ -226,7 +282,7 @@ def sentence_units(md: str, max_chars: int = 24_000, max_units: int = 110,
                 if k in seen:
                     continue
                 seen.add(k)
-            a, b = to_markdown_span(line, view, i, i + len(part))
+            a, b = to_markdown_span(line, view, s_i, e_i)
             units.append((line_start + a, line_start + b, part))
             total += len(part)
             if total > max_chars or len(units) >= max_units:
@@ -238,8 +294,8 @@ SYNDICATION_THRESHOLD = 0.4
 
 
 def syndication_share(article_md: str, claim_text: str, page_text: str, *, sentences: int = 14) -> float | None:
-    """Share of the article's OTHER sentences that also occur on `page_text`: ~1.0 for a wire copy / syndication of the
-    same piece, ~0 for an outlet that wrote its own report. None when the article gives too little to compare."""
+    """Share of the article's OTHER sentences that also occur on `page_text` (or vice versa for short excerpts): ~1.0 for
+    a wire copy / syndication of the same piece, ~0 for an outlet that wrote its own report. None when too short."""
     from rapidfuzz import fuzz
 
     own = build_plain(claim_text).text[:40]
@@ -248,7 +304,33 @@ def syndication_share(article_md: str, claim_text: str, page_text: str, *, sente
         return None
     page = build_plain(page_text[:150_000]).text
     hits = sum(1 for t in others if fuzz.partial_ratio(t[:160], page) >= 92)
-    return hits / len(others)
+    share = hits / len(others)
+    page_others = [t for _, _, t in sentence_units(page_text[:150_000]) if len(t) >= 70 and own not in t][:sentences]
+    if len(page_others) >= 3:
+        art_plain = build_plain(article_md[:150_000]).text
+        page_hits = sum(1 for t in page_others if fuzz.partial_ratio(t[:160], art_plain) >= 92)
+        if page_hits >= 2:
+            share = max(share, page_hits / len(page_others))
+    return share
+
+
+COPY_SENTENCE_SCORE = 92.0      # a sentence of the article counts as present in the page at this partial_ratio
+COPY_SAMPLE = 10                # article sentences compared (cost: each is a fuzzy search over the whole page)
+
+
+def looks_like_copy(article_md: str, page_md: str, claim_text: str) -> bool:
+    """True when the page repeats the ARTICLE (a mirror, a syndicated copy): several of the article's other sentences
+    occur in it as well. An independent report shares the one fact with the article, not its wording. Too short an
+    article (fewer than 3 other long sentences) cannot be judged -> False."""
+    claim = normalize_for_match(build_plain(claim_text).text)
+    others = [t for _, _, t in sentence_units(article_md) if len(t) >= 60 and normalize_for_match(t) != claim]
+    if len(others) < 3:
+        return False
+    step = max(len(others) // COPY_SAMPLE, 1)
+    sample = others[::step][:COPY_SAMPLE]
+    page = normalize_for_match(build_plain(page_md).text)
+    hits = sum(1 for t in sample if fuzz.partial_ratio(normalize_for_match(t), page) >= COPY_SENTENCE_SCORE)
+    return hits >= max(2, -(-len(sample) * 2 // 5))      # at least 40% of the sample, never fewer than 2
 
 
 COPY_SENTENCE_SCORE = 92.0      # a sentence of the article counts as present in the page at this partial_ratio

@@ -19,6 +19,7 @@ export interface Claim {
   char_start: number | null;
   char_end: number | null;
   source_ids: string[];
+  found_source_ids?: string[];
   verdict: ClaimVerdict;
   subtype: 'self_citation' | 'social_media' | null;
   evidence: Evidence | null;
@@ -41,7 +42,7 @@ export interface Source {
   domain: string | null;   // null for a named source (no link) that could not be resolved
   kind: 'link' | 'named' | 'telegram' | 'social' | 'self';
   attribution_text: string | null;
-  depth: 1 | 2;
+  depth: 1 | 2 | 3;
   parent_source_id: string | null;
   fetch_status: 'ok' | 'unreachable' | 'paywall' | 'blocked' | 'not_fetched';
   fetched_via: 'context_dev' | 'trafilatura' | 'telegram' | null;
@@ -95,7 +96,7 @@ export interface Result {
     model_verify: string;
     prompt_version: string;
     fuzzy_threshold: number;
-    depth: 1 | 2;
+    depth: 1 | 2 | 3;
     duration_s: number;
     focus_prompt_version?: string | null;
   };

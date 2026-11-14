@@ -202,6 +202,8 @@ class Fetcher:
             return self._fetch_telegram(url)
         # sources: no 5xx retries (3 attempts stacked to 25 s in a live run); the direct GET below is the fallback
         res = self._fetch_web(url, kind="link", ctx_timeout=self.source_timeout_s, retries=0)
+        if res.final_url and classify_url(res.final_url, article_url) == "social":
+            return FetchResult(url, "social", "not_fetched", final_url=res.final_url, subtype="social_media")
         if with_html and res.status == "ok" and res.html is None:
             res.html = self._raw_html(url)  # full HTML for infra signals (B5); None if blocked -> neutral
         return res
@@ -408,8 +410,10 @@ CUTOFF_MARKERS = ("story continues", "continue reading", "continue with the full
 
 
 def ends_cut_off(text: str) -> bool:
-    tail = text[-400:].lower()
-    return any(m in tail for m in CUTOFF_MARKERS)
+    trimmed = text.rstrip()
+    tail = trimmed[-160:].lower()
+    earlier = trimmed[:-400].lower()
+    return any(m in tail and m not in earlier for m in CUTOFF_MARKERS)
 
 
 # Zero-width and byte-order characters some sites sprinkle into their text (DW: U+2060, U+200B). They are invisible but

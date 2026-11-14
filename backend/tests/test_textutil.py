@@ -92,3 +92,45 @@ def test_looks_like_copy_detects_a_mirror_but_not_an_independent_report():
     assert looks_like_copy(_COPY_ARTICLE, mirror, "") is True
     assert looks_like_copy(_COPY_ARTICLE, independent, "") is False
     assert looks_like_copy("Too short to judge.", mirror, "") is False
+
+
+def test_single_quoted_link_titles_and_quote_aware_sentence_splits():
+    from app.pipeline.textutil import sentence_units
+
+    md = (
+        "Read [the official report](https://gov.example/r 'Official Report Title') today. "
+        "Officials said \u201cthe city is safe.\u201d Next sentence follows cleanly. "
+        "The headline \u00abBetrayal. Expendable Material\u00bb aired on prime time television. "
+        'He asked: "What if this happened? Would they act?" Then everyone waited.'
+    )
+    plain = build_plain(md)
+    assert "Official Report Title" not in plain.text
+    assert [u.url for u in attach_links(md, 0, md.index("today.") + 6)] == ["https://gov.example/r"]
+
+    units = [t for _, _, t in sentence_units(md)]
+    assert 'Officials said \u201cthe city is safe.\u201d' in units
+    assert "Next sentence follows cleanly." in units
+    assert "The headline \u00abBetrayal. Expendable Material\u00bb aired on prime time television." in units
+    assert 'He asked: "What if this happened? Would they act?"' in units
+    idx = md.index("Officials said")
+    s0, s1 = sentence_bounds(md, idx, idx + 15)
+    assert md[s0:s1] == "Officials said \u201cthe city is safe.\u201d"
+
+
+def test_syndication_share_detects_short_excerpt_of_long_article():
+    from app.pipeline.textutil import SYNDICATION_THRESHOLD, syndication_share
+
+    shared = [
+        f"Negotiators from both delegations met in Geneva for the {w} round of technical consultations on export controls."
+        for w in ("first", "second", "third")
+    ]
+    extra = [
+        f"Separate background briefing note number {i} covered customs procedures and long-term tariff schedules in detail."
+        for i in range(1, 8)
+    ]
+    long_article = " ".join(shared + extra)
+    short_excerpt = " ".join(shared + [
+        "Another brief paragraph at the bottom summarizes unrelated regional weather conditions for travellers."
+    ])
+    share = syndication_share(long_article, "Unrelated specific claim sentence.", short_excerpt)
+    assert share is not None and share >= SYNDICATION_THRESHOLD

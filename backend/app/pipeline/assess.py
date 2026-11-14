@@ -31,7 +31,7 @@ from datetime import datetime
 from .depth2 import passage_links
 from .evidence import Candidate, SearchPlan, gather_candidates, merge_agent_hits, plan_search
 from .exa_agent import AgentResult, build_body, find_sources
-from .extract import ExtractedClaim
+from .extract import ExtractedClaim, _name_key
 from .textutil import SYNDICATION_THRESHOLD, syndication_share, build_plain
 from .verify import VerifyResult, verify_claim
 
@@ -141,6 +141,8 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                            published_at=published_at, step_cache=step_cache, article_text=article_text) for c in claims]
     results: list[ClaimAssessment] = []
     held: list[int] = []            # unsourced claims: announced after the cross-check below, so they are final when shown
+    attr_held: list[int] = []       # attributed claims with another same-speaker claim: cross-checked before announcing
+    attr_keys = [{k for a in c.attributions if (k := _name_key(a))} for c in claims]
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
             results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
@@ -150,8 +152,12 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
             fut.cancel()
             results.append(ClaimAssessment(claim, "not_checkable", None,
                                            "Checking the sources took too long, so this claim was left unverified."))
-        if s.cross_check_found and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
+        if s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
             held.append(i)
+        elif (s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "not_checkable"
+              and claim.attributions and not claim.links
+              and any(attr_keys[i] & attr_keys[j] for j in range(len(claims)) if j != i)):
+            attr_held.append(i)
         elif on_claim:  # called from this thread: the SSE stream can show each claim as it is final
             on_claim(i, results[-1])
     pool.shutdown(wait=False)      # stragglers finish in the background and are ignored
@@ -161,9 +167,15 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                          article_text=article_text)
         except Exception as exc:    # never break the analysis for a bonus check
             log.warning("cross-check failed: %s", exc)
-        if on_claim:
-            for i in held:
-                on_claim(i, results[i])
+    if attr_held:
+        try:
+            _cross_check_attributed(claims, results, attr_held, article_url, cache=cache, llm=llm, settings=s,
+                                    published_at=published_at, article_text=article_text)
+        except Exception as exc:    # never break the analysis for a bonus check
+            log.warning("attributed cross-check failed: %s", exc)
+    if on_claim:
+        for i in sorted([*held, *attr_held]):
+            on_claim(i, results[i])
     cache.join_html(timeout=max(min(deadline - time.monotonic(), 10.0), 1.0))
     return results
 
@@ -196,10 +208,24 @@ def _assess_linked(claim, article_url, *, cache, llm, settings, exa_client, publ
             jobs.append(lambda l=link: _assess_self_citation(claim, l, article_url, cache, llm, settings, published_at))
         else:
             jobs.append(lambda l=link: [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
-                                                       loose_link=(l.scope == "paragraph"))])
+                                                       loose_link=(l.scope == "paragraph" or _is_homepage(l.url)))])
     with ThreadPoolExecutor(max_workers=max(len(jobs), 1), thread_name_prefix="cited") as pool:
         sources = [sa for group in pool.map(lambda j: j(), jobs) for sa in group]
-    return _aggregate(claim, sources)
+    res = _aggregate(claim, sources)
+    if res.verdict == "not_checkable" and claim.attributions:
+        extra = _assess_attributed(claim, article_url, cache=cache, llm=llm, settings=settings, exa_client=exa_client,
+                                   published_at=published_at, step_cache=step_cache, article_text=article_text)
+        found = [sa for sa in extra.sources if sa.verdict == "supported" or sa.corroborated]
+        found.sort(key=lambda sa: (sa.verdict != "supported", not sa.venue_hosted, -(sa.verify.fuzzy_score or 0) if sa.verify else 0))
+        if found:
+            seen_u = {sa.url for sa in sources if sa.url}
+            for sa in found[: settings.max_evidence_links]:
+                if sa.url and sa.url not in seen_u:
+                    sources.append(sa)
+                    seen_u.add(sa.url)
+            res = _aggregate(claim, sources)
+            res.plan = extra.plan
+    return res
 
 
 def _assess_self_citation(claim: ExtractedClaim, link, article_url: str, cache: _FetchCache, llm: LLMClient, settings: Settings,
@@ -318,19 +344,22 @@ def _is_unsourced_type(claim: ExtractedClaim) -> bool:
 
 def _cross_check(claims: list[ExtractedClaim], results: list[ClaimAssessment], idxs: list[int], article_url: str, *,
                  cache: _FetchCache, llm: LLMClient, settings: Settings, published_at, article_text: str) -> None:
-    """A page found for one unsourced claim can support another one (live example: the Destatis page found for claim 3 states
-    what claim 5 says). Every claim that is still `unsourced` is checked against the pages found for the OTHER unsourced
-    claims, with the same verify step (quote first, fuzzy-checked). The pages are already fetched: one verify call per pair,
-    at most MAX_CROSS_PAGES per claim. `results` is updated in place; a claim nothing confirms stays `unsourced`."""
-    pool: dict[str, float] = {}
+    """A page found for one claim can support another unsourced one (live example: the Destatis page found for claim 3
+    or a study DOI linked in an earlier paragraph). Every claim that is still `unsourced` is checked against the supported
+    pages from other claims (found unsourced pages prioritised first, then other verified sources), at most MAX_CROSS_PAGES
+    per claim. `results` is updated in place; a claim nothing confirms stays `unsourced`."""
+    pool: dict[str, tuple[int, float]] = {}
     for a, c in zip(results, claims):
-        if _is_unsourced_type(c):
-            for sa in a.sources:
-                if sa.url and sa.verdict == "supported":
-                    pool[sa.url] = max(pool.get(sa.url, 0.0), (sa.verify.fuzzy_score or 0.0) if sa.verify else 0.0)
+        tier = 0 if _is_unsourced_type(c) else 1
+        for sa in a.sources:
+            if sa.url and sa.verdict == "supported":
+                score = (sa.verify.fuzzy_score or 0.0) if sa.verify else 0.0
+                prev = pool.get(sa.url)
+                if prev is None or (tier, -score) < (prev[0], -prev[1]):
+                    pool[sa.url] = (tier, score)
     if not pool:
         return
-    ranked = sorted(pool, key=lambda u: -pool[u])[:MAX_CROSS_PAGES]
+    ranked = sorted(pool, key=lambda u: (pool[u][0], -pool[u][1]))[:MAX_CROSS_PAGES]
     jobs = [(i, u) for i in idxs for u in ranked]
     if not jobs:
         return
@@ -347,6 +376,54 @@ def _cross_check(claims: list[ExtractedClaim], results: list[ClaimAssessment], i
                 fut.cancel()
     for i, found in got.items():
         results[i] = _found_assessment(claims[i], found, results[i].plan, settings)
+
+
+def _cross_check_attributed(claims: list[ExtractedClaim], results: list[ClaimAssessment], idxs: list[int],
+                            article_url: str, *, cache: _FetchCache, llm: LLMClient, settings: Settings,
+                            published_at, article_text: str) -> None:
+    """Check `not_checkable` attributed claims against supported/corroborated sources already verified for other
+    claims naming the same speaker/study."""
+    attr_keys = [{k for a in c.attributions if (k := _name_key(a))} for c in claims]
+    jobs: list[tuple[int, str, str]] = []
+    for i in idxs:
+        already = {sa.url for sa in results[i].sources if sa.url}
+        pool: dict[str, tuple[int, int, float]] = {}
+        for j, a in enumerate(results):
+            if j == i or not (attr_keys[i] & attr_keys[j]):
+                continue
+            for sa in a.sources:
+                if not sa.url or sa.url in already or (sa.verdict != "supported" and not sa.corroborated):
+                    continue
+                rank = (0 if sa.verdict == "supported" else 1, 0 if sa.venue_hosted else 1,
+                        -((sa.verify.fuzzy_score or 0.0) if sa.verify else 0.0))
+                prev = pool.get(sa.url)
+                if prev is None or rank < prev:
+                    pool[sa.url] = rank
+        ranked = sorted(pool, key=pool.__getitem__)[:MAX_CROSS_PAGES]
+        who = (results[i].plan.speaker if results[i].plan and results[i].plan.speaker else None) or claims[i].attributions[0]
+        for u in ranked:
+            jobs.append((i, u, who))
+    if not jobs:
+        return
+    end = time.monotonic() + CROSS_DEADLINE_S
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 4), thread_name_prefix="cross-attr") as ex:
+        futs = [(i, ex.submit(_assess_source, claims[i], u, who, article_url, cache, llm, settings, published_at,
+                              plan=results[i].plan, article_text=article_text)) for i, u, who in jobs]
+        got: dict[int, list[SourceAssessment]] = {}
+        for i, fut in futs:
+            try:
+                sa = fut.result(timeout=max(end - time.monotonic(), 0.0))
+                if sa.verdict == "supported" or sa.corroborated:
+                    got.setdefault(i, []).append(sa)
+            except Exception as exc:
+                log.info("attributed cross-check for claim %s skipped: %s", claims[i].id, type(exc).__name__)
+                fut.cancel()
+    for i, hits in got.items():
+        plan = results[i].plan
+        sources = list(results[i].sources) + hits
+        a = _aggregate(claims[i], sources)
+        a.plan = plan
+        results[i] = a
 
 
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,

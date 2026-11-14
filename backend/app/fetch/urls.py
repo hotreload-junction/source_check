@@ -11,7 +11,7 @@ _SECOND_LEVEL = {
 }
 _GENERIC_SLD = {"co", "com", "org", "net", "gov", "edu", "ac", "mil", "go", "or", "ne", "gob", "gouv"}
 SOCIAL_DOMAINS = {
-    "x.com", "twitter.com", "youtube.com", "youtu.be", "facebook.com", "fb.com", "instagram.com",
+    "x.com", "twitter.com", "t.co", "youtube.com", "youtu.be", "facebook.com", "fb.com", "instagram.com",
     "tiktok.com", "linkedin.com", "vk.com", "ok.ru", "reddit.com", "threads.net",
 }
 

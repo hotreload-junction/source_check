@@ -30,12 +30,22 @@ log = logging.getLogger("citetrace.extract")
 
 MAX_ARTICLE_CHARS = 24_000
 
+_NO_COMMENT_RE = re.compile(
+    r"^(?:[\w\s.'’\-]{1,80})\b(?:"
+    r"has not (?:yet )?(?:commented|responded|replied)(?:\s+(?:on|to)\b)?|"
+    r"did not (?:immediately )?respond to (?:a )?requests?\s+for comment|"
+    r"declined to comment|could not immediately be reached for comment"
+    r")\b",
+    re.I,
+)
+_QUOTE_OR_BULLET_START = ('"', "\u201c", "\u2018", "\u00ab", "\u25aa", "\u2022")
+
 SYSTEM_PROMPT = """You decide which sentences of a news article are CHECKABLE FACTUAL CLAIMS for a source-checking tool.
 
-A checkable claim is a concrete assertion a source could confirm or refute: an event, a number or statistic, a quoted statement attributed to someone, a statement about what a document, report or official said. NOT checkable: opinions, rhetorical questions, predictions, general background, headlines, bylines, navigation/share/related-article/advertising text.
+A checkable claim is a concrete assertion a source could confirm or refute: an event, a number or statistic, a quoted statement attributed to someone, a statement about what a document, report or official said. NOT checkable: opinions, rhetorical questions, predictions, general background, routine no-comment lines ("X has not commented", "X did not immediately respond to a request for comment"), headlines, bylines, navigation/share/related-article/advertising text.
 
 The article is given as numbered sentences. Answer with JSON only: {"claims": [{"id": <sentence number>, "attributions": ["..."]}]}
-List the sentences that are checkable claims. "attributions" = the people or organisations the sentence presents as the SOURCE of the claim, exactly as the article names them: whoever is reported as saying, warning, claiming, announcing, confirming, reporting or suspecting it ("X said ...", "according to Y", "Z warned that ...", "officials suspect ..."), the document or report it cites, the speaker of a quotation. The source counts when it is named only by role ("the Nvidia founder", "the minister", "anonymous US officials"): then give the person's name if the article names them anywhere, else the role as written. A sentence that continues what the previous sentence said or quoted ("it", "he", "she", "they", a quotation) has the same source as that sentence. [] ONLY when the sentence states the matter as plain fact with no source behind it. Do not invent sources. The article may be in any language."""
+List the sentences that are checkable claims. "attributions" = the people or organisations the sentence presents as the SOURCE of the claim, exactly as the article names them: whoever is reported as saying, warning, claiming, announcing, confirming, reporting or suspecting it ("X said ...", "according to Y", "Z warned that ...", "officials suspect ..."), the document or report it cites, the speaker of a quotation. The source counts when it is named only by role ("the Nvidia founder", "the minister", "the team", "the researchers", "anonymous US officials"): then give the person's or study's name if the article names them anywhere, else the role as written. A sentence that continues what the previous sentence said or quoted ("it", "he", "she", "they", a quotation, or a bulleted example from a work or speaker) ALWAYS has the same source as that sentence. [] ONLY when the sentence states the matter as plain fact with no source behind it. Do not invent sources. The article may be in any language."""
 
 
 @dataclass
@@ -120,10 +130,14 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
         raise LLMError("claim extraction failed: no usable reading")
 
     counts = collections.Counter(i for v in votes for i in v)
-    majority = sorted(i for i, c in counts.items() if c * 2 > len(votes))               # strict majority, document order
+    majority = sorted(i for i, c in counts.items()
+                      if c * 2 > len(votes) and not _NO_COMMENT_RE.search(units[i][2].strip()))
     links = {i: attach_links(article_md, units[i][0], units[i][1], article_url) for i in majority}
     attrs = {i: list(_attributions(votes, i)) for i in majority}
-    keep = prefer_sourced(majority, {i for i in majority if links[i] or attrs[i]}, s.max_claims, s.min_unsourced_claims)
+    _carry_attributions(units, article_md, majority, attrs, votes)
+    texts = {i: units[i][2] for i in majority}
+    keep = prefer_sourced(majority, {i for i in majority if links[i] or attrs[i]}, s.max_claims,
+                          s.min_unsourced_claims, links=links, attrs=attrs, texts=texts)
     claims: list[ExtractedClaim] = []
     for i in keep:
         start, end, _ = units[i]
@@ -137,18 +151,129 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
         n_votes=len(votes), units=units)
 
 
-def prefer_sourced(majority: list[int], sourced: set[int], limit: int, min_unsourced: int) -> list[int]:
+def _carry_attributions(units: list[tuple[int, int, str]], article_md: str, majority: list[int],
+                        attrs: dict[int, list[str]], votes: list[dict[int, tuple[str, ...]]]) -> None:
+    """Carry attribution onto unattributed continuation quotes / bulleted examples from the preceding sentence in the same
+    paragraph (or the immediately preceding non-heading paragraph when none precedes it in-paragraph)."""
+    paras = [paragraph_bounds(article_md, s, e) for s, e, _ in units]
+    resolved: dict[int, tuple[str, ...]] = {}
+    for idx in range(len(units)):
+        if idx in attrs and attrs[idx]:
+            resolved[idx] = tuple(attrs[idx])
+        elif any(idx in v for v in votes):
+            r = _attributions(votes, idx)
+            if r:
+                resolved[idx] = r
+    for i in majority:
+        if attrs[i]:
+            continue
+        start, end, plain = units[i]
+        raw = article_md[start:end].lstrip()
+        if not (plain.lstrip().startswith(_QUOTE_OR_BULLET_START) or raw.startswith(">")):
+            continue
+        p_cur = paras[i]
+        inherited: tuple[str, ...] = ()
+        for j in range(i - 1, -1, -1):
+            if paras[j] != p_cur:
+                break
+            if j in resolved:
+                inherited = resolved[j]
+                break
+        if not inherited:
+            prev_p = None
+            for j in range(i - 1, -1, -1):
+                if paras[j] == p_cur:
+                    continue
+                if prev_p is None:
+                    gap = article_md[paras[j][1]:p_cur[0]]
+                    if re.search(r"^\s*#", gap, re.M):
+                        break
+                    prev_p = paras[j]
+                elif paras[j] != prev_p:
+                    break
+                if j in resolved:
+                    inherited = resolved[j]
+                    break
+        if inherited:
+            attrs[i] = list(inherited)
+            resolved[i] = inherited
+
+
+def _is_near_dup(text: str, chosen: list[str]) -> bool:
+    from rapidfuzz import fuzz
+
+    return any(fuzz.token_set_ratio(text, prev) >= 78 for prev in chosen)
+
+
+def prefer_sourced(majority: list[int], sourced: set[int], limit: int, min_unsourced: int, *,
+                   links: dict[int, list[LinkRef]] | None = None, attrs: dict[int, list[str]] | None = None,
+                   texts: dict[int, str] | None = None) -> list[int]:
     """Pick at most `limit` claims from the majority-voted sentences (document order in, document order out).
-    Sentences that name a source (link or attribution) come first, because only those can be verified against
-    something. `min_unsourced` slots stay reserved for unsourced ones (the strongest ones: earliest, as before), so the
-    "no source given" finding is never lost and an article is not judged on its cited claims alone. Pure code, deterministic."""
+    Sentences that name a source (sentence link or attribution) come first across diverse sources while skipping near
+    duplicates; `min_unsourced` slots stay reserved for unsourced ones. Pure code, deterministic."""
     if len(majority) <= limit:
         return list(majority)
+    if links is None and attrs is None and texts is None:
+        unsourced = [i for i in majority if i not in sourced]
+        reserve = min(max(0, min_unsourced), len(unsourced), limit)
+        take_sourced = [i for i in majority if i in sourced][: limit - reserve]
+        take_unsourced = unsourced[: limit - len(take_sourced)]
+        return sorted(take_sourced + take_unsourced)
+
     unsourced = [i for i in majority if i not in sourced]
     reserve = min(max(0, min_unsourced), len(unsourced), limit)
-    take_sourced = [i for i in majority if i in sourced][: limit - reserve]
-    take_unsourced = unsourced[: limit - len(take_sourced)]            # reserved slots + whatever sourced ones left free
-    return sorted(take_sourced + take_unsourced)
+    sourced_cap = limit - reserve
+
+    def skeys(i: int) -> set[str]:
+        keys = {l.url.split("#")[0].rstrip("/") for l in (links or {}).get(i, ()) if l.scope == "sentence"}
+        keys |= {_name_key(a) for a in (attrs or {}).get(i, ()) if _name_key(a)}
+        return keys
+
+    direct = [i for i in majority if i in sourced and skeys(i)]
+    secondary = [i for i in majority if i in sourced and not skeys(i)]
+    text_of = lambda idx: (texts or {}).get(idx, "")
+
+    picked: list[int] = []
+    picked_set: set[int] = set()
+    picked_texts: list[str] = []
+    seen_keys: set[str] = set()
+
+    def add(idx: int) -> None:
+        picked.append(idx)
+        picked_set.add(idx)
+        if text_of(idx):
+            picked_texts.append(text_of(idx))
+        seen_keys.update(skeys(idx))
+
+    for i in direct:
+        if len(picked) >= sourced_cap:
+            break
+        if (skeys(i) - seen_keys) and not (text_of(i) and _is_near_dup(text_of(i), picked_texts)):
+            add(i)
+    for pool in (direct, secondary):
+        for i in pool:
+            if len(picked) >= sourced_cap:
+                break
+            if i not in picked_set and not (text_of(i) and _is_near_dup(text_of(i), picked_texts)):
+                add(i)
+    for pool in (direct, secondary):
+        for i in pool:
+            if len(picked) >= sourced_cap:
+                break
+            if i not in picked_set:
+                add(i)
+
+    for i in unsourced:
+        if len(picked) >= limit:
+            break
+        if not (text_of(i) and _is_near_dup(text_of(i), picked_texts)):
+            add(i)
+    for i in unsourced:
+        if len(picked) >= limit:
+            break
+        if i not in picked_set:
+            add(i)
+    return sorted(picked)
 
 
 _TITLES = re.compile(r"^(?:(?:the|mr|mrs|ms|miss|dr|prof|professor|sen|senator|rep|representative|president|vice president|prime minister|"

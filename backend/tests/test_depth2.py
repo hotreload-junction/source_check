@@ -168,3 +168,138 @@ def test_fetch_budget_and_per_source_cap(n_links):
     pages["https://ministry.gov.uk/report"] = src("https://ministry.gov.uk/report", text, CLEAN)
     r = run2(pages).result
     assert len([s for s in r["sources"] if s["depth"] == 2]) == 2          # MAX_LINKS_PER_SOURCE
+
+
+S3 = Settings(**{**SETTINGS.model_dump(), "max_depth": 3})
+
+
+def test_depth_3_follows_depth_2_citations_and_sets_domain_depth():
+    pages = pages_with(
+        "https://intermediate.org/story",
+        {
+            "https://intermediate.org/story": src(
+                "https://intermediate.org/story",
+                f"Official summary notes {QUOTE}, according to [the primary paper](https://primary-data.gov/study.pdf).",
+                CLEAN,
+            ),
+            "https://primary-data.gov/study.pdf": src(
+                "https://primary-data.gov/study.pdf",
+                "Primary dataset covering 40 districts through 2027.",
+                CLEAN,
+            ),
+        },
+    )
+    ev = []
+    r = run2(pages, settings=S3, ages={"intermediate.org": 500, "primary-data.gov": 4000}, events=ev).result
+    assert r["audit"]["depth"] == 3
+    d2 = next(s for s in r["sources"] if s["depth"] == 2)
+    d3 = next(s for s in r["sources"] if s["depth"] == 3)
+    assert d2["id"] == "s3" and d2["parent_source_id"] == "s2"
+    assert d3["id"] == "s4" and d3["parent_source_id"] == "s3" and d3["domain"] == "primary-data.gov"
+    assert ("s3", "s4", "cites") in {(e["source"], e["target"], e["type"]) for e in r["graph"]["edges"]}
+    assert next(n for n in r["graph"]["nodes"] if n["id"] == "d:primary-data.gov")["depth"] == 3
+    assert next(n for n in r["graph"]["nodes"] if n["id"] == "s4")["depth"] == 3
+
+
+def test_depth_3_circle_back_to_article_records_full_chain():
+    pages = pages_with(
+        "https://hop2.org/piece",
+        {
+            "https://hop2.org/piece": src(
+                "https://hop2.org/piece",
+                f"Background states {QUOTE}, per [earlier claim](https://www.pravda-mirror.com/2026/origin).",
+                CLEAN,
+            ),
+        },
+    )
+    r = run2(pages, settings=S3).result
+    d3 = next(s for s in r["sources"] if s["depth"] == 3)
+    assert d3["kind"] == "self" and d3["fetch_status"] == "not_fetched"
+    assert r["signals"]["circle"] == {"fired": True, "path": ["a", "c2", "s2", "s3", "s4", "a"]}
+
+
+def test_search_ids_excludes_depth_3_under_found_named_source():
+    from app.pipeline.run import _search_ids
+    from app.signals.circles import Citation
+
+    rows = [
+        {"id": "s1", "kind": "named", "url": "https://found.example/p", "depth": 1, "parent_source_id": None},
+        {"id": "s2", "kind": "link", "url": "https://d2.example/a", "depth": 2, "parent_source_id": "s1"},
+        {"id": "s3", "kind": "link", "url": "https://d3.example/b", "depth": 3, "parent_source_id": "s2"},
+        {"id": "s4", "kind": "link", "url": "https://cited.example/x", "depth": 1, "parent_source_id": None},
+        {"id": "s5", "kind": "link", "url": "https://shared.example/y", "depth": 2, "parent_source_id": "s1"},
+        {"id": "s6", "kind": "link", "url": "https://below-shared.example/z", "depth": 3, "parent_source_id": "s5"},
+    ]
+    cites = [Citation("c1", "s4", "s5", "shared.example", ("s4",))]
+    assert _search_ids(rows, cites) == {"s1", "s2", "s3"}
+
+
+def test_passage_links_handles_multi_sentence_alt_quote():
+    source_text = (
+        "Background note on unrelated regional events.\n\n"
+        "Measurements taken during the winter campaign showed crystal levels stayed below seven percent, "
+        "[the primary study](https://primary.org/study) reported."
+    )
+    alt_quote = (
+        "Completely paraphrased lead sentence that is not on the target page at all. "
+        "Measurements taken during the winter campaign showed crystal levels stayed below seven percent."
+    )
+    links = passage_links(source_text, None, "Unmatched claim wording.", "https://mid.example/article", alt_quote=alt_quote)
+    assert [l.url for l in links] == ["https://primary.org/study"]
+
+
+def test_expand_sources_preserves_quote_after_none_and_expands_found_sources():
+    from app.pipeline.assess import ClaimAssessment, SourceAssessment
+    from app.pipeline.depth2 import expand_sources
+    from app.pipeline.extract import ExtractedClaim
+    from app.pipeline.verify import VerifyResult
+
+    u_shared = "https://shared.example/page"
+    u_found = "https://found.example/article"
+    shared_text = f"Intro.\n\nData confirms {QUOTE}, citing [the dataset](https://d2a.example/data)."
+    found_text = f"Report confirms {QUOTE}, citing [hop two](https://d2b.example/hop2)."
+    hop2_text = f"Archive notes {QUOTE}, citing [primary source](https://d3b.example/primary)."
+
+    pages = {
+        u_shared: src(u_shared, shared_text, CLEAN),
+        u_found: src(u_found, found_text, CLEAN),
+        "https://d2a.example/data": src("https://d2a.example/data", "Dataset numbers match.", CLEAN),
+        "https://d2b.example/hop2": src("https://d2b.example/hop2", hop2_text, CLEAN),
+        "https://d3b.example/primary": src("https://d3b.example/primary", "Primary source record.", CLEAN),
+    }
+    rows = [
+        {"id": "s1", "url": u_shared, "domain": "shared.example", "kind": "link",
+         "attribution_text": None, "depth": 1, "parent_source_id": None, "fetch_status": "ok", "fetched_via": "context_dev"},
+        {"id": "s2", "url": u_found, "domain": "found.example", "kind": "named",
+         "attribution_text": None, "depth": 1, "parent_source_id": None, "fetch_status": "ok", "fetched_via": "context_dev"},
+    ]
+    c1, c2, c3 = ExtractedClaim("c1", "Unmatched claim.", 0, 10), ExtractedClaim("c2", "Shared claim.", 11, 20), ExtractedClaim("c3", "Found claim.", 21, 30)
+    v_miss = VerifyResult(verdict="not_mentioned", llm_verdict="not_mentioned", quote_original=None,
+                          quote_translation=None, language="en", fuzzy_score=None, explanation="", model="m", prompt_version="v8")
+    v_hit = VerifyResult(verdict="supported", llm_verdict="supported", quote_original=QUOTE,
+                         quote_translation=None, language="en", fuzzy_score=100.0, explanation="", model="m", prompt_version="v8")
+    assessments = [
+        ClaimAssessment(c1, "not_mentioned", None, "", sources=[
+            SourceAssessment(u_shared, "link", None, pages[u_shared], v_miss, "not_mentioned"),
+        ]),
+        ClaimAssessment(c2, "supported", None, "", sources=[
+            SourceAssessment(u_shared, "link", None, pages[u_shared], v_hit, "supported"),
+        ]),
+        ClaimAssessment(c3, "supported", None, "", sources=[
+            SourceAssessment(u_found, "named", None, pages[u_found], v_hit, "supported"),
+        ]),
+    ]
+    claims = [
+        {"id": "c1", "text": c1.text, "source_ids": ["s1"], "found_source_ids": []},
+        {"id": "c2", "text": c2.text, "source_ids": ["s1"], "found_source_ids": []},
+        {"id": "c3", "text": c3.text, "source_ids": [], "found_source_ids": ["s2"]},
+    ]
+    expand_sources(rows, assessments, claims, fetcher=FakeFetcher(art(), pages),
+                   article_url=ARTICLE_URL, article_domain="pravda-mirror.com", max_depth=3)
+    by_url = {r["url"]: r for r in rows}
+    assert by_url["https://d2a.example/data"]["depth"] == 2
+    assert by_url["https://d2a.example/data"]["parent_source_id"] == "s1"
+    assert by_url["https://d2b.example/hop2"]["depth"] == 2
+    assert by_url["https://d2b.example/hop2"]["parent_source_id"] == "s2"
+    assert by_url["https://d3b.example/primary"]["depth"] == 3
+    assert by_url["https://d3b.example/primary"]["parent_source_id"] == by_url["https://d2b.example/hop2"]["id"]

@@ -22,11 +22,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Citation:
-    """One depth-2 link: `parent_id` (a depth-1 source) cites `child_domain`."""
-    claim_id: str            # a claim that cites the parent source: the path starts a -> claim -> parent
-    parent_id: str           # depth-1 source id, e.g. "s1"
-    child_id: str            # the cited source's id (a new depth-2 source, or an existing depth-1 one)
+    """One depth >= 2 link: `parent_id` cites `child_domain`."""
+    claim_id: str            # the root claim reached via a -> claim -> ... -> parent -> child
+    parent_id: str           # parent source id, e.g. "s1" (depth 1) or "s3" (depth 2)
+    child_id: str            # the cited source's id (a new deeper source, or an existing one)
     child_domain: str
+    chain: tuple[str, ...] = ()  # source ids from depth-1 source through parent_id; defaults to (parent_id,)
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,8 @@ def find_circles(citations: list[Citation], article_domain: str, cluster_domains
             kind = "article_cluster"
         else:
             continue
-        path = ["a", c.claim_id, c.parent_id, c.child_id, "a"]
+        prefix = list(c.chain) if c.chain else [c.parent_id]
+        path = ["a", c.claim_id, *prefix, c.child_id, "a"]
         key = tuple(path)
         if key in seen:
             continue

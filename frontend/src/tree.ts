@@ -72,7 +72,8 @@ export function fromLive(l: Live, url: string): View {
     claims.push({ id: n.id, text: n.label, char_start: null, char_end: null, source_ids: cites.filter((e) => e.source === n.id).map((e) => e.target), verdict: n.verdict || 'not_checkable', subtype: null, evidence: null, explanation: '' }),
   );
   const sources: Source[] = l.nodes.filter((n) => n.type === 'source').map((n) => ({
-    id: n.id, url: null, domain: n.label, kind: 'link', attribution_text: null, depth: n.depth === 2 ? 2 : 1,
+    id: n.id, url: null, domain: n.label, kind: 'link', attribution_text: null,
+    depth: (n.depth >= 3 ? 3 : n.depth === 2 ? 2 : 1) as 1 | 2 | 3,
     parent_source_id: null, fetch_status: 'not_fetched', fetched_via: null,
   }));
   let domain = '';

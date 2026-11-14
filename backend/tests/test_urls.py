@@ -26,6 +26,7 @@ def test_registrable_and_same_domain():
 @pytest.mark.parametrize("url,kind", [
     ("https://news.test/other", "self"),
     ("https://x.com/user/status/1", "social"),
+    ("https://t.co/xyz123", "social"),
     ("https://youtu.be/abc", "social"),
     ("https://t.me/chan/5", "telegram"),
     ("https://example.org/report", "link"),

@@ -199,6 +199,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
                                        exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
 
+    # mirrors of the article on other domains: searched while claims are verified, joined before infrastructure step
+    copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
+    copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
+                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
+
     # 3. sources + verify ------------------------------------------------------------------------------------
     progress("fetch_sources", f"Checking the sources of {len(claims)} claims", 25)
     reg = _Registry()
@@ -253,15 +258,15 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     copies_pool.shutdown(wait=False)
     infra = analyze_infrastructure(article_host, art.html, pages, rdap.lookup)
 
-    # 4b. depth 2 (M1, MAX_DEPTH>=2): what the sources themselves cite; a link back to the article = citation circle
+    # 4b. depth 2..MAX_DEPTH (M1): follow source citations across hops; a link back to the article = citation circle
     depth = 1
     d2_edges: list[dict] = []
     circles = []
     if s.max_depth >= 2 and reg.rows:
-        progress("depth2", "Following the sources of the sources", 88)
+        progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
-                            article_domain=article_domain, emit=out)
-        depth = 2
+                            article_domain=article_domain, max_depth=s.max_depth, emit=out)
+        depth = s.max_depth
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
         searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
         signal_pages = [p for r, p in zip(d2.rows, d2.pages) if r["id"] not in searched]
@@ -331,7 +336,7 @@ def _network_reasons(article_final_url: str, article_url: str, rows: list[dict],
         m = match_network(r["url"])
         if m and m.host not in seen:
             seen.add(m.host)
-            hits.append(("a cited source" if r["depth"] == 1 else "a source of a source", m))
+            hits.append(("a cited source" if r["depth"] == 1 else "a source of a source" if r["depth"] == 2 else f"a depth-{r['depth']} source", m))
     for d in domains:
         d.setdefault("known_network", None)
     reasons = []
@@ -361,12 +366,28 @@ def _focus_only_ids(rows: list[dict], claim_dicts: list[dict], citations=()) -> 
 
 
 def _search_ids(rows: list[dict], citations=()) -> set[str]:
-    """Ids of the pages the SEARCH found for an attributed claim (kind named WITH a url; the unresolved person stub has
-    none) and of the pages below them. The article cites neither, so they never feed the infrastructure, network or
-    circle signals. A page below one is only kept in the signals when a source the article does cite leads there too."""
+    """Ids of pages SEARCH found for an attributed claim (kind named WITH a url; unresolved person stub has none) and
+    any deeper pages reachable ONLY through them. The article cites none of them, so they stay out of infrastructure,
+    network and circle signals; a deeper page re-enters signals only if an article-cited chain also leads there."""
     found = {r["id"] for r in rows if r["kind"] == "named" and r["url"]}
-    cited_elsewhere = {c.child_id for c in citations if c.parent_id not in found}
-    return found | {r["id"] for r in rows if r.get("parent_source_id") in found and r["id"] not in cited_elsewhere}
+    if not found:
+        return set()
+    non_search = [r["id"] for r in rows if r["depth"] == 1 and r["id"] not in found]
+    children: dict[str, set[str]] = {}
+    for r in rows:
+        if r.get("parent_source_id"):
+            children.setdefault(r["parent_source_id"], set()).add(r["id"])
+    for c in citations:
+        children.setdefault(c.parent_id, set()).add(c.child_id)
+    reachable = set(non_search)
+    stack = list(non_search)
+    while stack:
+        cur = stack.pop()
+        for nxt in children.get(cur, ()):
+            if nxt not in reachable:
+                reachable.add(nxt)
+                stack.append(nxt)
+    return {r["id"] for r in rows if r["id"] not in reachable}
 
 
 def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 2) -> dict:
@@ -401,11 +422,12 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
     evidence_row = None
     if c.links:
         by_url: dict[str, dict] = {}
+        who = (a.plan.speaker if a.plan and a.plan.speaker else c.attributions[0]).strip() if c.attributions else None
         for sa in a.sources:
             if sa.depth == 2 and sa.parent_url in by_url:         # source of a self-cited page: below it, not next to the claim
                 cite(sa, None, depth=2, parent=by_url[sa.parent_url])
             else:
-                by_url[sa.url] = cite(sa, anchors.get(sa.url))
+                by_url[sa.url] = cite(sa, anchors.get(sa.url) or (who if sa.kind == "named" else None))
     elif not c.attributions:
         for sa in a.sources:                                         # unsourced claim, supporting pages found by search
             cite(sa, None, "named", into=found_ids)
@@ -455,7 +477,7 @@ def _graph(title: str, article_domain: str, claims: list[dict], sources: list[di
     first_depth: dict[str, int] = {}      # a domain is as deep as the shallowest source hosted on it
     for sr in sources:
         if sr["domain"] and sr["id"] not in searched:
-            first_depth[sr["domain"]] = min(first_depth.get(sr["domain"], 2), sr["depth"])
+            first_depth[sr["domain"]] = min(first_depth.get(sr["domain"], sr["depth"]), sr["depth"])
     for d in infra.domains:
         nodes.append({"id": f"d:{d['domain']}", "type": "domain", "label": d["domain"], "verdict": None,
                       "cluster_id": d["cluster_id"], "depth": 0 if d["is_article_domain"] else first_depth.get(d["domain"], 1)})
