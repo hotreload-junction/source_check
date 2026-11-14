@@ -5,6 +5,7 @@ import { overview, trustProfile, type Gauge } from './trust';
 
 const card: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` };
 const GRADIENT = `linear-gradient(90deg, ${CL.r}, ${CL.y} 50%, ${CL.g})`;
+const SKELETON: CSSProperties = { background: `linear-gradient(90deg, ${TH.ink}14 0%, ${TH.ink}2b 50%, ${TH.ink}14 100%)`, backgroundSize: '400px 100%', animation: 'stShimmer 1.3s linear infinite' };
 
 function Slider({ title, ends, g }: { title: string; ends: [string, string]; g: Gauge }) {
   const none = g.pos == null;
@@ -65,6 +66,7 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
         role="button"
         tabIndex={calc ? 0 : -1}
         aria-expanded={open}
+        aria-busy={!calc}
         title={calc ? 'Show what speaks for objectivity and what for propaganda' : undefined}
         onClick={toggle}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
@@ -72,12 +74,12 @@ export function TrustBar({ ctx, ready }: { ctx: Ctx; ready: boolean }) {
       >
         <span style={{ fontWeight: 700, fontSize: 13, color: CL.r }}>Propaganda</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ position: 'relative', height: 16, borderRadius: 99, background: none ? TH.line : GRADIENT }}>
+          <div style={{ position: 'relative', height: 16, borderRadius: 99, background: none ? TH.line : GRADIENT, ...(calc ? {} : SKELETON) }}>
             {!none && (
               <div style={{ position: 'absolute', left: `${ov!.pos! * 100}%`, top: '50%', width: 28, height: 28, marginLeft: -14, marginTop: -14, boxSizing: 'border-box', borderRadius: '50%', background: TH.card, border: `4px solid ${TH.ink}`, boxShadow: '0 1px 5px #0004', transition: 'left .5s' }} />
             )}
           </div>
-          {(none || !calc) && <div style={{ marginTop: 5, textAlign: 'center', fontSize: 11.5, color: TH.mut }}>{calc ? 'Insufficient evidence: the article has no position on the scale' : 'Calculating …'}</div>}
+          {calc && none && <div style={{ marginTop: 5, textAlign: 'center', fontSize: 11.5, color: TH.mut }}>Insufficient evidence: the article has no position on the scale</div>}
         </div>
         <span style={{ fontWeight: 700, fontSize: 13, color: CL.g }}>Objective</span>
         <span style={{ fontFamily: MONO, fontSize: 11.5, color: TH.mut, whiteSpace: 'nowrap', minWidth: 62, textAlign: 'right' }}>{calc ? (open ? 'Hide ▴' : 'Why? ▾') : ''}</span>
