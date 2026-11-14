@@ -38,9 +38,13 @@ Rules:
 - "quote_translation": English translation of the quote, or null if the quote is already English.
 - "language": ISO 639-1 code of the quote (e.g. "en", "ru").
 - "explanation": ONE plain-English sentence on why this verdict.
+- "source_type": what kind of text the SOURCE is.
+  "original" = first-hand material: an official statement or press release, the report/document itself, a transcript, or an interview published as questions and answers.
+  "secondary" = a news article, blog or summary that reports or quotes what someone else said or published (even if it quotes accurately).
+  "unclear" = cannot tell.
 
 Answer with JSON only, keys in this order:
-{"quote_original": "...", "quote_translation": null, "language": "en", "verdict": "...", "explanation": "..."}"""
+{"quote_original": "...", "quote_translation": null, "language": "en", "verdict": "...", "explanation": "...", "source_type": "original|secondary|unclear"}"""
 
 
 @dataclass
@@ -55,6 +59,7 @@ class VerifyResult:
     model: str
     prompt_version: str
     downgraded: bool = False
+    source_type: str = "unclear"     # original | secondary | unclear (LLM judgement, informational for linked sources)
 
     @property
     def has_evidence(self) -> bool:
@@ -91,8 +96,9 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
     translation = d.get("quote_translation") if isinstance(d.get("quote_translation"), str) else None
     lang = d.get("language") if isinstance(d.get("language"), str) else None
     expl = d.get("explanation") if isinstance(d.get("explanation"), str) else ""
+    stype = d.get("source_type") if d.get("source_type") in ("original", "secondary", "unclear") else "unclear"
     out = VerifyResult(verdict, verdict, quote or None, translation, lang, None, expl.strip(),
-                       res.model, s.prompt_version)
+                       res.model, s.prompt_version, source_type=stype)
 
     if verdict == "not_mentioned":
         out.quote_original = out.quote_translation = out.language = None

@@ -33,11 +33,11 @@ def claim(i, links=(), attrs=()):
     return ExtractedClaim(f"c{i}", f"Claim number {i} text.", 0, 10, [LinkRef(u, "a", "sentence") for u in links], list(attrs))
 
 
-def make_llm(verdict="supported", quote=QUOTE, calls=None):
+def make_llm(verdict="supported", quote=QUOTE, calls=None, source_type="original"):
     def handler(request):
         if calls is not None:
             calls.append(1)
-        c = json.dumps({"quote_original": quote, "quote_translation": None, "language": "en", "verdict": verdict, "explanation": "why."})
+        c = json.dumps({"quote_original": quote, "quote_translation": None, "language": "en", "verdict": verdict, "explanation": "why.", "source_type": source_type})
         return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
     return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
 
@@ -104,6 +104,46 @@ def test_named_source_resolved_via_exa_then_verified():
                   exa=exa_client())
     assert a.verdict == "supported" and a.best.kind == "named" and a.best.attribution_text == "the Finnish Ministry"
     assert f.calls == ["https://orig.test/interview"]
+
+
+def test_named_source_secondary_report_corroborates_but_is_neutral():
+    (a,), _ = run([claim(1, attrs=["Zelensky"])], {"https://orig.test/interview": page("https://orig.test/interview")},
+                  llm=make_llm("supported", QUOTE, source_type="secondary"), exa=exa_client())
+    assert a.verdict == "not_checkable" and a.evidence is None and a.best.corroborated
+    assert "original source" in a.explanation
+
+
+def test_secondary_report_cannot_contradict_or_distort():
+    for verdict in ("distorted", "contradicted", "not_mentioned"):
+        (a,), _ = run([claim(1, attrs=["X"])], {"https://orig.test/interview": page("https://orig.test/interview")},
+                      llm=make_llm(verdict, QUOTE if verdict != "not_mentioned" else "", source_type="secondary"), exa=exa_client())
+        assert a.verdict == "not_checkable", verdict
+
+
+def test_original_found_after_secondary_candidates_decides():
+    urls = ["https://outlet.test/report", "https://org.test/statement"]
+
+    def exa_handler(request):
+        return httpx.Response(200, json={"results": [{"url": u} for u in urls]})
+    pages = {u: page(u) for u in urls}
+    types = iter(["secondary", "original"])
+
+    def handler(request):
+        c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported",
+                        "explanation": "ok.", "source_type": next(types)})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    (a,), _ = run([claim(1, attrs=["Org"])], pages, llm=llm, exa=httpx.Client(transport=httpx.MockTransport(exa_handler)))
+    assert a.verdict == "supported" and a.best.url == "https://org.test/statement" and len(a.sources) == 2
+
+
+def test_named_candidates_capped_to_bound_cost():
+    urls = [f"https://n{i}.test/a" for i in range(8)]
+    calls = []
+    res, _ = run([claim(1, attrs=["A", "B"])], {u: page(u) for u in urls},
+                 llm=make_llm("supported", QUOTE, calls, source_type="secondary"),
+                 exa=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": u} for u in urls]}))))
+    assert len(calls) <= 4 and res[0].verdict == "not_checkable"
 
 
 def test_named_source_not_found_is_neutral_not_unsourced():

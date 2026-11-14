@@ -2,8 +2,9 @@
 
 Source collection (DECISIONS Q18 + leo's answer on the board):
 - links in the claim's sentence/paragraph are the sources;
-- a claim without links but with named attributions: Exa resolves each attribution to a URL; if the original
-  is found it is fetched and verified like any source, else the claim is `not_checkable` (neutral);
+- a claim without links but with named attributions: Exa proposes candidates for each attribution. Only an ORIGINAL
+  (official statement, report, transcript, Q&A interview; judged by verify.py `source_type`) can carry a verdict.
+  Another outlet reporting the same statement is corroboration, not the original -> `not_checkable` (neutral);
 - no links and no attribution -> `unsourced`.
 Neutral outcomes never count against an article: unreachable/paywall/blocked, social_media, self_citation,
 unlocated named sources, failed LLM calls, and negative verdicts the code could not back with a verified quote.
@@ -22,13 +23,16 @@ from ..config import Settings, get_settings
 from ..fetch import Fetcher, FetchResult
 from ..llm import LLMClient, LLMError
 from ..models import ClaimVerdictRecord
-from .exa import resolve_named_source
+from datetime import datetime
+
+from .exa import find_candidates
 from .extract import ExtractedClaim
 from .verify import VerifyResult, verify_claim
 
 log = logging.getLogger("citetrace.assess")
 
 MAX_ATTRIBUTIONS = 2           # Exa lookups per claim
+MAX_NAMED_VERIFY = 4           # verify calls spent on Exa candidates per claim
 MAX_SOURCES_PER_CLAIM = 3      # keep cost bounded
 _RANK = {"supported": 4, "contradicted": 3, "distorted": 3, "not_mentioned": 2, "not_checkable": 1}
 
@@ -42,6 +46,7 @@ class SourceAssessment:
     verify: VerifyResult | None
     verdict: str                    # per-source, after neutral mappings
     note: str = ""                  # why neutral, when no VerifyResult explains it
+    corroborated: bool = False      # named source: a secondary report supports the claim, original not found
 
 
 @dataclass
@@ -55,7 +60,11 @@ class ClaimAssessment:
 
     @property
     def evidence(self) -> VerifyResult | None:
-        return self.best.verify if self.best and self.best.verify and self.best.verify.has_evidence else None
+        """Evidence only when the verdict rests on it (a neutralised secondary report is not evidence)."""
+        if self.best and self.best.verify and self.best.verify.has_evidence \
+                and self.best.verdict in ("supported", "distorted", "contradicted"):
+            return self.best.verify
+        return None
 
 
 class _FetchCache:
@@ -78,35 +87,40 @@ class _FetchCache:
 
 def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fetcher, llm: LLMClient,
                   settings: Settings | None = None, exa_client: httpx.Client | None = None,
-                  max_workers: int = 3) -> list[ClaimAssessment]:
+                  max_workers: int = 3, published_at: datetime | None = None) -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client)
+        futures = [pool.submit(assess_claim, c, article_url, cache=cache, llm=llm, settings=s, exa_client=exa_client,
+                   published_at=published_at)
                    for c in claims]
         return [f.result() for f in futures]
 
 
 def assess_claim(claim: ExtractedClaim, article_url: str, *, cache: _FetchCache, llm: LLMClient,
-                 settings: Settings, exa_client: httpx.Client | None = None) -> ClaimAssessment:
-    candidates: list[tuple[str | None, str | None]] = [(l.url, None) for l in claim.links][:MAX_SOURCES_PER_CLAIM]
-    unresolved: list[str] = []
-    if not candidates:
-        for attribution in claim.attributions[:MAX_ATTRIBUTIONS]:
-            hit = resolve_named_source(attribution, claim.text, api_key=settings.exa_api_key,
-                                       client=exa_client, exclude_domain=article_url)
-            if hit:
-                candidates.append((hit.url, attribution))
-            else:
-                unresolved.append(attribution)
-    if not candidates:
-        if unresolved:   # leo: attributed but original not found -> neutral
-            names = ", ".join(unresolved)
-            return ClaimAssessment(claim, "not_checkable", None,
-                                   f"The claim is attributed to {names}, but no original source could be located.")
+                 settings: Settings, exa_client: httpx.Client | None = None,
+                 published_at: datetime | None = None) -> ClaimAssessment:
+    if claim.links:
+        sources = [_assess_source(claim, l.url, None, article_url, cache, llm, settings)
+                   for l in claim.links[:MAX_SOURCES_PER_CLAIM]]
+        return _aggregate(claim, sources)
+    if not claim.attributions:
         return ClaimAssessment(claim, "unsourced", None, "The article gives no source for this claim.")
 
-    sources = [_assess_source(claim, url, attribution, article_url, cache, llm, settings) for url, attribution in candidates]
+    sources: list[SourceAssessment] = []
+    for attribution in claim.attributions[:MAX_ATTRIBUTIONS]:
+        for hit in find_candidates(attribution, claim.text, api_key=settings.exa_api_key, client=exa_client,
+                                   exclude_url=article_url, around=published_at):
+            if len(sources) >= MAX_NAMED_VERIFY:
+                break
+            sa = _assess_source(claim, hit.url, attribution, article_url, cache, llm, settings)
+            sources.append(sa)
+            if sa.verdict in ("supported", "distorted", "contradicted"):   # an original decided it
+                return _aggregate(claim, sources)
+    if not sources:   # leo: attributed but nothing located -> neutral, never "unsourced"
+        names = ", ".join(claim.attributions[:MAX_ATTRIBUTIONS])
+        return ClaimAssessment(claim, "not_checkable", None,
+                               f"The claim is attributed to {names}, but no original source could be located.")
     return _aggregate(claim, sources)
 
 
@@ -123,12 +137,18 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     except LLMError as exc:
         log.warning("verify failed for %s: %s", url, exc)
         return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.")
-    verdict = v.verdict
-    note = ""
-    if kind == "named" and verdict == "not_mentioned":
-        # An Exa match is a guess at the original. Not finding the claim in it says nothing about the article.
+    verdict, note, corroborated = v.verdict, "", False
+    if kind == "named" and v.source_type != "original":
+        # Exa found another outlet, not the original statement. It can corroborate, never decide.
+        corroborated = v.verdict == "supported"
+        verdict = "not_checkable"
+        note = ("Other reporting confirms the statement, but the original source (official statement, transcript "
+                "or full interview) could not be found." if corroborated else
+                "Only secondary reporting was found, not the original source.")
+    elif kind == "named" and verdict == "not_mentioned":
+        # An original-looking page that does not cover the claim: Exa's guess was wrong, says nothing about the article.
         verdict, note = "not_checkable", "A possible original source was found but does not cover this claim."
-    return SourceAssessment(url, kind, attribution, fetch, v, verdict, note)
+    return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, corroborated)
 
 
 def _aggregate(claim: ExtractedClaim, sources: list[SourceAssessment]) -> ClaimAssessment:
@@ -141,7 +161,10 @@ def _aggregate(claim: ExtractedClaim, sources: list[SourceAssessment]) -> ClaimA
         subtype = None
         if all(sa.fetch and sa.fetch.subtype for sa in sources):
             subtype = sources[0].fetch.subtype if len({sa.fetch.subtype for sa in sources}) == 1 else None
-        expl = best.verify.explanation if best.verify else best.note
+        corroborating = next((sa for sa in sources if sa.corroborated), None)
+        if corroborating:
+            best = corroborating
+        expl = best.note or (best.verify.explanation if best.verify else "")
         return ClaimAssessment(claim, "not_checkable", subtype, expl, sources, best)
     return ClaimAssessment(claim, best.verdict, None, best.verify.explanation if best.verify else best.note, sources, best)
 

@@ -6,7 +6,9 @@ import pytest
 
 from app.config import Settings
 from app.llm import LLMClient, LLMError, parse_json_loose
-from app.pipeline.exa import resolve_named_source
+from datetime import datetime
+
+from app.pipeline.exa import find_candidates, primary_hint, resolve_named_source
 from app.pipeline.extract import extract_claims
 
 FX = Path(__file__).parent / "fixtures" / "extract"
@@ -100,3 +102,35 @@ def test_exa_resolve_and_failures():
         assert resolve_named_source("X", "y", api_key="k",
                                     client=httpx.Client(transport=httpx.MockTransport(lambda r, resp=resp: resp))) is None
     assert resolve_named_source("X", "y", api_key="") is None
+
+
+def _exa(urls, seen=None):
+    def handler(request):
+        if seen is not None:
+            seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"results": [{"url": u, "title": "t"} for u in urls]})
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_primary_hint_ranking():
+    assert primary_hint("https://www.amnesty.org/en/latest/x", "Amnesty International") == 2
+    assert primary_hint("https://www.defmin.gov.uk/news", "the UK Ministry of Defence") >= 1
+    assert primary_hint("https://www.bbc.com/news/x", "Volodymyr Zelensky") == 0
+
+
+def test_candidates_ranked_first_hand_first_and_exclude_article_and_domain():
+    urls = ["https://www.bbc.com/news/a", "https://www.politico.eu/x", "https://news.test/own-article",
+            "https://www.amnesty.org/en/report", "https://other.test/y"]
+    hits = find_candidates("Amnesty International", "said ...", api_key="k", client=_exa(urls),
+                           exclude_url="https://news.test/a", limit=3)
+    assert [h.url for h in hits] == ["https://www.amnesty.org/en/report", "https://www.bbc.com/news/a", "https://www.politico.eu/x"]
+    assert all("news.test" not in h.url for h in hits)
+
+
+def test_candidates_date_window_and_limit():
+    seen = []
+    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen), around=datetime(2026, 11, 14))
+    assert seen[0]["startPublishedDate"].startswith("2026-10-31") and seen[0]["endPublishedDate"].startswith("2026-11-16")
+    seen.clear()
+    find_candidates("X", "y", api_key="k", client=_exa(["https://a.test/1"], seen))
+    assert "startPublishedDate" not in seen[0]
