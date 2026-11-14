@@ -66,7 +66,7 @@ graph:    {nodes: GraphNode[], edges: GraphEdge[]}
 signals:  Signals
 verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
 focus:    Focus | null       # null when no question was sent
-audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1|2|3, duration_s,
+audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1..5, duration_s,
            focus_prompt_version: str|null}   # null without a question
 ```
 ```
@@ -118,7 +118,7 @@ domain: str|null     # null together with url; show attribution_text instead (cl
 kind: "link" | "named" | "telegram" | "social" | "self"
    # named = attribution without link, resolved via Exa (url may be null if not found)
 attribution_text: str|null    # e.g. "according to the Finnish Ministry of Defence"
-depth: 1 | 2 | 3
+depth: 1 | 2 | 3 | 4 | 5
 parent_source_id: str|null    # for depth >= 2
 fetch_status: "ok" | "unreachable" | "paywall" | "blocked" | "not_fetched"
 fetched_via: "context_dev" | "trafilatura" | "telegram" | null
@@ -157,12 +157,12 @@ RspEntry: {source: str, statuses: ("generally_reliable"|"no_consensus"|"generall
 ### GraphNode / GraphEdge (Cytoscape-ready)
 ```
 GraphNode: {id, type: "article"|"claim"|"source"|"domain", label, verdict: ClaimVerdict|null,
-            cluster_id: str|null, depth: 0|1|2|3}
+            cluster_id: str|null, depth: 0|1|2|3|4|5}
 GraphEdge: {id, source, target,
             type: "makes_claim" | "cites" | "hosted_on" | "shares_infra" | "cites_back"}
 ```
 `cites_back` marks an edge that closes a citation circle (depth >= 2).
-Multi-hop source tracing (default `MAX_DEPTH=3`; `MAX_DEPTH=1` switches it off; `audit.depth: 1|2|3`): a depth-N source
+Multi-hop source tracing (default `MAX_DEPTH=3`; range 1..5, `MAX_DEPTH=1` switches it off; `audit.depth: 1..5`): a depth-N source
 (N >= 2) is cited by a depth-(N-1) source in the passage relevant to the claim, so it has `parent_source_id` and a
 `cites` edge **source -> source** (`depth: N` on the node). A deeper link back to the article's own domain is a
 `kind: "self"`, `fetch_status: "not_fetched"` source. `cites_back` goes from the cited source (article domain or a

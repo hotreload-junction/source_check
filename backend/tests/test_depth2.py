@@ -171,6 +171,23 @@ def test_fetch_budget_and_per_source_cap(n_links):
 
 
 S3 = Settings(**{**SETTINGS.model_dump(), "max_depth": 3})
+S5 = Settings(**{**SETTINGS.model_dump(), "max_depth": 5})
+
+
+def test_depth_5_follows_four_hops_and_stops_there():
+    hops = [f"https://hop{i}.example/p" for i in range(1, 5)]          # depth 2..5
+    beyond = "https://beyond-limit.gov/study.pdf"                      # would be depth 6
+    pages = pages_with(hops[0])
+    for i, url in enumerate(hops):
+        nxt = hops[i + 1] if i + 1 < len(hops) else beyond
+        pages[url] = src(url, f"Report repeats {QUOTE}, per [the next link]({nxt}) item.", CLEAN)
+    pages[beyond] = src(beyond, "Dataset covers 40 districts through 2027.", CLEAN)
+    r = run2(pages, settings=S5).result
+    assert r["audit"]["depth"] == 5
+    by_url = {s["url"]: s for s in r["sources"]}
+    assert [by_url[u]["depth"] for u in hops] == [2, 3, 4, 5]
+    assert by_url[hops[3]]["parent_source_id"] == by_url[hops[2]]["id"]
+    assert beyond not in by_url                                         # depth 6 is never followed
 
 
 def test_depth_3_follows_depth_2_citations_and_sets_domain_depth():
