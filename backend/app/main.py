@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="CiteTrace", lifespan=lifespan)
+app = FastAPI(title="Source Check", lifespan=lifespan)
 app.include_router(router)
 
 

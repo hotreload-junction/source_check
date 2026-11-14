@@ -1,9 +1,9 @@
 import { CL, TH } from './theme';
 
-/** "Source Trace" with the logo standing in for the capital S. */
+/** "Source Check" with the logo standing in for the capital S. */
 export function Wordmark() {
   return (
-    <span aria-label="Source Trace" style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+    <span aria-label="Source Check" style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
       <svg
         aria-hidden="true"
         viewBox="44 28 204 238"
@@ -13,7 +13,7 @@ export function Wordmark() {
         <circle cx="212" cy="75" r="32" fill={CL.r} />
         <circle cx="82" cy="224" r="34" fill={CL.g} />
       </svg>
-      <span aria-hidden="true">ource Trace</span>
+      <span aria-hidden="true">ource Check</span>
     </span>
   );
 }
