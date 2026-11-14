@@ -22,9 +22,11 @@ from ..fetch import Fetcher
 from ..fetch.urls import registrable_domain
 from ..llm import LLMClient, LLMError
 from ..signals import RdapClient, SourcePage, analyze_infrastructure
+from ..signals.circles import article_cluster_domains, circle_path, find_circles
 from ..signals.rdap import RdapResult
 from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
+from .depth2 import expand_sources
 from .extract import ExtractedClaim, extract_claims
 from .textutil import build_plain
 
@@ -168,17 +170,34 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     for r in reg.rows:
         r.pop("_html", None)
     infra = analyze_infrastructure(article_host, art.html, pages, rdap.lookup)
+
+    # 4b. depth 2 (M1, MAX_DEPTH>=2): what the sources themselves cite; a link back to the article = citation circle
+    depth = 1
+    d2_edges: list[dict] = []
+    circles = []
+    if s.max_depth >= 2 and reg.rows:
+        progress("depth2", "Following the sources of the sources", 88)
+        d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
+                            article_domain=article_domain, emit=out)
+        depth = 2
+        if d2.rows:     # the new domains join the infrastructure analysis (shared IDs, ages) and the clusters
+            infra = analyze_infrastructure(article_host, art.html, pages + d2.pages, rdap.lookup)
+        d2_edges = d2.edges
+        circles = find_circles(d2.citations, article_domain, article_cluster_domains(infra.domains, article_domain))
+        back = {c.closing_edge for c in circles}      # one closing edge per cited source, however many paths reach it
+        d2_edges += [{"id": f"e-{src}-back", "source": src, "target": dst, "type": "cites_back"} for src, dst in sorted(back)]
     domain_cluster = {d["domain"]: d["cluster_id"] for d in infra.domains}
 
     # 5. verdict ---------------------------------------------------------------------------------------------
     progress("verdict", "Deciding", 95)
-    decision = decide([ClaimInput(c["id"], c["verdict"]) for c in claim_dicts], infra.domains, infra.shared_id_reasons())
-    nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster)
+    decision = decide([ClaimInput(c["id"], c["verdict"]) for c in claim_dicts], infra.domains, infra.shared_id_reasons(),
+                      circle_path(circles))
+    nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges)
     for n in nodes:
         if n["type"] in ("domain", "source"):
             out("node", n)
     for e in edges:
-        if e["type"] in ("hosted_on", "shares_infra"):
+        if e["type"] in ("hosted_on", "shares_infra", "cites_back"):
             out("edge", e)
 
     result = {
@@ -191,7 +210,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         "signals": decision["signals"],
         "verdict": decision["verdict"],
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
-                  "fuzzy_threshold": s.fuzzy_threshold, "depth": 1, "duration_s": round(time.monotonic() - t0, 1)},
+                  "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1)},
     }
     progress("verdict", "Done", 100)
     return AnalysisOutput(result, assessments, reg.rows)
@@ -232,7 +251,8 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit) -> dict:
             "verdict": a.verdict, "subtype": a.subtype, "evidence": evidence, "explanation": a.explanation}
 
 
-def _graph(title: str, article_domain: str, claims: list[dict], sources: list[dict], infra, domain_cluster: dict) -> tuple[list, list]:
+def _graph(title: str, article_domain: str, claims: list[dict], sources: list[dict], infra, domain_cluster: dict,
+           depth2_edges: list[dict] = ()) -> tuple[list, list]:
     nodes = [{"id": "a", "type": "article", "label": title, "verdict": None,
               "cluster_id": domain_cluster.get(article_domain), "depth": 0}]
     edges: list[dict] = []
@@ -243,13 +263,18 @@ def _graph(title: str, article_domain: str, claims: list[dict], sources: list[di
             edges.append({"id": f"e-{c['id']}-{sid}", "source": c["id"], "target": sid, "type": "cites"})
     for sr in sources:
         nodes.append({"id": sr["id"], "type": "source", "label": sr["domain"] or sr["attribution_text"] or "unknown",
-                      "verdict": None, "cluster_id": domain_cluster.get(sr["domain"]), "depth": 1})
+                      "verdict": None, "cluster_id": domain_cluster.get(sr["domain"]), "depth": sr["depth"]})
         if sr["domain"]:
             edges.append({"id": f"e-{sr['id']}-host", "source": sr["id"], "target": f"d:{sr['domain']}", "type": "hosted_on"})
+    first_depth: dict[str, int] = {}      # a domain is as deep as the shallowest source hosted on it
+    for sr in sources:
+        if sr["domain"]:
+            first_depth[sr["domain"]] = min(first_depth.get(sr["domain"], 2), sr["depth"])
     for d in infra.domains:
         nodes.append({"id": f"d:{d['domain']}", "type": "domain", "label": d["domain"], "verdict": None,
-                      "cluster_id": d["cluster_id"], "depth": 0 if d["is_article_domain"] else 1})
+                      "cluster_id": d["cluster_id"], "depth": 0 if d["is_article_domain"] else first_depth.get(d["domain"], 1)})
         if d["is_article_domain"]:
             edges.append({"id": "e-a-host", "source": "a", "target": f"d:{d['domain']}", "type": "hosted_on"})
+    edges += depth2_edges
     edges += infra.edges
     return nodes, edges

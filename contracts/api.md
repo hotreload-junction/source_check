@@ -123,6 +123,11 @@ GraphEdge: {id, source, target,
             type: "makes_claim" | "cites" | "hosted_on" | "shares_infra" | "cites_back"}
 ```
 `cites_back` marks an edge that closes a citation circle (depth 2).
+Depth 2 (`MAX_DEPTH=2`, `audit.depth: 2`): a depth-2 source is cited by a depth-1 source, so it has `parent_source_id`
+and a `cites` edge **source -> source** (`depth: 2` on the node). A depth-2 link to the article's own domain is a
+`kind: "self"`, `fetch_status: "not_fetched"` source. `cites_back` goes from the cited source (article domain or a
+domain in the article's operator cluster) to the article node `a`; `signals.circle.path` =
+`["a", "<claim>", "<depth-1 source>", "<cited source>", "a"]`.
 
 ### Signals
 ```

@@ -84,7 +84,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 ### MVP extensions (Sat 18:00-01:00)
 | id | task | owner | status | notes |
 |---|---|---|---|---|
-| M1 | depth 2: steps 2-5 for the sources' sources, citation-circle signal | leo-bg | doing | |
+| M1 | depth 2: steps 2-5 for the sources' sources, citation-circle signal | leo-bg | done | `MAX_DEPTH=2` in `.env`; code only, see DECISIONS |
 | M2 | MariaDB Vector: embed source texts, "seen this text on N other domains" | leo-be | todo | |
 | M3 | Exa findSimilar for copies of the story | | todo | only if time |
 
