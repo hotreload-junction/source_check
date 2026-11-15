@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T01:48:46Z",
+  "generated_at": "2026-11-15T02:26:18Z",
   "verify_model": "claude-sonnet-5-5 (extraction claude-haiku-5-5; effort medium; called through the Claude Code CLI)",
   "prompt_version": "v10",
   "pairs": {
@@ -61,50 +61,50 @@
     }
   },
   "articles": {
-    "n_network": 10,
-    "n_wire": 10,
+    "n_network": 15,
+    "n_wire": 15,
     "fpr_wire": 0.0,
-    "tpr_network": 0.7,
+    "tpr_network": 0.7333,
     "confusion": {
-      "tp": 7,
+      "tp": 11,
       "fp": 0,
-      "fn": 3,
-      "tn": 10
+      "fn": 4,
+      "tn": 15
     },
     "fpr_wire_without_list": 0.0,
-    "tpr_network_without_list": 0.2,
+    "tpr_network_without_list": 0.3333,
     "confusion_without_list": {
-      "tp": 2,
+      "tp": 5,
       "fp": 0,
-      "fn": 8,
-      "tn": 10
+      "fn": 10,
+      "tn": 15
     },
-    "n_hard_negatives": 2,
+    "n_hard_negatives": 3,
     "fp_hard_negatives": 0,
     "n_failed": 0,
     "labels": {
       "network": {
-        "propaganda_pattern": 7,
+        "propaganda_pattern": 11,
         "insufficient_evidence": 1,
-        "well_sourced": 2
+        "well_sourced": 3
       },
       "wire": {
         "insufficient_evidence": 3,
-        "weakly_sourced": 3,
-        "well_sourced": 4
+        "weakly_sourced": 6,
+        "well_sourced": 6
       }
     },
     "labels_without_list": {
       "network": {
-        "propaganda_pattern": 2,
-        "insufficient_evidence": 2,
-        "well_sourced": 5,
+        "propaganda_pattern": 5,
+        "insufficient_evidence": 3,
+        "well_sourced": 6,
         "weakly_sourced": 1
       },
       "wire": {
         "insufficient_evidence": 3,
-        "weakly_sourced": 3,
-        "well_sourced": 4
+        "weakly_sourced": 6,
+        "well_sourced": 6
       }
     }
   },
@@ -119,7 +119,7 @@
     "fuzzy": 90.0
   },
   "tuned_on": "nothing: thresholds are start values set on principle before this run, and no prompt or threshold was changed on these items",
-  "measured_on": "100 expert-labelled claim-source pairs (Check-COVID, WiCE) and 20 articles labelled by provenance (10 from the Pravda network's own sitemaps, 10 from BBC, DW, NPR, Guardian, Al Jazeera, Kyiv Independent, Ukrainska Pravda and Meduza feeds), collected 15 Nov 2026",
+  "measured_on": "100 expert-labelled claim-source pairs (Check-COVID, WiCE) and 30 articles labelled by provenance (15 from the Pravda network's own sitemaps, 15 from BBC, DW, NPR, Guardian, Al Jazeera, Kyiv Independent, Ukrainska Pravda and Meduza feeds), collected 15 Nov 2026",
   "error_cases": [
     {
       "kind": "fn",
@@ -295,6 +295,13 @@
       "expected": "propaganda_pattern",
       "got": "well_sourced",
       "note": "One warning signal fired (shared, very young or documented-network infrastructure), but a single signal is not enough for a propaganda pattern; the checkable claims hold up. 1 of 5 checkable claims are confirmed only by independent reports "
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "https://usa.news-pravda.com/world/2026/11/14/952385.html",
+      "expected": "propaganda_pattern",
+      "got": "well_sourced",
+      "note": "One warning signal fired (shared, very young or documented-network infrastructure), but a single signal is not enough for a propaganda pattern; the checkable claims hold up. 2 of 4 checkable claims are confirmed only by independent reports "
     }
   ]
 }
