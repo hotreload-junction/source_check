@@ -95,8 +95,8 @@ function steps(fuzzy: string, youngDays: string): Step[] {
     },
     {
       name: 'Pick up to 6 central claims',
-      what: 'Code splits the text into numbered sentences. A fast model is asked 5 times, independently, which sentences are checkable factual claims; a sentence needs a strict majority. Sentences that name a source are preferred, but 2 slots stay reserved for unsourced ones.',
-      guard: 'Asking a model once for “the most central claims” is not repeatable, even at temperature 0. With the vote, the article label was identical in 16 of 16 repeated runs (before: 3 different labels in 3 runs).',
+      what: 'Code splits the text into numbered sentences. A model summarises the article into 5 to 8 key points, each citing the sentences that state it, three times independently. A sentence needs a majority of the readings, and each key point yields its one best sentence, so the claims are different assertions. 2 slots go to checkable details (figures, dates, attributed statements), unsourced ones first. A claim is always a verbatim sentence of the article.',
+      guard: 'Asking a model once for “the most central claims” is not repeatable, and a plain “is this checkable?” vote labels most sentences yes (55 to 66 of about 70 in the Guardian article), so it cannot rank. Anecdotes and interviewees’ personal stories are left out of the summary, and several sentences that state the same point count once.',
     },
     {
       name: 'Find what each claim cites',
@@ -160,7 +160,7 @@ function limits(): ReactNode[] {
     <><b>The network list makes listed domains easy.</b> Any article from a VIGINUM-listed host fires the infrastructure signal. Recall on network articles is only meaningful when measured with and without the list.</>,
     <><b>Copies can over-fire.</b> The domain age of a site that copies the article counts toward the infrastructure signal, so a young scraper mirroring a wire story can fire it for the wire story. One signal alone still never produces a propaganda pattern.</>,
     <><b>Refutations are not yet measured.</b> The fact-check agent can mark a claim “contradicted”. How often it does so wrongly on true claims has not been measured yet; it always needs a located quote.</>,
-    <><b>Claim selection is a model’s choice.</b> The vote makes it repeatable, not perfect. A sentence that continues the previous one (“It did not give any reason”) can flip between not checkable and unsourced.</>,
+    <><b>Claim selection is a model’s choice.</b> The summary readings and the majority make it more repeatable, not perfect, and the repeatability of this method is not in the eval yet (the figures below are for the earlier 5-vote method). A sentence that continues the previous one (“It did not give any reason”) can flip between not checkable and unsourced, and a claim is the sentence as written, so it can lack context (“Another 31% expect turbulence”).</>,
     <><b>The web changes.</b> A finished analysis replays exactly from the cache, but a fresh run days later can find different pages and reach a different label.</>,
   ];
 }
@@ -468,8 +468,8 @@ export function Methodology() {
           <h3 style={{ fontSize: 17, margin: '28px 0 4px' }}>Repeatability</h3>
           <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>Measured while building, on articles outside the demo set (claim overlap: DW, Al Jazeera, Guardian, TASS). These numbers show that the same article gets the same answer, not that the answer is right.</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Metric name="Same claims picked" value="0.66 → 1.00" note="Mean overlap of the claim sets over 5 repeats on identical text, single ranked call vs. 5-vote majority." />
-            <Metric name="Same article label" value="16 / 16" note="4 articles × 4 fresh runs. Before the vote: 3 different labels in 3 runs of one article." />
+            <Metric name="Same claims picked" value="0.66 → 1.00" note="Earlier 5-vote method: mean overlap of the claim sets over 5 repeats on identical text, single ranked call vs. 5-vote majority." />
+            <Metric name="Same article label" value="16 / 16" note="Earlier 5-vote method: 4 articles × 4 fresh runs. Before the vote: 3 different labels in 3 runs of one article." />
             <Metric name="Replay" value="identical" note="A finished analysis replays byte for byte from the step cache." />
           </div>
         </Section>

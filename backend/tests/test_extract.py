@@ -14,7 +14,7 @@ from app.pipeline.extract import extract_claims
 FX = Path(__file__).parent / "fixtures" / "extract"
 PRAVDA = (FX / "pravda.md").read_text()
 PRAVDA_URL = "https://news-pravda.com/world/2026/11/14/2743940.html"
-SETTINGS = Settings(_env_file=None, model_extract="test-model", max_claims=6)
+SETTINGS = Settings(_env_file=None, model_extract="test-model", max_claims=6, extract_mode="votes")
 
 
 def llm_returning(content, status=200, seen=None):
@@ -92,7 +92,7 @@ def test_majority_vote_selects_claims_in_document_order_with_exact_slices_and_li
 def test_exactly_half_is_not_a_majority_and_the_cap_keeps_the_first_in_document_order():
     ids, units = unit_ids()
     everything = [(i, []) for i in range(len(units))]
-    s = Settings(_env_file=None, model_extract="m", max_claims=2, extract_votes=4)
+    s = Settings(_env_file=None, model_extract="m", max_claims=2, extract_votes=4, extract_mode="votes")
     res = extract_claims(MD, "", llm=votes_returning([everything, everything, [], []]), settings=s)     # 2 of 4 = half
     assert res.claims == []
     res = extract_claims(MD, "", llm=votes_returning([everything, everything, everything, []]), settings=s)
@@ -103,7 +103,7 @@ def test_garbage_votes_are_ignored_and_failures_do_not_sink_the_extraction():
     ids, units = unit_ids()
     a = ids["The ministry said on"]
     good = [(a, [])]
-    s = Settings(_env_file=None, model_extract="m", extract_votes=3)
+    s = Settings(_env_file=None, model_extract="m", extract_votes=3, extract_mode="votes")
     calls = [0]
 
     def handler(request):
@@ -118,7 +118,7 @@ def test_garbage_votes_are_ignored_and_failures_do_not_sink_the_extraction():
 
 
 def test_no_usable_reading_raises_and_an_empty_article_is_not_an_error():
-    s = Settings(_env_file=None, model_extract="m", extract_votes=3)
+    s = Settings(_env_file=None, model_extract="m", extract_votes=3, extract_mode="votes")
     for llm in (llm_returning(json.dumps({"nope": 1})), llm_returning("not json", 200), llm_returning("x", 500)):
         with pytest.raises(LLMError):
             extract_claims(MD, "", llm=llm, settings=s)

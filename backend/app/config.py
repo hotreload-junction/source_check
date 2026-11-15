@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v10"
+    prompt_version: str = "v11"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     max_claims: int = 6
     # independent readings of the article for claim selection; a sentence needs a strict majority (see extract.py)
     extract_votes: int = 5
+    # How the central claims are chosen (pipeline/extract.py): "summary" = the model summarises the article into key points that cite
+    # the numbered sentences stating them (centrality from the summary, K=SUMMARY_VOTES readings, one claim per key point, 2 slots for
+    # checkable details); "votes" = a classifier votes EXTRACT_VOTES times which sentences are checkable (sourced ones preferred)
+    extract_mode: str = "summary"
+    summary_votes: int = 3
+    summary_detail_slots: int = 2
     # 3 = depth 2-3 source chain crawl (no extra LLM calls) + citation-circle signal; 1 switches it off; 5 = theoretical max
     max_depth: int = Field(default=3, ge=1, le=5)
     # Root or relay (pipeline/origin.py): claims without any checkable source are classified by MODEL_VERIFY;

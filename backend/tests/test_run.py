@@ -23,7 +23,7 @@ ARTICLE = (
 SRC_BAD = "Sources report new drone attacks last week across the region. Officials declined to comment on any other matter."
 SRC_OK = "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, report says."
 SETTINGS = Settings(_env_file=None, model_extract="mx", model_verify="mv", exa_api_key="", prompt_version="vT",
-                    fuzzy_threshold=90, claim_deadline_s=30, max_depth=1)   # depth 1 pinned: these tests have no depth-2 pages
+                    fuzzy_threshold=90, claim_deadline_s=30, max_depth=1, extract_mode="votes")   # depth 1 pinned: these tests have no depth-2 pages
 
 
 class FakeFetcher:
