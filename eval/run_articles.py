@@ -18,7 +18,7 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from common import DATA, RESULTS, RUNS, append_jsonl, client, read_jsonl, run_id, settings
+from common import DATA, RESULTS, ROOT, RUNS, append_jsonl, client, read_jsonl, run_id, settings
 
 LIST_MARK = "is on the published list of the"
 
@@ -47,7 +47,7 @@ def main() -> None:
     from app.verdict import SIGNAL_ORDER
 
     import subprocess
-    code = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=RUNS.parent).stdout.strip()
+    code = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
     llm = client(concurrency=args.llm_concurrency)
     out = RESULTS / "articles.jsonl"
     done = {r["id"] for r in read_jsonl(out) if r.get("run_id") == current_run and r.get("status") == "done"}
