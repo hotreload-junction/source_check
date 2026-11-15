@@ -17,7 +17,12 @@ class Settings(BaseSettings):
         env_file=str(_REPO_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore"
     )
 
-    # LLM (Hostinger AI Router)
+    # LLM: the Anthropic API (ANTHROPIC_API_KEY; MODEL_EXTRACT / MODEL_VERIFY are Claude model ids) or the Hostinger AI Router
+    # (AI_ROUTER_*). "auto" = Anthropic when a key is set, else the router.
+    llm_provider: str = "auto"             # auto | anthropic | router
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = ""           # empty = https://api.anthropic.com
+    llm_effort: str = "medium"             # Anthropic output_config.effort: low | medium | high | xhigh | max
     ai_router_base_url: str = ""
     ai_router_api_key: str = ""
     model_extract: str = ""
@@ -112,6 +117,20 @@ class Settings(BaseSettings):
     # Runtime
     max_concurrent_analyses: int = 2
     public_base_url: str = ""
+
+    @property
+    def llm_provider_resolved(self) -> str:
+        """anthropic | router. "auto" = Anthropic as soon as ANTHROPIC_API_KEY is set."""
+        if self.llm_provider in ("anthropic", "router"):
+            return self.llm_provider
+        return "anthropic" if self.anthropic_api_key else "router"
+
+    @property
+    def llm_missing(self) -> list[str]:
+        """Names of the .env entries the LLM calls still need (empty = configured)."""
+        need = (("ANTHROPIC_API_KEY", self.anthropic_api_key),) if self.llm_provider_resolved == "anthropic" else (
+            ("AI_ROUTER_BASE_URL", self.ai_router_base_url), ("AI_ROUTER_API_KEY", self.ai_router_api_key))
+        return [n for n, v in (*need, ("MODEL_EXTRACT", self.model_extract), ("MODEL_VERIFY", self.model_verify)) if not v]
 
 
 @lru_cache

@@ -1,4 +1,10 @@
-"""Thin client for the Hostinger AI Router (OpenAI-compatible /chat/completions). JSON mode, temperature 0."""
+"""LLM client: the Anthropic Messages API (default) or the Hostinger AI Router (OpenAI-compatible /chat/completions).
+
+Anthropic: the official SDK, one JSON object per call. No `temperature` (current models reject sampling parameters), no
+assistant prefill (rejected as well): the JSON-only instruction sits in the system prompt and `parse_json_loose` reads the
+answer. `output_config.effort` (LLM_EFFORT) sets how much the model thinks; thinking tokens count against `max_tokens`, so a
+cut-off answer (`stop_reason: max_tokens`) is retried with a bigger budget, like the router's `finish_reason: length`.
+Router: JSON mode, temperature 0 (kept as LLM_PROVIDER=router)."""
 from __future__ import annotations
 
 import json
@@ -48,10 +54,17 @@ def parse_json_loose(content: str) -> dict:
     return data
 
 
+JSON_ONLY = "\n\nAnswer with one JSON object and nothing else: no prose before or after it, no code fences."
+RETRY_STATUS = (429, 500, 502, 503, 504, 529)     # 529 = Anthropic "overloaded"
+
+
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, *, timeout: float = 90.0, retries: int = 2,
                  backoff_s: float = 2.0, client: httpx.Client | None = None, hedge_after: float | None = None,
-                 cache=None):
+                 cache=None, provider: str = "router", sdk=None, effort: str = "medium"):
+        self.provider = provider    # "router" (OpenAI-compatible) | "anthropic" (Messages API through `sdk`)
+        self.sdk = sdk
+        self.effort = effort
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
@@ -66,8 +79,24 @@ class LLMClient:
         from .config import get_settings
 
         s = settings or get_settings()
+        if s.llm_provider_resolved == "anthropic":
+            return cls.anthropic(s.anthropic_api_key, base_url=s.anthropic_base_url or None, effort=s.llm_effort,
+                                 hedge_after=s.llm_hedge_after_s or None, cache=cache)
         return cls(s.ai_router_base_url, s.ai_router_api_key,
                    hedge_after=s.llm_hedge_after_s or None, cache=cache)
+
+    @classmethod
+    def anthropic(cls, api_key: str, *, base_url: str | None = None, timeout: float = 90.0, retries: int = 2,
+                  backoff_s: float = 2.0, hedge_after: float | None = None, cache=None, effort: str = "medium",
+                  http_client=None) -> "LLMClient":
+        """Anthropic Messages API through the official SDK. Retries are ours (`retries`, `backoff_s`), not the SDK's.
+        `http_client`: an `anthropic.DefaultHttpxClient` (tests inject a mock transport here)."""
+        import anthropic
+
+        sdk = anthropic.Anthropic(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=0,
+                                  http_client=http_client) if api_key else None      # no key: every call says "not configured"
+        return cls("", api_key, timeout=timeout, retries=retries, backoff_s=backoff_s, hedge_after=hedge_after,
+                   cache=cache, provider="anthropic", sdk=sdk, effort=effort)
 
     def chat_json(self, model: str, system: str, user: str, *, max_tokens: int = 2000) -> LLMResult:
         """One JSON completion. With `hedge_after` set, a request still unanswered after that many seconds is
@@ -107,6 +136,8 @@ class LLMClient:
             pool.shutdown(wait=False)   # the slower request finishes in the background; its result is dropped
 
     def _chat_json(self, model: str, system: str, user: str, max_tokens: int) -> LLMResult:
+        if self.provider == "anthropic":
+            return self._chat_json_anthropic(model, system, user, max_tokens)
         if not (self.base_url and self.api_key and model):
             raise LLMError("AI router not configured (AI_ROUTER_BASE_URL / AI_ROUTER_API_KEY / model)")
         MAX_BUDGET = 8000
@@ -158,3 +189,42 @@ class LLMClient:
                 credits=usage.get("credits_charged", 0.0),
             )
         raise LLMError(f"router unavailable after retries ({last})")
+
+    def _chat_json_anthropic(self, model: str, system: str, user: str, max_tokens: int) -> LLMResult:
+        import anthropic
+
+        if self.sdk is None or not model:
+            raise LLMError("Anthropic not configured (ANTHROPIC_API_KEY / model)")
+        MAX_BUDGET = 16000
+        budget = max(max_tokens, 1000)     # thinking tokens share the budget: a tiny cap would cut the JSON off
+        last = ""
+        failures = truncations = 0
+        while failures <= self.retries:
+            if failures:
+                time.sleep(self.backoff_s * failures)
+            try:
+                msg = self.sdk.messages.create(
+                    model=model, max_tokens=budget, system=system + JSON_ONLY,
+                    messages=[{"role": "user", "content": user}], output_config={"effort": self.effort})
+            except anthropic.APIConnectionError as exc:      # includes timeouts
+                last, failures = type(exc).__name__, failures + 1
+                continue
+            except anthropic.APIStatusError as exc:
+                if exc.status_code in RETRY_STATUS:
+                    last, failures = f"http {exc.status_code}", failures + 1
+                    continue
+                raise LLMError(f"anthropic http {exc.status_code}: {str(exc.message)[:200]}") from exc
+            if msg.stop_reason == "refusal":
+                raise LLMError("the model declined this request (stop_reason refusal)")
+            if msg.stop_reason == "max_tokens":
+                if budget >= MAX_BUDGET or truncations >= 4:
+                    raise LLMError("model output truncated even at the maximum token budget")
+                budget, truncations = min(budget * 2, MAX_BUDGET), truncations + 1
+                continue
+            content = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            if not content.strip():
+                last, failures = "empty completion", failures + 1
+                continue
+            return LLMResult(data=parse_json_loose(content), model=getattr(msg, "model", None) or model,
+                             prompt_tokens=msg.usage.input_tokens, completion_tokens=msg.usage.output_tokens)
+        raise LLMError(f"anthropic unavailable after retries ({last})")
