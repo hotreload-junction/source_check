@@ -659,3 +659,19 @@ def test_unsourced_agent_first_searches_only_if_the_factcheck_agent_settles_noth
         (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=make_llm("supported", QUOTE), exa=exa_world([], [FOUND], log), settings=st)
         assert ("search" in log) is expect_search, hits
         assert a.verdict == "supported" and a.best.url == FOUND
+
+
+# ------------------------------------------------------------------ the check sentence is what search and verify use
+def test_check_text_is_verified_and_the_returned_claim_is_the_original():
+    import dataclasses
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content)["messages"][1]["content"])
+        c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported", "explanation": "ok.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    c = dataclasses.replace(claim(1, ["https://src.test/x"]), check_text="In the 2025 survey, the programme will expand coverage to 40 districts by 2027.")
+    (a,), _ = run([c], {"https://src.test/x": page("https://src.test/x")}, llm=llm)
+    assert "In the 2025 survey" in seen[0] and "Claim number 1 text." not in seen[0]       # the model read the check sentence
+    assert a.claim is c and a.claim.text == "Claim number 1 text." and a.verdict == "supported"

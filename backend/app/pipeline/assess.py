@@ -12,6 +12,7 @@ unlocated named sources, failed LLM calls, and negative verdicts the code could 
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import threading
 import time
@@ -136,6 +137,14 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                   article_text: str = "") -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
+    # Search and verify use the self-contained check sentence (`check_text`, statement.py); what is returned and shown keeps the
+    # claim as written: `restore` puts the original back on every assessment before anyone sees it
+    originals = list(claims)
+    claims = [dataclasses.replace(c, text=c.check_text) if c.check_text else c for c in originals]
+
+    def restore(a: "ClaimAssessment", i: int) -> "ClaimAssessment":
+        a.claim = originals[i]
+        return a
     deadline = time.monotonic() + s.claim_deadline_s
     # claims are independent and almost all wait on the network: run them all at once (max 6 by contract)
     pool = ThreadPoolExecutor(max_workers=max_workers or max(len(claims), 1), thread_name_prefix="claim")
@@ -147,13 +156,13 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
     attr_keys = [{k for a in c.attributions if (k := _name_key(a))} for c in claims]
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
-            results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
+            results.append(restore(fut.result(timeout=max(deadline - time.monotonic(), 0.0)), i))
         except FutureTimeout:
             # Bounded latency beats completeness for a live demo: neutral, never evidence against the article.
             log.warning("claim %s not finished within %.0fs, marking not_checkable", claim.id, s.claim_deadline_s)
             fut.cancel()
-            results.append(ClaimAssessment(claim, "not_checkable", None,
-                                           "Checking the sources took too long, so this claim was left unverified."))
+            results.append(restore(ClaimAssessment(claim, "not_checkable", None,
+                                                   "Checking the sources took too long, so this claim was left unverified."), i))
         if s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
             held.append(i)
         elif (s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "not_checkable"
@@ -175,6 +184,8 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                                     published_at=published_at, article_text=article_text)
         except Exception as exc:    # never break the analysis for a bonus check
             log.warning("attributed cross-check failed: %s", exc)
+    for i in range(len(results)):                  # cross-checks build new assessments: the shown claim is always the original
+        restore(results[i], i)
     if on_claim:
         for i in sorted([*held, *attr_held]):
             on_claim(i, results[i])

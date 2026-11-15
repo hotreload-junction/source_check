@@ -46,6 +46,7 @@ export interface Claim {
   char_end: number | null;
   source_ids: string[];
   found_source_ids?: string[];
+  check_text?: string | null; // self-contained wording search and check used (null = the sentence as written); `text` is never changed
   source_checks?: ClaimSourceCheck[]; // every cited / found page this claim was checked against; absent in older results
   verdict: ClaimVerdict;
   subtype: 'self_citation' | 'social_media' | null;

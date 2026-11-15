@@ -226,7 +226,7 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
     claim_by_source: dict[str, tuple[str, str]] = {}
     for c in claims:
         for sid in (*c["source_ids"], *c.get("found_source_ids", ())):
-            claim_by_source.setdefault(sid, (c["id"], c["text"]))
+            claim_by_source.setdefault(sid, (c["id"], c.get("check_text") or c["text"]))
     chain_by_source: dict[str, tuple[str, ...]] = {}
     alt_quote_by_source: dict[str, str | None] = {}
     rqm = rows_quote_map(rows, quote_by_url)

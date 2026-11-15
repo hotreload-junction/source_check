@@ -262,3 +262,30 @@ def test_unreadable_cited_source_is_a_neutral_check_with_the_reason(pages):
     ck = next(c for c in r["claims"] if c["id"] == "c2")["source_checks"][0]
     assert ck["verdict"] == "not_checkable" and ck["page_verdict"] is None and ck["quote_original"] is None
     assert "paywall" in ck["explanation"].lower()
+
+
+def test_check_sentence_is_what_gets_verified_but_the_shown_claim_never_changes(pages):
+    stmt = "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, according to its report."
+    asked = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        sysmsg, user = body["messages"][0]["content"], body["messages"][1]["content"]
+        if "CHECKABLE FACTUAL CLAIMS" in sysmsg:
+            content = json.dumps({"claims": ids_for(user, EXTRACT)})
+        elif "ON ITS OWN" in sysmsg:
+            sentence = user.split("SENTENCE: ")[1].split("\n")[0]
+            content = json.dumps({"needs_context": "programme will expand" in sentence, "statement": stmt if "programme will expand" in sentence else sentence, "checkable": True})
+        elif "check whether a SOURCE" in sysmsg:
+            asked.append(user.split("SOURCE:")[0])
+            content = json.dumps(verifier(user))
+        else:
+            content = json.dumps({"domains": [], "query": ""})
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": content}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    r = analyze(ARTICLE_URL, fetcher=FakeFetcher(art(), pages), llm=llm, settings=SETTINGS, rdap=FakeRdap({})).result
+    c2 = next(c for c in r["claims"] if "programme will expand" in c["text"])
+    assert c2["text"].startswith(EXTRACT[1]["text"]) and c2["text"] != stmt and c2["check_text"] == stmt                   # shown: as written; checked as: the sentence with context
+    assert any("according to its report" in a for a in asked)                              # the verify model read the check sentence
+    assert all(c["check_text"] is None for c in r["claims"] if c is not c2)
+    assert r["article"]["text_markdown"][c2["char_start"]:c2["char_end"]] == c2["text"]            # offsets still point at the original sentence

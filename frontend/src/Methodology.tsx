@@ -95,7 +95,7 @@ function steps(fuzzy: string, youngDays: string): Step[] {
     },
     {
       name: 'Pick up to 6 central claims',
-      what: 'Code splits the text into numbered sentences. A model summarises the article into 5 to 8 key points, each citing the sentences that state it, three times independently. A sentence needs a majority of the readings, and each key point yields its one best sentence, so the claims are different assertions. 2 slots go to checkable details (figures, dates, attributed statements), unsourced ones first. A claim is always a verbatim sentence of the article.',
+      what: 'Code splits the text into numbered sentences. A model summarises the article into 5 to 8 key points, each citing the sentences that state it, three times independently. A sentence needs a majority of the readings, and each key point yields its one best sentence, so the claims are different assertions. 2 slots go to checkable details (figures, dates, attributed statements), unsourced ones first. A claim is always a verbatim sentence of the article. A sentence that cannot stand alone (“Another 31% expect turbulence”) is rewritten minimally with its context for searching and checking only, a claim that is not checkable (an anecdote, an opinion) is replaced by the next candidate; the shown sentence never changes.',
       guard: 'Asking a model once for “the most central claims” is not repeatable, and a plain “is this checkable?” vote labels most sentences yes (55 to 66 of about 70 in the Guardian article), so it cannot rank. Anecdotes and interviewees’ personal stories are left out of the summary, and several sentences that state the same point count once.',
     },
     {

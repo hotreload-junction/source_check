@@ -10,10 +10,11 @@ def test_defaults_match_env_example():
     assert s.max_claims == 6
     assert s.max_depth == 3
     assert s.max_concurrent_analyses == 2
-    assert s.prompt_version == "v11"
+    assert s.prompt_version == "v12"
     assert s.origin_check is True
     assert s.extract_votes == 5
     assert (s.extract_mode, s.summary_votes, s.summary_detail_slots) == ("summary", 3, 2)
+    assert s.contextualize_claims is True
 
 
 def test_max_depth_is_bounded_1_to_5(monkeypatch):

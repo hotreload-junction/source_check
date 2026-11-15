@@ -43,6 +43,7 @@
             "prompt_version": "v10"
           }
         ],
+        "check_text": null,
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -80,6 +81,7 @@
             "prompt_version": null
           }
         ],
+        "check_text": null,
         "verdict": "not_checkable",
         "subtype": null,
         "evidence": null,

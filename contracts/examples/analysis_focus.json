@@ -43,6 +43,7 @@
             "prompt_version": "v10"
           }
         ],
+        "check_text": null,
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -64,6 +65,7 @@
         "source_ids": [],
         "found_source_ids": [],
         "source_checks": [],
+        "check_text": null,
         "verdict": "unsourced",
         "subtype": null,
         "evidence": null,
@@ -95,6 +97,7 @@
             "prompt_version": null
           }
         ],
+        "check_text": null,
         "verdict": "not_mentioned",
         "subtype": null,
         "evidence": null,

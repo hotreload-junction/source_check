@@ -34,6 +34,7 @@ from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .copies import find_article_copies
 from .depth2 import expand_sources
+from .statement import contextualize
 from .extract import ExtractedClaim, extract_claims
 from .origin import check_origins
 from .textutil import article_body_filter, build_plain
@@ -173,6 +174,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         ex = extract_claims(text_md, url, llm=llm, settings=s, body_filter=article_body_filter(art.html))
     except LLMError as exc:
         raise AnalysisError(f"Claim extraction failed: {exc}") from exc
+    ex = contextualize(ex, text_md, art.title or "", llm=llm, settings=s, article_url=url)   # self-contained check sentence, not-checkable refill
     claims = ex.claims
 
     # 2b. reader focus (F6): where does the article make the assertion the reader asks about? Never changes the label.
@@ -479,6 +481,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
                     "language": ev.language or "und", "fuzzy_score": round(ev.fuzzy_score or 0.0, 1)}
     return {"id": c.id, "text": c.text, "char_start": c.char_start, "char_end": c.char_end, "source_ids": source_ids,
             "found_source_ids": found_ids, "source_checks": [_source_check(sid, sa) for sid, sa in checked.items()],
+            "check_text": c.check_text,
             "verdict": a.verdict, "subtype": a.subtype, "evidence": evidence, "explanation": a.explanation}
 
 

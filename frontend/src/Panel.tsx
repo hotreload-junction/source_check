@@ -210,6 +210,7 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
         <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{ctx.view.done ? c.explanation : 'Still being checked …'}</div>
         {ctx.reviewed(n) && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>AI verdict: {CLAIM_V[c.verdict].label}. The colour shows your local review.</div>}
         {v === 'not_checkable' && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>Not checkable is neutral: it never counts against the article.</div>}
+        {c.check_text && <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}><b>Checked as:</b> “{c.check_text}” <span>(the sentence needs its context to be searched for; the claim above is shown as written)</span></div>}
       </div>
       {c.focus && (
         <div style={{ ...box, marginTop: 12, border: `2px dashed ${TH.ink}` }}>

@@ -66,6 +66,7 @@ class ExtractedClaim:
     locate_score: float = 100.0    # kept for audit compatibility: units are exact slices, never fuzzy-located
     votes: int = 0                 # how many of the K readings named this sentence
     context: str = ""              # the claim's paragraph (markdown): where the occasion ("In a May interview with ...") is named
+    check_text: str | None = None  # self-contained wording used to SEARCH and VERIFY (statement.py); `text` stays what is shown
 
 
 @dataclass
@@ -78,6 +79,8 @@ class ExtractionResult:
     credits: float = 0.0
     n_votes: int = 0               # readings that answered (K minus failures)
     units: list[tuple[int, int, str]] = field(default_factory=list)   # the numbered sentences (focus.py reuses them)
+    alternates: list[int] = field(default_factory=list)   # next-best sentence indices (summary mode): refill when a pick is not checkable
+    alternate_attrs: dict[int, list[str]] = field(default_factory=dict)   # their attributions
 
 
 def _parse_vote(data: dict, n_units: int) -> dict[int, tuple[str, ...]]:
@@ -157,9 +160,10 @@ def _parse_summary(data: dict, n_units: int) -> _Reading:
 
 
 def select_by_summary(readings: list[_Reading], texts: dict[int, str], unsourced: Callable[[int], bool], *, limit: int,
-                      detail_slots: int) -> tuple[list[int], collections.Counter]:
+                      detail_slots: int) -> tuple[list[int], collections.Counter, list[int]]:
     """Claims from K summary readings: centrality from the key-point order, ONE sentence per key point, then checkable details.
-    Returns (sentence indices in document order, votes per sentence). Pure code, deterministic."""
+    Returns (sentence indices in document order, votes per sentence, alternates: the next-best sentences in rank order for
+    refilling a slot). Pure code, deterministic."""
     k = len(readings)
     support: collections.Counter = collections.Counter()
     ranks: dict[int, list[int]] = collections.defaultdict(list)
@@ -208,7 +212,15 @@ def select_by_summary(readings: list[_Reading], texts: dict[int, str], unsourced
         picked.append(i)
         picked_texts.append(texts.get(i, ""))
     votes = collections.Counter({i: max(support[i], detail_votes[i]) for i in picked})
-    return sorted(picked), votes
+    chosen = set(picked)
+    alternates: list[int] = []
+    for i in [*core, *pool]:
+        if i in chosen or i in covered or i in alternates:
+            continue
+        if texts.get(i) and _is_near_dup(texts[i], [texts.get(j, "") for j in (*picked, *alternates)]):
+            continue
+        alternates.append(i)
+    return sorted(picked), votes, alternates[:6]
 
 
 def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | None = None,
@@ -311,7 +323,7 @@ def _extract_summary(article_md: str, article_url: str, units: list[tuple[int, i
     ok = lambda i: not _NO_COMMENT_RE.search(texts[i].strip())
     filtered = [_Reading([[i for i in ids if ok(i)] for ids in rd.points if any(ok(i) for i in ids)],
                          [i for i in rd.details if ok(i)], rd.attrs) for rd in readings]
-    keep, counts = select_by_summary(filtered, texts, unsourced, limit=s.max_claims, detail_slots=s.summary_detail_slots)
+    keep, counts, alternates = select_by_summary(filtered, texts, unsourced, limit=s.max_claims, detail_slots=s.summary_detail_slots)
     if not keep:
         return None
     links = {i: attach_links(article_md, units[i][0], units[i][1], article_url) for i in keep}
@@ -324,7 +336,8 @@ def _extract_summary(article_md: str, article_url: str, units: list[tuple[int, i
     return ExtractionResult(
         claims, results[0].model if results else s.model_extract, [],
         sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
-        n_votes=len(readings), units=units)
+        n_votes=len(readings), units=units, alternates=alternates,
+        alternate_attrs={i: list(_attributions(attr_votes, i)) for i in alternates})
 
 
 def _carry_attributions(units: list[tuple[int, int, str]], article_md: str, majority: list[int],

@@ -112,6 +112,9 @@ source_checks: [{source_id: str, verdict: ClaimVerdict, page_verdict: ClaimVerdi
    # `verdict` = what counts (after the neutral mappings: unreadable, paywall, loosely attached link, secondary report ...);
    # `page_verdict` = what the page itself says (null = the page could not be read). Quote first: the quote is fuzzy-checked
    # like every verdict. [] = nothing was read for this claim. Absent in older results.
+check_text: str|null          # additive: the self-contained wording that search and verification used (a sentence that needs its
+   # context, e.g. "Another 31% expect turbulence" -> "In the Global Risks Report 2025 survey, another 31% of respondents expect
+   # turbulence ..."); null = the sentence was used as written. `text` and the offsets never change. Backend/app/pipeline/statement.py
 central: bool                 # additive (F6): true = one of the article's central claims, counts for the verdict
 focus: bool                   # additive (F6): true = matches the reader's question (Result.focus); absent in older results = false
 ```

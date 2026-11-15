@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ai_router_api_key: str = ""
     model_extract: str = ""
     model_verify: str = ""
-    prompt_version: str = "v11"
+    prompt_version: str = "v12"
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     extract_mode: str = "summary"
     summary_votes: int = 3
     summary_detail_slots: int = 2
+    # Self-contained check sentence (pipeline/statement.py): one call per claim decides whether the sentence NEEDS its context and,
+    # if so, rewrites it minimally; search and verify use it, the shown claim does not change. A claim that is not checkable is
+    # replaced by the next-best candidate. CONTEXTUALIZE_CLAIMS=false = search and verify the sentence as written.
+    contextualize_claims: bool = True
     # 3 = depth 2-3 source chain crawl (no extra LLM calls) + citation-circle signal; 1 switches it off; 5 = theoretical max
     max_depth: int = Field(default=3, ge=1, le=5)
     # Root or relay (pipeline/origin.py): claims without any checkable source are classified by MODEL_VERIFY;

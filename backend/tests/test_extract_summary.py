@@ -82,7 +82,7 @@ def test_near_duplicate_of_a_picked_claim_is_skipped():
              1: "The ministry said on Tuesday the programme will cover 40 districts by 2027.",
              2: "Unemployment fell to 4.1 percent in March."}
     r = _Reading(points=[[0], [1], [2]])
-    keep, _ = select_by_summary([r, r, r], texts, lambda i: True, limit=6, detail_slots=0)
+    keep, _, _ = select_by_summary([r, r, r], texts, lambda i: True, limit=6, detail_slots=0)
     assert keep == [0, 2]                                                        # key point 2 restates key point 1
 
 
