@@ -88,6 +88,7 @@ export function Landing() {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) 24px' : '28px 32px 36px 56px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
           <Wordmark />
+          <a href="#/methodology" style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, letterSpacing: 0, color: TH.mut, textDecoration: 'none', padding: compact ? '10px 4px' : '6px 4px' }}>How it works</a>
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 48 }}>
