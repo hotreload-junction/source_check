@@ -65,15 +65,30 @@ domains:  Domain[]
 graph:    {nodes: GraphNode[], edges: GraphEdge[]}
 signals:  Signals
 verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
+overview: Overview           # additive: plain-English summary of the finished check (absent in older results)
 focus:    Focus | null       # null when no question was sent
 audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1..5, duration_s,
            cost_usd: float, llm_calls: int, skipped: str[],
-           focus_prompt_version: str|null}   # null without a question
+           focus_prompt_version: str|null,   # null without a question
+           overview_prompt_version: str}     # additive: prompt version of Result.overview / Claim.overview
           # additive: cost_usd = what the LLM calls of THIS analysis cost at list prices (calls really made; replays from the step cache are
           # free; Exa / Context.dev are not metered), llm_calls = how many. skipped = extras left out because the time / cost budget
           # (TIME_BUDGET_S, COST_BUDGET_USD) was used up, e.g. "source chain (time budget)", "chain search (cost budget)"; [] = nothing cut.
           # The claim checks themselves are never skipped.
 ```
+```
+```
+Overview: {text: str,                 # starts with the claim counts written by CODE ("Of 6 central claims: 3 supported by a source, ...");
+                                      # source "ai": followed by 2-3 sentences the model wrote from the finished results
+           source: "ai" | "rule",     # rule = counts only (AI_OVERVIEW=false, the call failed, or a code guard rejected the text)
+           model: str|null,           # null for rule
+           prompt_version: str}
+```
+Overview rules (`backend/app/pipeline/overview.py`): DISPLAY ONLY, `verdict.py` never reads it (label, signals and eval are the
+same with or without it). One MODEL_LIGHT call after the verdict; the model gets only the results (claims, verdicts, verified
+quotes, explanations, signals), never the article text. Code rejects a text with a number or capitalised name not in that input,
+a claim described outside its verdict category (a supported claim called false or exaggerated, a not_checkable one called false
+or true ...), "propaganda"/"lies" unless the label is propaganda_pattern, or a claim id in the text.
 ```
 Focus: {question: str,                          # as sent, whitespace collapsed
         status: "found" | "not_in_article" | "failed",
@@ -122,6 +137,8 @@ check_text: str|null          # additive: the self-contained wording that search
    # turbulence ..."); null = the sentence was used as written. `text` and the offsets never change. Backend/app/pipeline/statement.py
 central: bool                 # additive (F6): true = one of the article's central claims, counts for the verdict
 focus: bool                   # additive (F6): true = matches the reader's question (Result.focus); absent in older results = false
+overview: str|null            # additive: 1-2 AI-written sentences on what the checked pages say about this claim (see Overview rules);
+                              # null = not written or rejected by a code guard -> show `explanation`. Absent in older results
 ```
 `ClaimVerdict` = `supported` | `distorted` | `contradicted` | `not_mentioned` | `unsourced` | `not_checkable`
 

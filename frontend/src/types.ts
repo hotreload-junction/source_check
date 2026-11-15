@@ -54,6 +54,15 @@ export interface Claim {
   explanation: string;
   central?: boolean; // F6: false = found only through the reader's question, does not count for the verdict
   focus?: boolean;   // F6: matches the reader's question (Result.focus)
+  overview?: string | null; // AI-written summary of what the checked pages say (display only); null/absent -> show `explanation`
+}
+
+// Plain-English summary of the finished check (display only, never changes the verdict). Starts with code-written counts.
+export interface Overview {
+  text: string;
+  source: 'ai' | 'rule'; // rule = counts only (AI off, failed, or rejected by a code guard)
+  model: string | null;
+  prompt_version: string;
 }
 
 // F6: optional reader question about one point of the article
@@ -135,6 +144,7 @@ export interface Result {
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
   signals: Signals;
   verdict: { label: ArticleVerdict; summary: string };
+  overview?: Overview | null; // optional: older cached results lack it
   focus?: Focus | null; // optional: older cached results lack it
   audit: {
     model_extract: string;
@@ -144,6 +154,7 @@ export interface Result {
     depth: 1 | 2 | 3;
     duration_s: number;
     focus_prompt_version?: string | null;
+    overview_prompt_version?: string;
     cost_usd?: number;     // LLM cost of this analysis at list prices (calls really made); Exa / Context.dev not metered
     llm_calls?: number;
     skipped?: string[];    // extras left out because the time / cost budget was used up

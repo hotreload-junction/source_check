@@ -2,7 +2,7 @@
 // Each source appears once (docs/graph-view.md): its first citing claim owns it in the tree, other
 // claims reach it through extra edges. Claims without sources get a "no source" stub.
 
-import type { Claim, ClaimSourceCheck, ClaimVerdict, Domain, Focus, GraphEdge, GraphNode, Result, Signals, Source } from './types';
+import type { Claim, ClaimSourceCheck, ClaimVerdict, Domain, Focus, GraphEdge, GraphNode, Overview, Result, Signals, Source } from './types';
 
 export interface View {
   articleId: string;
@@ -13,6 +13,7 @@ export interface View {
   edges: GraphEdge[];
   signals: Signals | null;
   verdict: Result['verdict'] | null;
+  overview?: Overview | null; // display only; absent while streaming and in older results
   audit: Result['audit'] | null;
   focus: Focus | null;
   done: boolean;
@@ -56,7 +57,7 @@ export function fromResult(r: Result): View {
     articleId: art ? art.id : 'a',
     article: { title: r.article.title, url: r.article.url, domain: r.article.domain, text: r.article.text_markdown, published_at: r.article.published_at },
     claims: r.claims, sources: r.sources, domains: r.domains, edges: r.graph.edges,
-    signals: r.signals, verdict: r.verdict, audit: r.audit, focus: r.focus ?? null, done: true,
+    signals: r.signals, verdict: r.verdict, overview: r.overview ?? null, audit: r.audit, focus: r.focus ?? null, done: true,
   };
 }
 

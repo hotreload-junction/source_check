@@ -38,6 +38,7 @@ from .budget import RunBudget
 from .statement import contextualize
 from .extract import ExtractedClaim, extract_claims
 from .origin import check_origins
+from .overview import write_overview
 from .textutil import article_body_filter, build_plain
 
 log = logging.getLogger("citetrace.run")
@@ -313,6 +314,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
                       circle_path(circles), network_reasons=net_reasons,
                       declared_reposts=[d.line for d in declared_reposts(text_md)],
                       channel_claim_ids=channel_ids, linked_claims=linked)
+    # 5b. AI overview (overview.py): the finished results in plain English, display only (verdict.py never reads it)
+    progress("verdict", "Writing the summary", 97)
+    overview = write_overview(art.title or article_host, claim_dicts, reg.rows, decision, llm=llm, settings=s)
+    for cd in claim_dicts:
+        cd["overview"] = overview.claims.get(cd["id"])
     nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges, searched)
     for n in nodes:
         if n["type"] in ("domain", "source"):
@@ -331,12 +337,14 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         "graph": {"nodes": nodes, "edges": edges},
         "signals": decision["signals"],
         "verdict": decision["verdict"],
-        "focus": ({"question": focus.question, "status": focus.status,
+        "overview": overview.article,
+        "focus":({"question": focus.question, "status": focus.status,
                    "claim_ids": [c["id"] for c in claim_dicts if c["focus"]], "note": focus_note(focus, claim_dicts)}
                   if focus is not None else None),
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
                   "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1),
                   "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None,
+                  "overview_prompt_version": overview.article["prompt_version"],
                   # what this analysis cost: LLM calls that were really made (replays are free), USD at list prices; Exa / Context.dev not metered
                   "cost_usd": round(usage.usd, 3), "llm_calls": usage.calls,
                   "skipped": budget.skipped},                        # extras left out because the time / cost budget was used up

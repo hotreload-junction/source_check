@@ -181,6 +181,18 @@ function RootSections({ ctx }: { ctx: Ctx }) {
         </div>
         <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.5 }}>{view.verdict.summary}</div>
       </div>
+      {view.overview && (
+        <Section title="Summary">
+          <div style={box}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>{view.overview.text}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: TH.mut, lineHeight: 1.45 }}>
+              {view.overview.source === 'ai'
+                ? 'Counts by code; the rest written by AI from the verified results. It never changes the verdict.'
+                : 'Counted by code from the claim verdicts.'}
+            </div>
+          </div>
+        </Section>
+      )}
       <Section title="Signals">
         <div style={box}>
           {sig('Evidence', sg.evidence.fired, sg.evidence.detail)}
@@ -207,7 +219,14 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
           <Pill c={CLAIM_V[v].c}>{CLAIM_V[v].label}</Pill>
           {c.subtype && <span style={{ fontSize: 12, color: TH.mut }}>{SUBTYPE[c.subtype]}</span>}
         </div>
-        <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{ctx.view.done ? c.explanation : 'Still being checked …'}</div>
+        {ctx.view.done && c.overview ? (
+          <>
+            <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{c.overview}</div>
+            <div style={{ marginTop: 6, fontSize: 12, color: TH.mut, lineHeight: 1.45 }}>AI summary of the checked pages. Basis: {c.explanation}</div>
+          </>
+        ) : (
+          <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{ctx.view.done ? c.explanation : 'Still being checked …'}</div>
+        )}
         {ctx.reviewed(n) && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>AI verdict: {CLAIM_V[c.verdict].label}. The colour shows your local review.</div>}
         {v === 'not_checkable' && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>Not checkable is neutral: it never counts against the article.</div>}
         {c.check_text && <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}><b>Checked as:</b> “{c.check_text}” <span>(the sentence needs its context to be searched for; the claim above is shown as written)</span></div>}

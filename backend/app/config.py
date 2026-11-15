@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     # Root or relay (pipeline/origin.py): claims without any checkable source are classified by MODEL_VERIFY;
     # root (own statement / first-hand) stays neutral, relay ("doctors claim") becomes unsourced
     origin_check: bool = True
+    # AI overview (pipeline/overview.py): one MODEL_LIGHT call after the verdict puts the finished results into plain English, for the
+    # article (Result.overview) and per claim (Claim.overview). Display only, never read by verdict.py; code guards reject invented
+    # names/numbers and wording outside a claim's verdict category. AI_OVERVIEW=false = only the code-written claim counts.
+    ai_overview: bool = True
 
     # Also LLM-verify Exa candidates that do not look first-hand (other outlets). They can only ever corroborate
     # (never decide), so skipping them saves ~40% of verify calls; turn on for the 'other reporting confirms' note.
