@@ -1,6 +1,9 @@
 name: sync-verda-key
 
 on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/sync-verda-key.yml]
   workflow_dispatch:
     inputs:
       target:
@@ -13,17 +16,20 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: sync-verda-key-${{ inputs.target }}
-  cancel-in-progress: false
-
 jobs:
   sync:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Run one-time Verda key sync on VPS' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: ${{ inputs.target }}
+    strategy:
+      matrix:
+        target: ${{ github.event_name == 'push' && fromJSON('["preview","live"]') || fromJSON(format('["{0}"]', inputs.target)) }}
+    concurrency:
+      group: sync-verda-key-${{ matrix.target }}
+      cancel-in-progress: false
+    environment: ${{ matrix.target }}
     env:
-      TARGET: ${{ inputs.target }}
+      TARGET: ${{ matrix.target }}
       HOST: ${{ vars.DEPLOY_HOST }}
       USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
       ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
