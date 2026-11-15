@@ -45,6 +45,8 @@ def main() -> None:
     from app.pipeline.run import AnalysisError, analyze
     from app.verdict import SIGNAL_ORDER
 
+    import subprocess
+    code = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=RUNS.parent).stdout.strip()
     llm = client(concurrency=args.llm_concurrency)
     out = RESULTS / "articles.jsonl"
     done = {r["id"] for r in read_jsonl(out)}
@@ -59,7 +61,7 @@ def main() -> None:
         if llm.limit_hit.is_set():
             return None
         t0, cost0 = time.monotonic(), llm.cost_usd
-        base = {"id": a["id"], "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True"}
+        base = {"id": a["id"], "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True", "code": code}
         try:
             res = analyze(a["url"], settings=s, llm=llm).result
         except AnalysisError as exc:

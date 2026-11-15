@@ -80,7 +80,7 @@ Owners below are the default split (AGENTS.md section 0); re-claim freely if som
 | E1 | pick 3 demo cases (Pravda, Reuters/AP, sloppy harmless blog) -> `eval/demo_cases.md` | louis | todo | Sat morning, DFRLab/CheckFirst lists |
 | E2 | label 40 claim-source pairs (~half supported, half distorted/not mentioned) -> `eval/pairs.jsonl` | leo-fe | done | replaced by 100 public expert-labelled pairs (Check-COVID + WiCE), `eval/build_pairs.py` -> `eval/data/pairs.jsonl`; 0 cross-language pairs |
 | E3 | 10 network + 10 wire-service articles -> `eval/articles.csv`, **disjoint from demo cases** | leo-fe | done | 25 network (Pravda sitemaps) + 25 mainstream incl. 8 hard negatives, `eval/build_articles.py` -> `eval/data/articles.csv` |
-| E4 | eval harness: verify step on pairs (precision/recall for "not supported"), article verdicts (FPR on wire articles) -> `eval/results/metrics.json` + error cases | leo-fe | doing | built (`eval/`, see README). Pairs 100/100; articles 10/50 (leo capped at 10 for the subscription limit). Resume: `python eval/run_articles.py && python eval/metrics.py` |
+| E4 | eval harness: verify step on pairs (precision/recall for "not supported"), article verdicts (FPR on wire articles) -> `eval/results/metrics.json` + error cases | leo-fe | doing | built (`eval/`, see README). Pairs 100/100; articles 20/50 (count set by leo for the subscription limit). Resume: `python eval/run_articles.py && python eval/metrics.py` |
 | E5 | Q21: compare models, freeze verify model + prompt, then run E4 for real | leo | todo | optional cheap-vs-strong comparison for methodology page |
 
 ### MVP extensions (Sat 18:00-01:00)
