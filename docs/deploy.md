@@ -28,8 +28,8 @@ Agents still never push to `main`; only a human's `tools/promote` moves it, so l
 4. GitHub: secrets `DEPLOY_SSH_KEY`, `DEPLOY_HOST_KEY`; variables `DEPLOY_HOST`, `DEPLOY_USER`. The workflow does nothing
    until `DEPLOY_HOST` is set. Optional: GitHub environment `live` with a required reviewer.
 5. Verda: set the environment secret `VERDA_API_KEY` in both GitHub environments (`preview` and `live`), then run
-   Actions → `sync-verda-key` for each target. It updates only that environment's VPS `.env`, recreates the current
-   Compose stack, and checks `/api/health`; it does not deploy code.
+   Actions → `sync-verda-key` for each target. It updates only that environment's VPS `.env`, force-recreates the
+   backend so the process receives the key, and checks `/api/health`; it does not deploy code.
 
 ## Operations
 - Manual deploy: `re-run the workflow (Actions -> deploy -> Run workflow), or on the VPS `/opt/source-trace/preview/releases/<sha>/deploy/deploy.sh preview <sha>` to redeploy an uploaded release`.

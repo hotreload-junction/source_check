@@ -73,7 +73,7 @@ jobs:
               current=\$(readlink -f '$ROOT/$TARGET/current')
               test -d \"\$current\"
               cd \"\$current\"
-              docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" up -d
+              docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" up -d --force-recreate backend
               for i in \$(seq 1 30); do
                 health=\$(docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T web wget -qO- http://localhost/api/health 2>/dev/null || true)
                 if printf '%s' \"\$health\" | grep -F '\"ok\":true' >/dev/null; then
