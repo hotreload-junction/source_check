@@ -199,11 +199,6 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         if archive is not None and d not in PLATFORM_DOMAINS:
             rdap_pool.submit(archive.lookup, d)
 
-    # mirrors of the article on other domains: searched while the claims are verified, joined before the infrastructure step
-    copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
-    copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
-                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
-
     # mirrors of the article on other domains: searched while claims are verified, joined before infrastructure step
     copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
     copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
