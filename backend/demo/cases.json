@@ -21,6 +21,7 @@
     "key": "expose",
     "label": "Expose News: “CDC, UK Gov & Oxford University confirm COVID vaccination DOES NOT WORK”",
     "url": "https://expose-news.com/2023/01/09/cdc-ukgov-oxford-uni-covid-vaccine-kills/",
-    "expected_verdict": "weakly_sourced"
+    "expected_verdict": "weakly_sourced",
+    "question": "covid vaccination doesn't work and is potentially lethal"
   }
 ]
