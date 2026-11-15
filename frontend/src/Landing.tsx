@@ -134,7 +134,7 @@ export function Landing() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: compact ? 'stretch' : 'flex-start', gap: 10 }}>
                 {demos.map((d) => (
                   <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 10px', maxWidth: '100%', textDecoration: 'none', color: TH.ink, padding: compact ? '12px 16px' : '14px 22px', borderRadius: compact ? 18 : 22, fontSize: compact ? 16 : 18, lineHeight: 1.4, border: `1px solid ${TH.line}`, background: TH.card }}>
-                    {d.question ? `Is it true that ${d.question}?` : <>Is it true what<Chip label={d.label} />says?</>}
+                    {d.question ? <Chip label={`Is it true that ${d.question}?`} /> : <>Is it true what<Chip label={d.label} />says?</>}
                   </a>
                 ))}
               </div>
