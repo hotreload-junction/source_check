@@ -113,7 +113,7 @@ def fuzzy_score(quote: str, source_text: str) -> float:
 
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,
                  settings: Settings | None = None, article_date: date | None = None, occasion: str | None = None,
-                 venue: str | None = None, factcheck: bool = False) -> VerifyResult:
+                 venue: str | None = None, factcheck: bool = False, model: str | None = None) -> VerifyResult:
     s = settings or get_settings()
     if looks_like_wall(source_text):
         # A sign-in / consent / bot-check page (e.g. Google Trends asks to log in): the fetch got a wall, not the source.
@@ -126,7 +126,7 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
     shown = build_plain(source_text).text
     truncated = len(shown) > MAX_SOURCE_CHARS
     res = llm.chat_json(
-        s.model_verify, SYSTEM_PROMPT + FACTCHECK_ADDENDUM if factcheck else SYSTEM_PROMPT,
+        model or s.model_verify, SYSTEM_PROMPT + FACTCHECK_ADDENDUM if factcheck else SYSTEM_PROMPT,
         (f"ARTICLE DATE: {article_date.isoformat()}\n" if article_date else "")
         + (f"OCCASION: {occasion}\n" if occasion else "")
         + (f"NAMED VENUE: {venue}\n" if venue else "")

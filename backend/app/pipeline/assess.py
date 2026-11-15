@@ -537,11 +537,18 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     try:
         # Search results can be stale (a 2025 page, an earlier forum): tell the model when the claim was reported, and
         # which occasion / venue the article itself names (a May interview is older than a November article and right)
-        v = verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings, factcheck=True) if factcheck else verify_claim(
-            claim.text, fetch.text or "", llm=llm, settings=settings,
-            article_date=published_at.date() if (published_at and searched) else None,
-            occasion=plan.occasion if (plan and searched) else None,
-            venue=plan.venue if (plan and searched) else None)
+        def judge(model: str | None = None) -> VerifyResult:
+            if factcheck:
+                return verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings, factcheck=True, model=model)
+            return verify_claim(
+                claim.text, fetch.text or "", llm=llm, settings=settings,
+                article_date=published_at.date() if (published_at and searched) else None,
+                occasion=plan.occasion if (plan and searched) else None,
+                venue=plan.venue if (plan and searched) else None, model=model)
+
+        v = _screen(judge, settings) if searched and fetch.text else None
+        if v is None:
+            v = judge()
     except LLMError as exc:
         log.warning("verify failed for %s: %s", url, exc)
         return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.",
@@ -603,6 +610,23 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
                 NOT_VERIFIED + " A page was found but it differs from the claim, so it cannot be confirmed to be what the article refers to.")
     return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, corroborated,
                             venue_hosted=venue_hosted, phrase_hit=phrase_hit, agent_kind=agent_kind)
+
+
+def _screen(judge: Callable[..., VerifyResult], settings: Settings) -> VerifyResult | None:
+    """Candidate screen: one cheap-model read of a page SEARCH found, same prompt and quote check as the real verify. Returns
+    its result only when the page does not mention the claim (`not_mentioned`, not downgraded): such a page is neutral anyway
+    (`not_checkable`, "a page was found but it does not ..."), so MODEL_VERIFY is not asked. Anything else, an error or an
+    inconclusive answer returns None and the page goes on to MODEL_VERIFY, which decides every supported / distorted /
+    contradicted. The audit trail keeps the screen's model on the skipped page."""
+    model = settings.screen_model
+    if not model or model == settings.model_verify:
+        return None
+    try:
+        sv = judge(model)
+    except LLMError as exc:
+        log.info("candidate screen failed, verifying with the full model: %s", exc)
+        return None
+    return sv if sv.verdict == "not_mentioned" and not sv.downgraded else None
 
 
 def _aggregate(claim: ExtractedClaim, sources: list[SourceAssessment]) -> ClaimAssessment:

@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     factcheck_agent: bool = True
     factcheck_effort: str = "low"          # minimal | low | medium | high ... (low ~0.025 USD, medium ~0.10 USD per run)
     factcheck_timeout_s: float = 80.0
+    # Candidate screen (pipeline/assess.py): a page SEARCH found (named / unsourced / fact-check / cross-check) is read first by a
+    # cheap model with the SAME verify prompt. "not_mentioned" ends it there (such a page is neutral anyway); anything else goes on
+    # to MODEL_VERIFY, which has the last word. Pages the article cites itself are never screened. ~20x cheaper than MODEL_VERIFY
+    # on the pages that do not mention the claim, which is most of them. SCREEN_CANDIDATES=false = every candidate goes to MODEL_VERIFY.
+    screen_candidates: bool = True
+    model_screen: str = ""                 # empty: claude-haiku-5-5 with the Anthropic API, no screen with the router
     # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
     # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
     search_unsourced: bool = True
@@ -117,6 +123,13 @@ class Settings(BaseSettings):
     # Runtime
     max_concurrent_analyses: int = 2
     public_base_url: str = ""
+
+    @property
+    def screen_model(self) -> str:
+        """Model that screens search candidates, or "" when the screen is off."""
+        if not self.screen_candidates:
+            return ""
+        return self.model_screen or ("claude-haiku-5-5" if self.llm_provider_resolved == "anthropic" else "")
 
     @property
     def llm_provider_resolved(self) -> str:

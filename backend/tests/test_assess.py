@@ -533,3 +533,67 @@ def test_cross_check_attributed_reuses_same_speaker_source_across_claims():
     )
     assert res[0].verdict == "supported" and res[0].best.url == orig_url
     assert res[1].verdict == "supported" and res[1].best.url == orig_url
+
+
+# ------------------------------------------------------------------ candidate screen (cheap model first)
+SCREEN = Settings(_env_file=None, model_verify="vm", model_screen="cheap", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
+                  search_unsourced=False, exa_agent=False)
+ORIG = "https://www.orig.gov.test/interview"
+
+
+def by_model(answers, calls):
+    """A fake LLM that answers per MODEL: answers = {"cheap": verdict, "vm": verdict}; `calls` collects the models asked."""
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        calls.append(model)
+        v = answers[model]
+        if isinstance(v, Exception):
+            return httpx.Response(500, json={})
+        quote = QUOTE if v == "supported" else ""
+        c = json.dumps({"quote_original": quote, "quote_translation": None, "language": "en", "verdict": v, "explanation": f"{model} says {v}", "source_type": "original"})
+        return httpx.Response(200, json={"model": model, "choices": [{"message": {"content": c}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_screen_stops_a_candidate_the_cheap_model_says_is_not_mentioned():
+    calls = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
+                  exa=exa_client(), settings=SCREEN)
+    assert calls == ["cheap"]                                  # the strong model was never asked
+    assert a.verdict == "not_checkable" and "does not contain this quote" in a.sources[0].note
+    assert a.sources[0].verify.model == "cheap"                # the audit trail names who read the page
+
+
+def test_screen_passes_everything_else_to_the_strong_model_which_decides():
+    for cheap in ("supported", "distorted", "contradicted"):
+        calls = []
+        (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": cheap, "vm": "supported"}, calls),
+                      exa=exa_client(), settings=SCREEN)
+        assert calls == ["cheap", "vm"] and a.verdict == "supported" and a.best.verify.model == "vm"
+
+
+def test_screen_failure_falls_back_to_the_strong_model():
+    calls = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": RuntimeError(), "vm": "supported"}, calls),
+                  exa=exa_client(), settings=SCREEN)
+    assert calls == ["cheap", "vm"] and a.verdict == "supported"
+
+
+def test_pages_the_article_cites_are_never_screened():
+    calls = []
+    (a,), _ = run([claim(1, ["https://src.test/x"])], {"https://src.test/x": page("https://src.test/x")},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), settings=SCREEN)
+    assert calls == ["vm"] and a.verdict == "supported"
+
+
+def test_screen_is_off_without_a_cheap_model_or_when_switched_off():
+    router = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", prompt_version="vT", search_unsourced=False, exa_agent=False)
+    off = Settings(_env_file=None, model_verify="vm", model_screen="cheap", screen_candidates=False, exa_api_key="exa", prompt_version="vT",
+                   search_unsourced=False, exa_agent=False)
+    assert router.screen_model == "" and off.screen_model == ""
+    assert Settings(_env_file=None, anthropic_api_key="k").screen_model == "claude-haiku-5-5"
+    for st in (router, off):
+        calls = []
+        run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
+            exa=exa_client(), settings=st)
+        assert calls == ["vm"]
