@@ -14,6 +14,7 @@ from datetime import date
 from rapidfuzz import fuzz
 
 from ..config import Settings, get_settings
+from ..fetch.fetcher import looks_like_wall
 from ..llm import LLMClient, LLMError
 from .textutil import build_plain
 
@@ -114,6 +115,12 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
                  settings: Settings | None = None, article_date: date | None = None, occasion: str | None = None,
                  venue: str | None = None, factcheck: bool = False) -> VerifyResult:
     s = settings or get_settings()
+    if looks_like_wall(source_text):
+        # A sign-in / consent / bot-check page (e.g. Google Trends asks to log in): the fetch got a wall, not the source.
+        # Never "not mentioned" (that would count against the article); no model call needed either.
+        return VerifyResult("not_checkable", None, None, None, None, None,
+                            "The page could not be read: it is a login, consent or bot-check page instead of the source's content.",
+                            "", s.prompt_version, downgraded=True)
     llm = llm or LLMClient.from_settings(s)
     plain_claim = build_plain(claim_text).text
     shown = build_plain(source_text).text

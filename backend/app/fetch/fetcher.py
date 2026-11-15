@@ -13,6 +13,7 @@ import re
 import threading
 import time
 import zlib
+from urllib.parse import urlsplit
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -34,6 +35,38 @@ PAYWALL_MARKERS = (
     "subscribe to read", "subscribe to continue", "subscription required", "sign in to read",
     "become a member to", "register to continue", "for subscribers only", "already a subscriber",
 )
+
+
+# A login, consent or bot-check page says nothing about the claim it was cited for: "not mentioned" would be wrong, the
+# answer is "could not be read" (neutral). Short text + one of these markers = such a wall.
+WALL_MARKERS = (
+    "sign in to continue", "sign in to your account", "sign in to access", "sign in with your", "log in to continue",
+    "log in to view", "login to view", "please log in", "please sign in", "you must be logged in", "you need to log in",
+    "verify you are human", "verify you are a human", "are you a robot", "are you human", "checking your browser",
+    "enable javascript", "javascript is disabled", "javascript is required", "please enable cookies", "captcha",
+    "access denied", "unusual traffic", "before you continue to", "just a moment", "attention required",
+)
+WALL_MAX_CHARS = 2000
+# client-rendered tool pages: the server sends a shell and a login prompt, never the figures the article talks about
+JS_ONLY_HOSTS = ("trends.google.", "accounts.google.", "datastudio.google.", "lookerstudio.google.")
+
+
+def looks_like_wall(text: str | None) -> bool:
+    """True for a short page that is a login / consent / bot-check wall instead of content."""
+    if not text:
+        return False
+    t = text.strip()
+    return len(t) <= WALL_MAX_CHARS and any(m in t.lower() for m in WALL_MARKERS)
+
+
+def is_js_only_page(url: str) -> bool:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    return any(host.startswith(h) or f".{h}" in f".{host}" for h in JS_ONLY_HOSTS) or (
+        host.endswith("google.com") and parts.path.lower().startswith("/trends"))
 
 
 def _pack_html(html_text: str) -> str:
@@ -200,6 +233,8 @@ class Fetcher:
             return FetchResult(url, "social", "not_fetched", subtype="social_media")
         if kind == "telegram":
             return self._fetch_telegram(url)
+        if is_js_only_page(url):
+            return FetchResult(url, kind, "blocked", error="client-rendered tool page (login or JavaScript required)")
         # sources: no 5xx retries (3 attempts stacked to 25 s in a live run); the direct GET below is the fallback
         res = self._fetch_web(url, kind="link", ctx_timeout=self.source_timeout_s, retries=0)
         if res.final_url and classify_url(res.final_url, article_url) == "social":
@@ -433,6 +468,9 @@ def _finish(url: str, kind: str, text: str, via: str, *, html: str | None, title
         status = "paywall" if any(p in low for p in PAYWALL_MARKERS) else "blocked"
         return FetchResult(url, kind, status, via=via, text=text or None, html=html, title=title,
                            final_url=final_url, error=f"extracted text too short ({len(text)} chars)")
+    if looks_like_wall(text):
+        return FetchResult(url, kind, "blocked", via=via, text=text, html=html, title=title, final_url=final_url,
+                           error="login, consent or bot-check page instead of content")
     if ends_cut_off(text):
         return FetchResult(url, kind, "paywall", via=via, text=text, html=html, title=title, final_url=final_url,
                            error="text ends with a continuation marker (page is cut off)")

@@ -131,3 +131,19 @@ def test_fuzzy_score_matches_ordered_ellipsis_segments_and_rejects_bad_ones():
     assert fuzzy_score(reversed_order, src) < 90.0
     assert fuzzy_score(fabricated_part, src) < 90.0
     assert fuzzy_score(too_short_part, src) < 90.0
+
+
+WALL = "Sign in to continue to Google Trends. Use your Google account to see what the world is searching for. " * 2
+
+
+def test_login_wall_page_is_not_checkable_and_costs_no_model_call():
+    seen = []
+    r = verify_claim("Searches for male loneliness spiked in 2023.", WALL, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_checkable" and r.downgraded and "login" in r.explanation and not r.has_evidence
+    assert seen == []
+
+
+def test_a_normal_short_page_still_reaches_the_model():
+    seen = []
+    r = verify_claim("Searches for male loneliness spiked in 2023.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_mentioned" and len(seen) == 1
