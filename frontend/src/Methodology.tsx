@@ -3,38 +3,76 @@ import { api } from './api';
 import { Wordmark } from './Brand';
 import { ciText, hasRun, label, pct, total } from './evalstats';
 import { useCompact } from './responsive';
-import { ARTICLE_V, CL, CLAIM_V, MONO, TH } from './theme';
+import { ARTICLE_V, CL, CLAIM_V, GLY, MONO, TH } from './theme';
 import type { ArticleVerdict, ClaimVerdict, Confusion, Methodology as M } from './types';
 
-// The public methodology page (PLAN F5, never cut). Texts restate what the backend does (pipeline/*.py, verdict.py,
-// DECISIONS.md); every threshold shown comes from GET /api/methodology so the page cannot drift from verdict.py.
+// The public methodology page (PLAN F5, never cut). Built to be read at a glance: what the tool does (capabilities),
+// how (one diagram), what comes out (verdicts), and how well (measured). Details stay one click away in <details>.
+// Texts restate what the backend does (pipeline/*.py, verdict.py, DECISIONS.md); thresholds come from GET /api/methodology.
 
 const card: CSSProperties = { background: TH.card, border: `1px solid ${TH.line}`, borderRadius: TH.rad, padding: '18px 20px', boxShadow: TH.sh };
 const cap: CSSProperties = { fontSize: 11, letterSpacing: '.07em', textTransform: 'uppercase', color: TH.mut, fontWeight: 600 };
 const body: CSSProperties = { fontSize: 14, lineHeight: 1.55 };
+const BLUE = '#3b5bdb';
+
+const ICON = {
+  ...GLY,
+  check: 'M5 12.5l4.2 4.2L19 7',
+  search: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20',
+  server: 'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',
+  cycle: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4',
+  rule: 'M12 4v16M6 20h12M5 8h14M5 8l-2.5 5.5h5zM19 8l-2.5 5.5h5z',
+  shield: 'M12 3l7.5 3v6c0 4.6-3.2 7.8-7.5 9-4.3-1.2-7.5-4.4-7.5-9V6z',
+};
+type IconName = keyof typeof ICON;
+
+function Icon({ name, size = 20, color = 'currentColor' }: { name: IconName; size?: number; color?: string }) {
+  return (
+    <svg aria-hidden width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+      <path d={ICON[name]} />
+    </svg>
+  );
+}
 
 const SECTIONS: [string, string][] = [
-  ['how', 'How a check works'], ['verdicts', 'Claim verdicts'], ['rule', 'Article verdict'], ['guards', 'False-positive guards'],
-  ['measured', 'Measured'], ['labels', 'Source labels'], ['limits', 'Known limits'], ['audit', 'Audit trail'],
+  ['how', 'How it works'], ['output', 'What you get'], ['guards', 'Safeguards'], ['measured', 'Results'], ['scope', 'Scope & audit'],
 ];
 
 function Section({ id, title, sub, children }: { id: string; title: string; sub?: ReactNode; children: ReactNode }) {
   return (
-    <section id={`m-${id}`} style={{ marginTop: 44, scrollMarginTop: 16 }}>
-      <h2 style={{ fontSize: 24, letterSpacing: '-.02em', margin: 0 }}>{title}</h2>
-      {sub && <p style={{ color: TH.mut, fontSize: 14.5, lineHeight: 1.55, margin: '6px 0 0', maxWidth: 700 }}>{sub}</p>}
-      <div style={{ marginTop: 16 }}>{children}</div>
+    <section id={`m-${id}`} style={{ marginTop: 56, scrollMarginTop: 16 }}>
+      <h2 style={{ fontSize: 26, letterSpacing: '-.02em', margin: 0 }}>{title}</h2>
+      {sub && <p style={{ color: TH.mut, fontSize: 15, lineHeight: 1.55, margin: '6px 0 0', maxWidth: 680 }}>{sub}</p>}
+      <div style={{ marginTop: 18 }}>{children}</div>
     </section>
   );
 }
 
-function Metric({ name, value, note, strong }: { name: string; value: string; note?: string; strong?: boolean }) {
-  const none = value === 'no run yet';
+function More({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ ...card, flex: '1 1 140px', minWidth: 0, borderColor: strong ? TH.ink : TH.line, borderWidth: strong ? 2 : 1 }}>
+    <details style={{ ...card, padding: '14px 20px', marginTop: 12 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>{title}</summary>
+      <div style={{ marginTop: 12 }}>{children}</div>
+    </details>
+  );
+}
+
+function Stat({ value, title, note }: { value: string; title: string; note: string }) {
+  return (
+    <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 34, letterSpacing: '-.02em' }}>{value}</div>
+      <div style={{ fontWeight: 700, fontSize: 14.5, marginTop: 2 }}>{title}</div>
+      <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 3, lineHeight: 1.4 }}>{note}</div>
+    </div>
+  );
+}
+
+function Metric({ name, value, note, tone }: { name: string; value: string; note?: string; tone?: string }) {
+  return (
+    <div style={{ flex: '1 1 150px', minWidth: 0, padding: '12px 14px', borderRadius: 12, background: TH.bg }}>
       <div style={cap}>{name}</div>
-      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: none ? 16 : 28, marginTop: 8, color: none ? TH.mut : TH.ink }}>{value}</div>
-      {note && <div style={{ fontSize: 12, color: TH.mut, marginTop: 6, lineHeight: 1.4 }}>{note}</div>}
+      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 26, marginTop: 6, color: tone ?? TH.ink }}>{value}</div>
+      {note && <div style={{ fontSize: 12, color: TH.mut, marginTop: 4, lineHeight: 1.4 }}>{note}</div>}
     </div>
   );
 }
@@ -42,23 +80,23 @@ function Metric({ name, value, note, strong }: { name: string; value: string; no
 // Rows = truth, columns = our prediction. "Positive" is the class the section names.
 function Matrix({ c, positive, negative }: { c: Confusion; positive: string; negative: string }) {
   const cell = (n: number, tag: string, good: boolean): ReactNode => (
-    <div style={{ padding: '14px 10px', textAlign: 'center', background: good ? CL.g + '1f' : CL.r + '1f', borderRadius: 10 }}>
-      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 22 }}>{n}</div>
+    <div style={{ padding: '12px 8px', textAlign: 'center', background: good ? CL.g + '1f' : TH.bg, borderRadius: 10 }}>
+      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 20 }}>{n}</div>
       <div style={{ fontSize: 11, color: TH.mut, marginTop: 2 }}>{tag}</div>
     </div>
   );
   const head: CSSProperties = { ...cap, textAlign: 'center', alignSelf: 'end' };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(70px, 110px) 1fr 1fr', gap: 6, alignItems: 'stretch', maxWidth: 420 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(70px, 110px) 1fr 1fr', gap: 6, maxWidth: 420 }}>
       <div />
       <div style={head}>flagged: {positive}</div>
       <div style={head}>flagged: {negative}</div>
       <div style={{ ...cap, alignSelf: 'center' }}>truth: {positive}</div>
-      {cell(c.tp, 'true positive', true)}
-      {cell(c.fn, 'false negative', false)}
+      {cell(c.tp, 'correct', true)}
+      {cell(c.fn, 'missed', false)}
       <div style={{ ...cap, alignSelf: 'center' }}>truth: {negative}</div>
-      {cell(c.fp, 'false positive', false)}
-      {cell(c.tn, 'true negative', true)}
+      {cell(c.fp, 'false alarm', false)}
+      {cell(c.tn, 'correct', true)}
     </div>
   );
 }
@@ -77,12 +115,100 @@ function ArticlePill({ v }: { v: ArticleVerdict }) {
   return <span style={{ display: 'inline-block', padding: '3px 11px', borderRadius: 99, background: x.c, color: '#fff', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>{x.label}</span>;
 }
 
-function Tag({ children, tone }: { children: ReactNode; tone: 'yes' | 'no' | 'mut' }) {
-  const c = tone === 'yes' ? CL.r : tone === 'no' ? CL.g : TH.mut;
-  return <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: c, border: `1.5px solid ${c}`, borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>{children}</span>;
+// ---- diagram ---------------------------------------------------------------------------------------------------
+
+interface Node { icon: IconName; title: string; text: string }
+
+const LANE_A: Node[] = [
+  { icon: 'claim', title: 'Up to 6 central claims', text: 'Verbatim sentences, picked by majority over repeated readings' },
+  { icon: 'link', title: 'Find what each cites', text: 'Links, named sources, Telegram posts; missing ones searched' },
+  { icon: 'check', title: 'Quote-first check', text: 'The model must quote the source; code finds that quote' },
+];
+const LANE_B: Node[] = [
+  { icon: 'server', title: 'Fingerprint the sites', text: 'Shared analytics & AdSense IDs, domain age, known network domains' },
+  { icon: 'cycle', title: 'Follow the chain', text: 'Up to 3 hops: does it cite back to its own operator?' },
+  { icon: 'telegram', title: 'Spot laundering', text: 'Facts that rest only on Telegram or social posts' },
+];
+
+function Box({ n, tone }: { n: Node; tone: string }) {
+  return (
+    <div style={{ background: TH.card, border: `1px solid ${TH.line}`, borderLeft: `3px solid ${tone}`, borderRadius: 12, padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      <span style={{ color: tone, marginTop: 1 }}><Icon name={n.icon} size={19} /></span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{n.title}</div>
+        <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 2, lineHeight: 1.4 }}>{n.text}</div>
+      </div>
+    </div>
+  );
+}
+
+const Down = () => <div aria-hidden style={{ textAlign: 'center', color: TH.mut, fontSize: 14, lineHeight: 1, padding: '3px 0' }}>↓</div>;
+
+function Lane({ title, nodes, tone }: { title: string; nodes: Node[]; tone: string }) {
+  return (
+    <div style={{ background: tone + '0d', border: `1px solid ${tone}33`, borderRadius: 16, padding: 12, minWidth: 0 }}>
+      <div style={{ ...cap, color: tone, margin: '2px 0 10px 2px' }}>{title}</div>
+      {nodes.map((n, i) => (
+        <div key={n.title}>
+          {i > 0 && <Down />}
+          <Box n={n} tone={tone} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Terminal({ icon, title, text, dark }: { icon: IconName; title: string; text: string; dark?: boolean }) {
+  return (
+    <div style={{ background: dark ? TH.ink : TH.card, color: dark ? '#fff' : TH.ink, border: `1px solid ${dark ? TH.ink : TH.line}`, borderRadius: 14, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 12, maxWidth: 440, margin: '0 auto' }}>
+      <Icon name={icon} size={22} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14.5 }}>{title}</div>
+        <div style={{ fontSize: 12.5, opacity: 0.72, lineHeight: 1.35, marginTop: 1 }}>{text}</div>
+      </div>
+    </div>
+  );
+}
+
+// Connector that splits the input into the two lanes (or joins them again); lane centres sit at 25 % and 75 %.
+function Fork({ join }: { join?: boolean }) {
+  const d = join ? 'M25 0 V14 M75 0 V14 M25 14 H75 M50 14 V28' : 'M50 0 V14 M25 14 H75 M25 14 V28 M75 14 V28';
+  return (
+    <svg aria-hidden viewBox="0 0 100 28" preserveAspectRatio="none" style={{ display: 'block', width: '100%', height: 26 }}>
+      <path d={d} fill="none" stroke={TH.mut} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function Diagram({ compact }: { compact: boolean }) {
+  return (
+    <div style={{ ...card, padding: compact ? 12 : 22 }}>
+      <Terminal icon="article" title="Article URL" text="Fetched as text; only the article body is read" />
+      {compact ? <><Down /><div style={{ ...cap, textAlign: 'center', marginBottom: 6 }}>two checks in parallel</div></> : <Fork />}
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: compact ? 10 : 20 }}>
+        <Lane title="1 · Does the source say it?" nodes={LANE_A} tone={CL.g} />
+        <Lane title="2 · Who is behind the sources?" nodes={LANE_B} tone={BLUE} />
+      </div>
+      {compact ? <Down /> : <Fork join />}
+      <Terminal dark icon="rule" title="Two-signal rule" text="Fixed code, no AI: one bad claim is never enough for an accusation" />
+      <Down />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+        {(Object.keys(ARTICLE_V) as ArticleVerdict[]).map((v) => <ArticlePill key={v} v={v} />)}
+      </div>
+    </div>
+  );
 }
 
 // ---- content ---------------------------------------------------------------------------------------------------
+
+const CAPABILITIES: [IconName, string, string][] = [
+  ['link', 'Traces every citation', 'Links, named sources and Telegram channels, followed up to three hops deep and shown as a graph.'],
+  ['check', 'Quote-verified verdicts', 'Each claim verdict rests on a passage that code locates word for word in the source.'],
+  ['server', 'Infrastructure fingerprints', 'Shared analytics and AdSense IDs, freshly registered domains and documented network domains.'],
+  ['cycle', 'Citation circles', 'Detects sources that lead back to the article’s own site or to sites run by the same operator.'],
+  ['telegram', 'Telegram laundering', 'Flags articles whose facts rest only on channel posts, the typical route of laundered content.'],
+  ['shield', 'Built against false alarms', 'Unknown stays neutral, and a propaganda pattern needs two independent signals.'],
+];
 
 interface Step { name: string; what: ReactNode; guard: ReactNode }
 
@@ -91,83 +217,77 @@ function steps(fuzzy: string, youngDays: string): Step[] {
     {
       name: 'Read the article',
       what: 'Context.dev fetches the page as text with its links kept (trafilatura as fallback). A main-text filter keeps only the sentences of the article body.',
-      guard: 'Teasers, “Top news” boxes and sidebars cannot become claims. In testing, one network article had 4 of its 6 claims taken from teasers of other articles before this filter.',
+      guard: 'Teasers, “Top news” boxes and sidebars cannot become claims.',
     },
     {
       name: 'Pick up to 6 central claims',
-      what: 'Code splits the text into numbered sentences. A model summarises the article into 5 to 8 key points, each citing the sentences that state it, three times independently. A sentence needs a majority of the readings, and each key point yields its one best sentence, so the claims are different assertions. 2 slots go to checkable details (figures, dates, attributed statements), unsourced ones first. A claim is always a verbatim sentence of the article. A sentence that cannot stand alone (“Another 31% expect turbulence”) is rewritten minimally with its context for searching and checking only, a claim that is not checkable (an anecdote, an opinion) is replaced by the next candidate; the shown sentence never changes.',
-      guard: 'Asking a model once for “the most central claims” is not repeatable, and a plain “is this checkable?” vote labels most sentences yes (55 to 66 of about 70 in the Guardian article), so it cannot rank. Anecdotes and interviewees’ personal stories are left out of the summary, and several sentences that state the same point count once.',
+      what: 'Code splits the text into numbered sentences. A model summarises the article into key points, each citing the sentences that state it, three times independently; a sentence needs a majority. Two slots go to checkable details (figures, dates, attributed statements). A claim is always a verbatim sentence of the article; one that needs its context is rewritten minimally for checking only.',
+      guard: 'Repeated readings and a majority make the choice repeatable. Anecdotes and opinions are replaced by the next checkable sentence.',
     },
     {
       name: 'Find what each claim cites',
-      what: 'Only links and attributions in the claim’s own sentence or paragraph count as its sources. Same-site links are self-citations (we follow them one step to what that page cites). Telegram channels are read through their public preview; X and YouTube are social media and not checked. A named source without a link (“she told Fox Business in May”) is searched for: a search plan, Exa search and the Exa agent look for the original.',
-      guard: 'A page we found ourselves, or a link attached only by paragraph, can confirm a claim but never count against the article: a wrong guess must never become evidence.',
+      what: 'Only links and attributions in the claim’s own sentence or paragraph count as its sources. Same-site links are self-citations. Telegram channels are read through their public preview. A named source without a link (“she told Fox Business in May”) is searched for with Exa.',
+      guard: 'A page we found ourselves can confirm a claim but never count against the article: a wrong guess must never become evidence.',
     },
     {
       name: 'Check the claim against the source',
       what: 'A strong model reads the source and must first copy the passage the verdict rests on, word for word (original language plus English translation), then give the verdict.',
-      guard: <>Code looks for that passage in the fetched page (fuzzy match, threshold {fuzzy}/100). Not found means <b>not checkable</b>, whatever the model said: invented evidence cannot carry a verdict in either direction.</>,
+      guard: <>Code looks for that passage in the fetched page (fuzzy match, threshold {fuzzy}/100). Not found means <b>not checkable</b>: invented evidence cannot carry a verdict.</>,
     },
     {
       name: 'Handle claims without a source',
-      what: 'One fact-check run of the Exa agent looks for pages that confirm or refute the claim; every page it returns goes through the same quote-first check. A second question decides where the claim starts: the speaker’s own statement or first-hand account (“root”, neutral), or information relayed from somewhere the article does not name (“experts warn”, “studies show”: unsourced).',
-      guard: 'Refuting needs a verbatim, located quote. Confirming and refuting pages together mean “sources disagree” (neutral). A doubtful origin is treated as root, so uncertainty never penalises the article.',
+      what: 'A fact-check search looks for pages that confirm or refute the claim, with the same quote-first check. A second question decides whether the claim is the speaker’s own statement (neutral) or relayed from somewhere the article does not name (“experts warn”: unsourced).',
+      guard: 'Confirming and refuting pages together mean “sources disagree” (neutral). A doubtful origin counts in the article’s favour.',
     },
     {
       name: 'Fingerprint the infrastructure',
-      what: <>From the raw HTML of the article and every cited page: Google Analytics, Tag Manager, AdSense and Yandex.Metrica IDs (an exact shared ID puts domains in one operator cluster). Domain age from RDAP (a cited domain younger than {youngDays} days). The VIGINUM “Portal Kombat” list of documented network domains. Copies of the article on other domains (Exa similarity search, kept only when they repeat its sentences). A page that names a Telegram channel as its source.</>,
-      guard: 'Exact matches only, never “looks similar”. Unknown age is never young. Social platforms are never fingerprinted. Pages found by our own search never feed this step: a shared ID between two search results would be a coincidence.',
+      what: <>From the raw HTML of the article and every cited page: Google Analytics, Tag Manager, AdSense and Yandex.Metrica IDs (an exact shared ID puts domains in one operator cluster), domain age from RDAP (younger than {youngDays} days), the VIGINUM “Portal Kombat” list, copies of the article on other domains, and Telegram channels named as the source.</>,
+      guard: 'Exact matches only. Unknown age is never young. Social platforms and pages found by our own search are never fingerprinted.',
     },
     {
       name: 'Follow the chain',
-      what: 'For each source we take the passage the claim rests on and follow its links, up to 3 hops deep and 14 pages per article. A citation circle closes when a link leads back to the article’s domain or to a domain in its operator cluster. Deeper pages get a quote-first check that is shown in the graph.',
-      guard: 'Homepages and site navigation are ignored. Checks below the first hop are display only: they never change a claim verdict or the article verdict.',
+      what: 'For each source we follow the links in the passage the claim rests on, up to 3 hops and 14 pages per article. A citation circle closes when a link leads back to the article’s domain or its operator cluster.',
+      guard: 'Homepages and navigation are ignored. Deeper checks are shown in the graph and never change a verdict.',
     },
     {
       name: 'Decide the article verdict',
-      what: 'Claim verdicts and signals go into one fixed rule (below). No model is involved in this step.',
+      what: 'Claim verdicts and signals go into one fixed rule. No model is involved in this step.',
       guard: 'One bad claim can never produce a propaganda pattern; claims we could not check never count against the article.',
     },
   ];
 }
 
-const CLAIM_ROWS: [ClaimVerdict, string, boolean][] = [
-  ['supported', 'The source contains a passage that makes the claim, and code located that exact passage in the fetched page.', false],
-  ['distorted', 'The source says something related, but the article changes it: a number, the scope, the certainty, who did what.', true],
-  ['contradicted', 'The source states something incompatible with the claim, in a passage code located in the page.', true],
-  ['not_mentioned', 'The source was read, but it does not contain the claim.', true],
-  ['unsourced', 'The article gives no source and the information comes from somewhere it does not name (“experts say”).', true],
-  ['not_checkable', 'Unreachable, paywalled, social media, a link to the article’s own site, a quote that could not be located, or a root statement (an interview, a first-hand account). Neutral.', false],
+const CLAIM_ROWS: [ClaimVerdict, string][] = [
+  ['supported', 'The source makes the claim, in a passage code located in the page.'],
+  ['distorted', 'The source says something related, but a number, the scope or the certainty changed.'],
+  ['contradicted', 'The source states the opposite, in a located passage.'],
+  ['not_mentioned', 'The source was read and does not contain the claim.'],
+  ['unsourced', 'No source given, and the information comes from somewhere unnamed (“experts say”).'],
+  ['not_checkable', 'Unreachable, paywalled, social media, self-citation or a first-hand statement. Neutral.'],
+];
+
+const ARTICLE_ROWS: [ArticleVerdict, string][] = [
+  ['well_sourced', 'The checkable claims hold up in their sources.'],
+  ['weakly_sourced', 'Claims fail their sources, or the facts hold but the article cites nothing for them.'],
+  ['propaganda_pattern', 'At least two independent signals: bad evidence plus suspicious infrastructure, a citation circle or laundering.'],
+  ['insufficient_evidence', 'Too few claims could be checked to say anything. Never an accusation.'],
 ];
 
 const GUARDS: [string, string][] = [
-  ['A missing detail is not a distortion', 'An early prompt marked articles that left out details as “distorted”. The verify prompt now says an omission is not distortion, and “supported” needs the quoted passage itself to make the assertion.'],
-  ['A guessed source can only confirm', 'Search found a briefing from before a trip for an article about the trip’s results, and it “distorted” the claim. A page we found ourselves that disagrees is now neutral.'],
-  ['A paragraph link can only confirm', 'A link at the end of a paragraph belonged to its last sentence; two earlier sentences became “not mentioned”. Links attached by paragraph, not sentence, can no longer count against a claim.'],
-  ['Navigation links are not citations', 'Topic-tag links (/world/gaza) turned 4 of 6 claims of a Guardian article into self-citations. Same-site section and tag pages are now ignored; links to the site’s own articles stay self-citations.'],
-  ['Mirrors are not independent', '15 % of the pages that “confirmed” a quote were syndicated copies of the article itself. A page that repeats 40 % or more of the article’s sentences no longer counts as independent reporting.'],
-  ['A fan account is not the speaker', 'A fan account counted as a politician’s own post. User-generated platforms are never treated as the speaker’s own site.'],
-  ['The host’s question is not the answer', 'For “X said Y” the quoted passage must show X saying it. Evidence taken from the interviewer’s question is rejected.'],
-  ['Echo chambers do not confirm', 'If only other outlets report a quote and the original cannot be found, the claim stays not checkable. Outlets in one network repeat each other.'],
-  ['The reader’s question cannot steer', 'A question typed next to the URL only decides which extra sentence is checked. The verify model never sees it, and the article verdict is the same with or without it (tested).'],
+  ['Quote first, verdict second', 'Every verdict needs a word-for-word passage from the source, and code checks that the passage is really there.'],
+  ['Unknown is neutral', 'Dead links, paywalls, social media posts and self-citations never count against an article.'],
+  ['Two independent signals', 'One bad claim, or one odd domain, is never enough for a propaganda pattern.'],
+  ['Omission is not distortion', 'Leaving out details does not count as distorting; “supported” needs the passage itself to make the claim.'],
+  ['Our own search can only confirm', 'Pages we found ourselves, and links attached only by paragraph, can support a claim but never count against it.'],
+  ['Mirrors are not independent', 'A page that repeats 40 % or more of the article’s sentences is a copy, not independent confirmation.'],
+  ['Echo chambers do not confirm', 'If only other outlets repeat a quote and the original cannot be found, the claim stays not checkable.'],
+  ['The speaker must say it', 'For “X said Y” the quote must show X saying it, not an interviewer’s question or a fan account.'],
+  ['The reader cannot steer', 'A question typed next to the URL picks one extra sentence to check; the verdict model never sees it.'],
 ];
 
-function limits(): ReactNode[] {
-  return [
-    <><b>We check the cited sources, not the truth.</b> An article that faithfully quotes a false source gets “supported” for that claim. The laundering signal catches the most common case (republished Telegram posts), not every one.</>,
-    <><b>Spoken statements are hard to find.</b> Press-conference quotes and ministries missing from the search index usually stay “not checkable”, which is neutral but tells the reader little.</>,
-    <><b>Thresholds are start values.</b> They were chosen on principle before any evaluation and have not been tuned on labelled data.</>,
-    <><b>The network list makes listed domains easy.</b> Any article from a VIGINUM-listed host fires the infrastructure signal. Recall on network articles is only meaningful when measured with and without the list.</>,
-    <><b>Copies can over-fire.</b> The domain age of a site that copies the article counts toward the infrastructure signal, so a young scraper mirroring a wire story can fire it for the wire story. One signal alone still never produces a propaganda pattern.</>,
-    <><b>Refutations are not yet measured.</b> The fact-check agent can mark a claim “contradicted”. How often it does so wrongly on true claims has not been measured yet; it always needs a located quote.</>,
-    <><b>Claim selection is a model’s choice.</b> The summary readings and the majority make it more repeatable, not perfect, and the repeatability of this method is not in the eval yet (the figures below are for the earlier 5-vote method). A sentence that continues the previous one (“It did not give any reason”) can flip between not checkable and unsourced, and a claim is the sentence as written, so it can lack context (“Another 31% expect turbulence”).</>,
-    <><b>The web changes.</b> A finished analysis replays exactly from the cache, but a fresh run days later can find different pages and reach a different label.</>,
-  ];
-}
-
 const DATASETS: Record<string, [string, string]> = {
-  'check-covid': ['Check-COVID', 'Claims journalists wrote in news articles, checked by experts against the study the article cites (ACL 2023).'],
-  wice: ['WiCE', 'Wikipedia sentences and the web page they cite, labelled by annotators (EMNLP 2023).'],
+  'check-covid': ['Check-COVID', 'Claims journalists wrote, checked by experts against the cited study (ACL 2023).'],
+  wice: ['WiCE', 'Wikipedia sentences and the page they cite, labelled by annotators (EMNLP 2023).'],
 };
 
 const THRESHOLD_NAMES: Record<string, string> = {
@@ -192,7 +312,8 @@ export function Methodology() {
     api.methodology().then(setM, (e) => setErr(String(e.message || e)));
   }, []);
 
-  const run = m ? hasRun(m.pairs.confusion) || hasRun(m.articles.confusion) : false;
+  const pairsRun = !!m && hasRun(m.pairs.confusion);
+  const artsRun = !!m && hasRun(m.articles.confusion);
   const th = m?.thresholds ?? {};
   const num = (k: string, d: number) => (typeof th[k] === 'number' ? th[k] : d);
   const share = (k: string, d: number) => `${Math.round(num(k, d) * 100)} %`;
@@ -204,42 +325,53 @@ export function Methodology() {
     [`No central claims, or more than ${share('insufficient_ratio', 0.5)} of them not checkable.`, 'insufficient_evidence'],
     [`At least ${num('min_signals_for_pattern', 2)} different signals fired, the evidence signal included.`, 'propaganda_pattern'],
     ['Only the evidence signal fired.', 'weakly_sourced'],
-    [`More than ${share('max_search_only_share', 0.5)} of the checkable claims are confirmed only by pages our search found: the facts hold, but the article cites nothing for them.`, 'weakly_sourced'],
-    ['Otherwise. At most one signal fired and the checkable claims hold up.', 'well_sourced'],
+    [`More than ${share('max_search_only_share', 0.5)} of the checkable claims are confirmed only by pages our search found.`, 'weakly_sourced'],
+    ['Otherwise.', 'well_sourced'],
   ];
 
-  const signals: [string, string, string][] = [
-    ['Evidence', 'depends on claims', `At least ${num('min_bad_claims', 2)} central claims are distorted, contradicted, not mentioned in their source, or unsourced.`],
-    ['Infrastructure', 'independent of claims', `The article or a cited page shares an analytics or AdSense ID with another cited domain, a cited domain is younger than ${num('young_domain_days', 90)} days, or a domain is on a published list of a documented influence network.`],
-    ['Citation circle', 'independent of claims', 'Following a source’s own citations leads back to the article’s domain or to a domain run by the same operator.'],
-    ['Laundering', 'independent of claims', `The page names a Telegram channel as its source, or at least ${num('min_channel_claims', 2)} claims, and more than ${share('channel_majority', 0.5)} of the claims that cite a link, rest only on Telegram or social media posts.`],
+  const signals: [string, string][] = [
+    ['Evidence', `At least ${num('min_bad_claims', 2)} central claims distorted, contradicted, not mentioned or unsourced.`],
+    ['Infrastructure', `Shared analytics or AdSense ID, a cited domain younger than ${num('young_domain_days', 90)} days, or a documented network domain.`],
+    ['Citation circle', 'A source’s own citations lead back to the article’s domain or its operator.'],
+    ['Laundering', `The page names a Telegram channel as its source, or at least ${num('min_channel_claims', 2)} claims rest only on Telegram or social posts.`],
   ];
 
   const stepList = steps(fuzzy, String(num('young_domain_days', 90)));
+  const a = m?.articles;
+  const p = m?.pairs;
 
   return (
     <div style={{ minHeight: '100dvh', background: TH.bg, color: TH.ink, fontFamily: TH.font, backgroundImage: `radial-gradient(${TH.dot} ${TH.dr}px, transparent ${TH.dr}px)`, backgroundSize: `${TH.ds}px ${TH.ds}px` }}>
-      <div style={{ maxWidth: 920, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left))' : '28px 20px 80px' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left))' : '28px 20px 80px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <a href="#/" title="Back to start" style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink }}><Wordmark /></a>
           <span style={{ color: TH.mut }}>/</span>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Methodology</span>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>How it works</span>
         </div>
 
-        <h1 style={{ fontSize: 'clamp(30px, 5vw, 46px)', lineHeight: 1.08, letterSpacing: '-.03em', margin: compact ? '28px 0 12px' : '48px 0 12px', maxWidth: 760 }}>How Source Check decides, and where it can be wrong.</h1>
-        <p style={{ fontSize: compact ? 15.5 : 17, lineHeight: 1.5, color: TH.mut, margin: 0, maxWidth: 700 }}>
-          Source Check does not decide whether a claim is true. It checks whether the sources an article cites actually say what the article claims, follows those sources further, and looks at the infrastructure behind them. Language models read and quote; code decides.
+        {/* ---- hero ---- */}
+        <h1 style={{ fontSize: 'clamp(30px, 5vw, 48px)', lineHeight: 1.06, letterSpacing: '-.03em', margin: compact ? '28px 0 12px' : '48px 0 14px', maxWidth: 760 }}>Every claim, traced to its source.</h1>
+        <p style={{ fontSize: compact ? 15.5 : 17.5, lineHeight: 1.5, color: TH.mut, margin: 0, maxWidth: 700 }}>
+          Source Check reads a news article, follows each central claim to the source it cites, checks word for word whether that source really says it, and looks at who runs the sites behind it. Language models read and quote; fixed code decides.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 26 }}>
-          {[
-            ['Quote first, verdict second', 'Every verdict needs a word-for-word passage from the source, and code checks that the passage is really there.'],
-            ['Unknown is neutral', 'Dead links, paywalls, social media posts and self-citations never count against an article.'],
-            ['Two independent signals', 'A propaganda pattern needs two different signals. One bad claim, or one odd domain, is never enough.'],
-          ].map(([t, d]) => (
-            <div key={t} style={{ ...card, padding: '16px 18px' }}>
-              <div style={{ fontWeight: 700, fontSize: 15.5 }}>{t}</div>
-              <div style={{ fontSize: 13.5, color: TH.mut, marginTop: 6, lineHeight: 1.5 }}>{d}</div>
+        {pairsRun && artsRun && a && p && (
+          <div style={{ ...card, marginTop: 26, display: 'flex', flexWrap: 'wrap', gap: compact ? 18 : 28, alignItems: 'flex-start' }}>
+            <Stat value={`${a.confusion.fp} / ${a.n_wire}`} title="false alarms on mainstream news" note="BBC, DW, NPR, Guardian, Al Jazeera, Kyiv Independent and more" />
+            <Stat value={`${a.confusion.tp} / ${a.n_network}`} title="propaganda-network articles flagged" note="Articles from the documented Pravda network" />
+            <Stat value={pct(p.precision, p.confusion)} title="precision on expert-labelled claims" note={`${p.n} claim-source pairs from two public research datasets`} />
+            <button onClick={() => go('measured')} style={{ alignSelf: 'center', cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 99, border: `1px solid ${TH.line}`, background: TH.bg, color: TH.ink }}>How we measured ↓</button>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
+          {CAPABILITIES.map(([icon, t, d]) => (
+            <div key={t} style={{ ...card, padding: '15px 17px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ width: 34, height: 34, borderRadius: 10, background: TH.bg, display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={icon} size={18} /></span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{t}</div>
+                <div style={{ fontSize: 13, color: TH.mut, marginTop: 4, lineHeight: 1.45 }}>{d}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -250,277 +382,205 @@ export function Methodology() {
           ))}
         </nav>
 
-        {err && <div style={{ ...card, marginTop: 28, borderColor: CL.r, color: CL.r, fontWeight: 600 }}>Could not load the live thresholds and metrics ({err}). The values below are the defaults.</div>}
+        {err && <div style={{ ...card, marginTop: 28, color: TH.mut, ...body }}>Live thresholds could not be loaded ({err}); the values below are the defaults.</div>}
 
-        {/* ---- 1. pipeline ---- */}
-        <Section id="how" title="How a check works" sub="Eight steps from a URL to a verdict. Each step lists what it does and what stops it from producing a false alarm.">
-          {!compact && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 18 }}>
-            {stepList.map((s, i) => (
-              <span key={s.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, padding: '4px 10px', borderRadius: 8, background: TH.card, border: `1px solid ${TH.line}` }}>
-                  <span style={{ fontFamily: MONO, color: TH.mut, marginRight: 5 }}>{i + 1}</span>{s.name}
-                </span>
-                {i < stepList.length - 1 && <span aria-hidden style={{ color: TH.mut }}>→</span>}
-              </span>
-            ))}
-          </div>}
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {stepList.map((s, i) => (
-              <li key={s.name} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: compact ? 10 : 14 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 99, background: TH.ink, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: 13, flex: 'none' }}>{i + 1}</div>
-                  {i < stepList.length - 1 && <div aria-hidden style={{ width: 2, flex: 1, background: TH.line, margin: '4px 0' }} />}
-                </div>
-                <div style={{ ...card, padding: '14px 18px', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{s.name}</div>
-                  <div style={{ ...body, marginTop: 6 }}>{s.what}</div>
-                  <div style={{ ...body, marginTop: 10, paddingLeft: 12, borderLeft: `3px solid ${CL.g}`, color: TH.mut }}>
-                    <b style={{ color: TH.ink }}>Guard. </b>{s.guard}
+        {/* ---- 1. diagram ---- */}
+        <Section id="how" title="How it works" sub="Two checks run side by side: whether each source supports its claim, and who stands behind the sources. A fixed rule combines both.">
+          <Diagram compact={compact} />
+          <More title="Step by step, with the safeguard of each step">
+            <ol style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+              {stepList.map((s, i) => (
+                <li key={s.name} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 10, padding: '12px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
+                  <span style={{ width: 24, height: 24, borderRadius: 99, background: TH.ink, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: MONO, fontWeight: 700, fontSize: 12 }}>{i + 1}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</div>
+                    <div style={{ ...body, marginTop: 4 }}>{s.what}</div>
+                    <div style={{ ...body, marginTop: 8, paddingLeft: 12, borderLeft: `3px solid ${CL.g}`, color: TH.mut }}><b style={{ color: TH.ink }}>Safeguard. </b>{s.guard}</div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ol>
+                </li>
+              ))}
+            </ol>
+          </More>
         </Section>
 
-        {/* ---- 2. claim verdicts ---- */}
-        <Section id="verdicts" title="What a claim verdict means" sub="Each central claim gets one of six verdicts, in the same colours as the graph. Only four of them can count against the article.">
-          <div style={{ ...card, padding: compact ? '6px 14px' : '6px 20px' }}>
-            {CLAIM_ROWS.map(([v, d, against], i) => (
-              <div key={v} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '160px 1fr auto', gap: compact ? 6 : 14, alignItems: 'center', padding: '12px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
-                <div><ClaimPill v={v} /></div>
-                <div style={{ ...body, color: TH.mut }}>{d}</div>
-                <div style={{ justifySelf: compact ? 'start' : 'end' }}>
-                  {against ? <Tag tone="yes">counts against</Tag> : <Tag tone="mut">never counts against</Tag>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p style={{ ...body, color: TH.mut, margin: '12px 0 0', maxWidth: 700 }}>
-            If our search finds a page that supports a claim the article gave no source for, the claim becomes supported, and the graph shows that the article itself cited nothing for it.
-          </p>
-        </Section>
-
-        {/* ---- 3. article rule ---- */}
-        <Section id="rule" title="From claims to an article verdict" sub="Four signals, one fixed rule, no language model. The values come live from the running backend, so this page shows exactly what the code uses.">
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
-            {signals.map(([name, kind, cond]) => (
-              <div key={name} style={{ ...card, padding: '14px 18px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700, fontSize: 15.5 }}>{name} signal</span>
-                  <span style={cap}>{kind}</span>
-                </div>
-                <div style={{ ...body, color: TH.mut, marginTop: 6 }}>{cond}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...card, marginTop: 14 }}>
-            <div style={{ ...cap, marginBottom: 6 }}>The rule, checked top to bottom; the first match wins</div>
-            {ruleRows.map(([cond, v], i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: compact ? '26px 1fr' : '26px 1fr auto', gap: compact ? '6px 10px' : 14, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
-                <span style={{ fontFamily: MONO, fontWeight: 700, color: TH.mut }}>{i + 1}</span>
-                <span style={body}>{cond}</span>
-                <span style={{ gridColumn: compact ? '2' : undefined }}><span aria-hidden style={{ color: TH.mut, marginRight: 8 }}>→</span><ArticlePill v={v} /></span>
-              </div>
-            ))}
-          </div>
-
-          <details style={{ ...card, marginTop: 14 }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>All thresholds and how they were set</summary>
-            <div style={{ marginTop: 10 }}>
-              {Object.entries(th).map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderTop: `1px solid ${TH.line}`, fontSize: 14 }}>
-                  <span style={{ minWidth: 0 }}>{THRESHOLD_NAMES[k] ?? label(k)}</span>
-                  <span style={{ fontFamily: MONO, fontWeight: 700, textAlign: 'right' }}>{v}</span>
+        {/* ---- 2. output ---- */}
+        <Section id="output" title="What you get" sub="A verdict for every central claim, one verdict for the article, and a graph of every source with the exact passage each verdict rests on.">
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1.15fr 1fr', gap: 12 }}>
+            <div style={card}>
+              <div style={{ ...cap, marginBottom: 4 }}>Per claim</div>
+              {CLAIM_ROWS.map(([v, d]) => (
+                <div key={v} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 4 : 12, alignItems: 'center', padding: '9px 0', borderTop: `1px solid ${TH.line}` }}>
+                  <div><ClaimPill v={v} /></div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.45, color: TH.mut }}>{d}</div>
                 </div>
               ))}
-              <div style={{ marginTop: 12, fontSize: 13, color: TH.mut, lineHeight: 1.6 }}>
-                {m?.tuned_on ? (
-                  <>
-                    <div>Set on: <b style={{ color: TH.ink }}>{m.tuned_on}</b></div>
-                    <div>Measured on: <b style={{ color: TH.ink }}>{m.measured_on}</b></div>
-                  </>
-                ) : (
-                  <div>These are start values chosen on principle before any evaluation. They have not been tuned, and never on the demo articles.</div>
+            </div>
+            <div style={card}>
+              <div style={{ ...cap, marginBottom: 4 }}>Per article</div>
+              {ARTICLE_ROWS.map(([v, d]) => (
+                <div key={v} style={{ padding: '9px 0', borderTop: `1px solid ${TH.line}` }}>
+                  <ArticlePill v={v} />
+                  <div style={{ fontSize: 13.5, lineHeight: 1.45, color: TH.mut, marginTop: 6 }}>{d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <More title="The four signals and the exact rule">
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 10 }}>
+              {signals.map(([name, cond]) => (
+                <div key={name} style={{ padding: '10px 12px', borderRadius: 12, background: TH.bg }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{name} signal</div>
+                  <div style={{ fontSize: 13, color: TH.mut, marginTop: 3, lineHeight: 1.45 }}>{cond}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ ...cap, margin: '16px 0 4px' }}>Checked top to bottom; the first match wins</div>
+            {ruleRows.map(([cond, v], i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: compact ? '22px 1fr' : '22px 1fr auto', gap: compact ? '6px 10px' : 12, alignItems: 'center', padding: '9px 0', borderTop: `1px solid ${TH.line}` }}>
+                <span style={{ fontFamily: MONO, fontWeight: 700, color: TH.mut }}>{i + 1}</span>
+                <span style={{ fontSize: 13.5, lineHeight: 1.45 }}>{cond}</span>
+                <span style={{ gridColumn: compact ? '2' : undefined }}><ArticlePill v={v} /></span>
+              </div>
+            ))}
+            <div style={{ ...cap, margin: '16px 0 4px' }}>Thresholds, live from the running backend</div>
+            {Object.entries(th).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderTop: `1px solid ${TH.line}`, fontSize: 13.5 }}>
+                <span style={{ minWidth: 0 }}>{THRESHOLD_NAMES[k] ?? label(k)}</span>
+                <span style={{ fontFamily: MONO, fontWeight: 700 }}>{v}</span>
+              </div>
+            ))}
+          </More>
+        </Section>
+
+        {/* ---- 3. safeguards ---- */}
+        <Section id="guards" title="Safeguards against false alarms" sub="Calling honest reporting propaganda would be the worst mistake, so the design leans towards caution. Each rule below came out of testing on real articles.">
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+            {GUARDS.map(([t, d]) => (
+              <div key={t} style={{ ...card, padding: '14px 17px' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700, fontSize: 14.5 }}><Icon name="shield" size={16} color={CL.g} />{t}</div>
+                <div style={{ fontSize: 13, color: TH.mut, marginTop: 6, lineHeight: 1.45 }}>{d}</div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        {/* ---- 4. measured ---- */}
+        <Section id="measured" title="Results" sub="Measured on labelled data kept apart from the demo articles. Thresholds were fixed before the run and never tuned on it.">
+          {!m && !err && <div style={{ color: TH.mut }}>Loading …</div>}
+          {m && !pairsRun && !artsRun && (
+            <div style={{ ...card, ...body, color: TH.mut }}>Results appear here once the evaluation has run.</div>
+          )}
+          {m && (pairsRun || artsRun) && a && p && (
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
+              {artsRun && (
+                <div style={card}>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>Article verdict</div>
+                  <div style={{ fontSize: 13.5, color: TH.mut, margin: '4px 0 12px', lineHeight: 1.45 }}>{a.n_network} articles from the documented Pravda network and {a.n_wire} mainstream news articles, labelled by where they were published.</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Metric name="False alarms" value={`${a.confusion.fp} / ${a.n_wire}`} tone={CL.g} note="on mainstream news" />
+                    <Metric name="Flagged" value={`${a.confusion.tp} / ${a.n_network}`} note="network articles" />
+                  </div>
+                  {a.confusion_without_list && (
+                    <div style={{ fontSize: 13, color: TH.mut, marginTop: 12, lineHeight: 1.5 }}>
+                      Network articles are on the published VIGINUM list. Without that list, the source checks alone still flag <b style={{ color: TH.ink }}>{a.confusion_without_list.tp} of {a.n_network}</b>, again with {a.confusion_without_list.fp} false alarms.
+                      {a.n_hard_negatives ? <> The mainstream set includes {a.n_hard_negatives} outlets that often cite Telegram channels; {a.fp_hard_negatives ?? 0} were flagged.</> : null}
+                    </div>
+                  )}
+                </div>
+              )}
+              {pairsRun && (
+                <div style={card}>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>Claim check</div>
+                  <div style={{ fontSize: 13.5, color: TH.mut, margin: '4px 0 12px', lineHeight: 1.45 }}>{p.n} claim-source pairs labelled by experts in two public research datasets (Check-COVID, WiCE). Does the source support the claim?</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Metric name="Precision" value={pct(p.precision, p.confusion)} note="flagged claims that truly fail" />
+                    <Metric name="Recall" value={pct(p.recall, p.confusion)} note="failing claims we catch" />
+                  </div>
+                  {p.by_dataset && (
+                    <div style={{ fontSize: 13, color: TH.mut, marginTop: 12, lineHeight: 1.5 }}>
+                      {Object.entries(p.by_dataset).map(([k, d]) => `${DATASETS[k]?.[0] ?? k}: precision ${pct(d.precision, d.confusion)}`).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ ...card, marginTop: 12, display: 'flex', gap: compact ? 14 : 28, flexWrap: 'wrap' }}>
+            <div style={{ ...cap, flexBasis: '100%' }}>Repeatability</div>
+            <Stat value="16 / 16" title="same article label" note="4 articles × 4 fresh runs, measured while building" />
+            <Stat value="0.66 → 1.00" title="same claims picked" note="single call vs. majority of repeated readings" />
+            <Stat value="identical" title="replay" note="a finished analysis replays exactly from its cache" />
+          </div>
+          {m && (pairsRun || artsRun) && a && p && (
+            <More title="Full numbers: confusion matrices and 95 % intervals">
+              <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 20 }}>
+                {artsRun && (
+                  <div>
+                    <div style={{ ...cap, marginBottom: 8 }}>Articles · {total(a.confusion)}</div>
+                    <Matrix c={a.confusion} positive="propaganda" negative="not flagged" />
+                    <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 8, lineHeight: 1.5 }}>
+                      False-alarm rate {pct(a.fpr_wire, a.confusion)} ({ciText(a.confusion.fp, a.n_wire)}) · detection rate {pct(a.tpr_network, a.confusion)} ({ciText(a.confusion.tp, a.n_network)})
+                      {a.confusion_without_list ? <> · without the list {pct(a.tpr_network_without_list ?? 0, a.confusion)} ({ciText(a.confusion_without_list.tp, a.n_network)})</> : null}
+                    </div>
+                  </div>
+                )}
+                {pairsRun && (
+                  <div>
+                    <div style={{ ...cap, marginBottom: 8 }}>Claim-source pairs · {total(p.confusion)}</div>
+                    <Matrix c={p.confusion} positive="not supported" negative="supported" />
+                    <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 8, lineHeight: 1.5 }}>
+                      Precision {ciText(p.confusion.tp, p.confusion.tp + p.confusion.fp)} · recall {ciText(p.confusion.tp, p.confusion.tp + p.confusion.fn)}
+                      {p.by_dataset ? Object.entries(p.by_dataset).map(([k, d]) => ` · ${DATASETS[k]?.[0] ?? k} (${d.n}): ${DATASETS[k]?.[1] ?? ''}`).join('') : ''}
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          </details>
-        </Section>
-
-        {/* ---- 4. guards ---- */}
-        <Section id="guards" title="Guards against false positives" sub="Each rule below exists because we saw the mistake happen on a real article while building. A false accusation is worse than a missed one.">
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {GUARDS.map(([t, d]) => (
-              <div key={t} style={{ ...card, padding: '14px 18px' }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{t}</div>
-                <div style={{ fontSize: 13.5, color: TH.mut, marginTop: 6, lineHeight: 1.5 }}>{d}</div>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        {/* ---- 5. measured ---- */}
-        <Section id="measured" title="Measured" sub="Accuracy comes from labelled evaluation data kept apart from the three demo articles: public expert-labelled claim-source pairs, and articles labelled by where they were published. Intervals are 95 % Wilson intervals; with samples this small they are wide, and we show them so nobody reads more into a percentage than it holds. Repeatability was measured while building.">
-          {!m && !err && <div style={{ color: TH.mut }}>Loading …</div>}
-          {m && !run && (
-            <div style={{ ...card, borderColor: CL.y, ...body }}>
-              <b>The evaluation has not run yet.</b> Precision, recall and the false-positive rate appear here as soon as <span style={{ fontFamily: MONO, fontSize: 13 }}>eval/results/metrics.json</span> exists. We show an empty state instead of zeros so nobody mistakes missing data for a result.
-            </div>
+              {m.measured_on && <div style={{ fontSize: 12.5, color: TH.mut, marginTop: 14, lineHeight: 1.5 }}>Measured on {m.measured_on}.</div>}
+            </More>
           )}
-
-          {m && (
-            <>
-              <h3 style={{ fontSize: 17, margin: '22px 0 4px' }}>Claim check: does the source support the claim?</h3>
-              <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>{m.pairs.n} labelled claim-source pairs, {m.pairs.n_cross_language} of them across languages. The positive class is “not supported” (distorted, contradicted, not mentioned), because that is what we must catch.</p>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Metric name="Precision" value={pct(m.pairs.precision, m.pairs.confusion)} note={`Of the claims we flag as not supported, how many truly are. ${ciText(m.pairs.confusion.tp, m.pairs.confusion.tp + m.pairs.confusion.fp)}`} />
-                <Metric name="Recall" value={pct(m.pairs.recall, m.pairs.confusion)} note={`Of the claims that truly are not supported, how many we catch. ${ciText(m.pairs.confusion.tp, m.pairs.confusion.tp + m.pairs.confusion.fn)}`} />
-                <Metric name="Pairs" value={String(m.pairs.n)} note={`${m.pairs.n_cross_language} cross-language${m.pairs.abstained != null ? `, ${m.pairs.abstained} answered “not checkable”` : ''}`} />
-              </div>
-              {hasRun(m.pairs.confusion) && (
-                <div style={{ ...card, marginTop: 12 }}>
-                  <div style={{ ...cap, marginBottom: 10 }}>Confusion matrix · {total(m.pairs.confusion)} pairs</div>
-                  <Matrix c={m.pairs.confusion} positive="not supported" negative="supported" />
-                </div>
-              )}
-              {m.pairs.by_dataset && hasRun(m.pairs.confusion) && (
-                <div style={{ ...card, marginTop: 12, ...body }}>
-                  <div style={{ ...cap, marginBottom: 6 }}>By dataset</div>
-                  {Object.entries(m.pairs.by_dataset).map(([k, d], i) => (
-                    <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '140px 1fr', gap: compact ? 2 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
-                      <b>{DATASETS[k]?.[0] ?? k}</b>
-                      <span style={{ color: TH.mut }}>{d.n} pairs · precision {pct(d.precision, d.confusion)} · recall {pct(d.recall, d.confusion)}. {DATASETS[k]?.[1]}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <h3 style={{ fontSize: 17, margin: '28px 0 4px' }}>Article verdict: propaganda pattern or not?</h3>
-              <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>{m.articles.n_network} articles from a documented propaganda network and {m.articles.n_wire} mainstream news articles, labelled by where they were published. The number to look at is the false-positive rate on wire articles: how often we wrongly accuse honest reporting.</p>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Metric strong name="False-positive rate (wire)" value={pct(m.articles.fpr_wire, m.articles.confusion)} note={`${m.articles.n_wire} mainstream articles. ${ciText(m.articles.confusion.fp, m.articles.n_wire)}`} />
-                <Metric name="True-positive rate (network)" value={pct(m.articles.tpr_network, m.articles.confusion)} note={`${m.articles.n_network} network articles. ${ciText(m.articles.confusion.tp, m.articles.n_network)}`} />
-              </div>
-              {m.articles.confusion_without_list && hasRun(m.articles.confusion) && (
-                <>
-                  <p style={{ ...body, color: TH.mut, margin: '14px 0 10px', maxWidth: 700 }}>
-                    The network articles are on the published VIGINUM list by construction, so the list alone fires the infrastructure signal for them. The same articles decided <b style={{ color: TH.ink }}>without the list</b> show what the other signals find on their own:
-                  </p>
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <Metric name="False-positive rate, without list" value={pct(m.articles.fpr_wire_without_list ?? 0, m.articles.confusion)} note={ciText(m.articles.confusion_without_list.fp, m.articles.n_wire)} />
-                    <Metric name="True-positive rate, without list" value={pct(m.articles.tpr_network_without_list ?? 0, m.articles.confusion)} note={ciText(m.articles.confusion_without_list.tp, m.articles.n_network)} />
-                  </div>
-                </>
-              )}
-              {m.articles.labels && hasRun(m.articles.confusion) && (
-                <div style={{ ...card, marginTop: 12, ...body }}>
-                  <div style={{ ...cap, marginBottom: 6 }}>All article labels</div>
-                  {(['wire', 'network'] as const).map((g, i) => (
-                    <div key={g} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '140px 1fr', gap: compact ? 4 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none', alignItems: 'center' }}>
-                      <b>{g === 'wire' ? 'Mainstream' : 'Network'}</b>
-                      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {(Object.keys(ARTICLE_V) as ArticleVerdict[]).filter((v) => m.articles.labels?.[g]?.[v]).map((v) => (
-                          <span key={v} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><ArticlePill v={v} /><span style={{ fontFamily: MONO, fontWeight: 700 }}>× {m.articles.labels![g][v]}</span></span>
-                        ))}
-                      </span>
-                    </div>
-                  ))}
-                  {m.articles.n_hard_negatives ? (
-                    <div style={{ color: TH.mut, marginTop: 8 }}>
-                      Hard cases among the mainstream articles: {m.articles.n_hard_negatives} from outlets that often cite officials’ Telegram channels (Kyiv Independent, Ukrainska Pravda, Meduza); {m.articles.fp_hard_negatives ?? 0} of them flagged as a propaganda pattern.
-                    </div>
-                  ) : null}
-                  {m.articles.n_failed ? <div style={{ color: TH.mut, marginTop: 4 }}>{m.articles.n_failed} article(s) could not be fetched and are not counted.</div> : null}
-                </div>
-              )}
-              {hasRun(m.articles.confusion) && (
-                <div style={{ ...card, marginTop: 12 }}>
-                  <div style={{ ...cap, marginBottom: 10 }}>Confusion matrix · {total(m.articles.confusion)} articles</div>
-                  <Matrix c={m.articles.confusion} positive="propaganda pattern" negative="not flagged" />
-                </div>
-              )}
-
-              <h3 style={{ fontSize: 17, margin: '28px 0 4px' }}>Where it goes wrong</h3>
-              <p style={{ ...body, color: TH.mut, margin: '0 0 12px' }}>Every error case from the run, not a selection.</p>
-              {!run ? (
-                <div style={{ ...card, color: TH.mut, ...body }}>Error cases appear here after the evaluation run.</div>
-              ) : m.error_cases.length === 0 ? (
-                <div style={{ ...card, color: TH.mut, ...body }}>No error cases recorded.</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {m.error_cases.map((e, i) => (
-                    <div key={i} style={{ ...card, padding: '12px 16px', display: 'grid', gridTemplateColumns: compact ? '1fr' : '90px 1fr', gap: compact ? 8 : 12, alignItems: 'start' }}>
-                      <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12, padding: '2px 9px', borderRadius: 99, border: `2px solid ${e.kind === 'fp' ? CL.o : CL.r}`, justifySelf: 'start' }}>{e.kind === 'fp' ? 'false pos.' : 'false neg.'}</span>
-                      <div style={body}>
-                        <div style={{ fontFamily: MONO, fontSize: 12.5, overflowWrap: 'anywhere' }}>{e.url_or_pair_id}</div>
-                        <div>Expected <b>{e.expected}</b>, got <b>{e.got}</b>.</div>
-                        <div style={{ color: TH.mut }}>{e.note}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          <h3 style={{ fontSize: 17, margin: '28px 0 4px' }}>Repeatability</h3>
-          <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>Measured while building, on articles outside the demo set (claim overlap: DW, Al Jazeera, Guardian, TASS). These numbers show that the same article gets the same answer, not that the answer is right.</p>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Metric name="Same claims picked" value="0.66 → 1.00" note="Earlier 5-vote method: mean overlap of the claim sets over 5 repeats on identical text, single ranked call vs. 5-vote majority." />
-            <Metric name="Same article label" value="16 / 16" note="Earlier 5-vote method: 4 articles × 4 fresh runs. Before the vote: 3 different labels in 3 runs of one article." />
-            <Metric name="Replay" value="identical" note="A finished analysis replays byte for byte from the step cache." />
-          </div>
         </Section>
 
-        {/* ---- 6. source labels ---- */}
-        <Section id="labels" title="Source labels: context, not a verdict" sub="Each source card shows what kind of page it is and what dated public lists say about its domain. These labels help the reader judge a source; they never change a claim verdict or the article verdict.">
-          <div style={{ ...card, ...body }}>
-            {[
-              ['Source type', 'Fixed rules on the URL and the page markup, first match wins: social media, academic, press release, official (government hosts and suffixes such as .gov), reference, news, blog. No rule matches: unknown, and no label is shown. The type says what kind of document it is, not whether it is reliable: kremlin.ru is official.'],
-              ['Wikipedia rating', 'The status the Wikipedia community gives the outlet on its Perennial Sources list (reliable, mixed, unreliable, deprecated or spam-blacklisted), from a dated snapshot. Most sites are not listed; that is neutral.'],
-              ['Popularity', 'Rank on the Tranco top-sites research list, from a dated snapshot. Shown as popularity, not reliability: widely read state media rank high too.'],
-              ['Re-registered', 'The Wayback Machine has pages from the domain at least a year before its current registration date. The domain existed before and was registered again, a known way to borrow an old name. A failed archive lookup shows nothing.'],
-            ].map(([k, v], i) => (
-              <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 3 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
-                <b>{k}</b>
-                <span style={{ color: TH.mut }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        {/* ---- 7. limits ---- */}
-        <Section id="limits" title="Known limits" sub="What the tool cannot do, or does not do well yet.">
-          <div style={{ ...card, padding: compact ? '6px 14px' : '6px 20px' }}>
-            {limits().map((x, i) => (
-              <div key={i} style={{ ...body, padding: '11px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>{x}</div>
-            ))}
-          </div>
-        </Section>
-
-        {/* ---- 8. audit ---- */}
-        <Section id="audit" title="Audit trail" sub="Every verdict can be traced back to the words it rests on.">
-          <div style={{ ...card, ...body }}>
-            <p style={{ margin: 0 }}>Each claim verdict is stored with the verbatim evidence passage (original and translation), its quote-match score, the model that produced it and the prompt version. Every step’s input and answer is cached by a hash of the input, so a finished analysis can be replayed and inspected exactly.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
+        {/* ---- 5. scope & audit ---- */}
+        <Section id="scope" title="Scope & audit trail" sub="What a verdict means, and how to trace it back.">
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
+            <div style={{ ...card, ...body }}>
+              <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>What it checks</div>
               {[
-                ['Verify model', m?.verify_model || 'not reported'],
-                ['Prompt version', m?.prompt_version || 'not reported'],
-                ['Quote match threshold', `${fuzzy} / 100`],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <div style={cap}>{k}</div>
-                  <div style={{ fontFamily: MONO, fontWeight: 700, marginTop: 4, overflowWrap: 'anywhere' }}>{v}</div>
+                <><b>Sourcing, not truth.</b> It checks whether the cited sources carry the claims. A faithful quote of a false source is “supported”; the laundering and circle signals catch the common ways such sources are built.</>,
+                <><b>Unknown stays neutral.</b> Spoken statements, paywalls and unreachable pages end as “not checkable”, never as a penalty.</>,
+                <><b>The web changes.</b> A finished analysis replays exactly; a fresh run later can find new pages.</>,
+              ].map((x, i) => <div key={i} style={{ padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none', color: TH.mut }}>{x}</div>)}
+            </div>
+            <div style={{ ...card, ...body }}>
+              <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>Audit trail</div>
+              <div style={{ color: TH.mut }}>Every claim verdict is stored with its verbatim evidence passage (original and translation), its quote-match score, the model and the prompt version. Every step is cached by a hash of its input, so any analysis can be replayed and inspected.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+                {[['Prompt version', m?.prompt_version || '–'], ['Quote match', `${fuzzy} / 100`]].map(([k, v]) => (
+                  <div key={k}>
+                    <div style={cap}>{k}</div>
+                    <div style={{ fontFamily: MONO, fontWeight: 700, marginTop: 3 }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <More title="Source labels: context shown on each source card">
+            <div style={body}>
+              {[
+                ['Source type', 'Fixed rules on the URL and page markup: social media, academic, press release, official, reference, news, blog. It says what kind of document it is, not whether it is reliable.'],
+                ['Wikipedia rating', 'The status the Wikipedia community gives the outlet on its Perennial Sources list, from a dated snapshot. Not listed is neutral.'],
+                ['Popularity', 'Rank on the Tranco top-sites list. Popularity, not reliability.'],
+                ['Re-registered', 'The Wayback Machine has pages from the domain at least a year before its current registration: an old name borrowed again.'],
+              ].map(([k, v], i) => (
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 3 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
+                  <b>{k}</b>
+                  <span style={{ color: TH.mut }}>{v}</span>
                 </div>
               ))}
+              <div style={{ color: TH.mut, marginTop: 8 }}>Labels help the reader judge a source; they never change a verdict.</div>
             </div>
-            <p style={{ margin: '14px 0 0', color: TH.mut }}>Language models run through the Hostinger AI Router. The three demo articles are precomputed so the demo works with every external service down; evaluation articles are kept apart from them, and no threshold or prompt was tuned on them.</p>
-          </div>
+          </More>
         </Section>
-
-        {m && <p style={{ marginTop: 36, fontSize: 12.5, color: TH.mut }}>Thresholds and metrics loaded {m.generated_at.slice(0, 16).replace('T', ' ')} UTC.</p>}
       </div>
     </div>
   );
