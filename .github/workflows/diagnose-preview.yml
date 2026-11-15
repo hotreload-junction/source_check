@@ -66,3 +66,51 @@ jobs:
               env_file='$ROOT/preview/.env'
               cd '$ROOT/preview/current'
               docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T backend python -c 'import sys, httpx; from app.config import get_settings; s=get_settings(); expected=sys.stdin.readline().strip(); print(\"runtime key matches GitHub secret:\", expected == s.verda_api_key); print(\"runtime Verda base URL:\", s.verda_base_url); r=httpx.post(s.verda_base_url.rstrip(\"/\") + \"/chat/completions\", headers={\"Authorization\": \"Bearer \" + s.verda_api_key}, json={\"model\": s.model_extract, \"messages\": [{\"role\": \"user\", \"content\": \"Reply with JSON: {\\\"ok\\\":true}\"}], \"response_format\": {\"type\": \"json_object\"}, \"max_tokens\": 8, \"temperature\": 0}, timeout=20); print(\"runtime Verda ping status:\", r.status_code)'"
+
+      - name: Retry claim extraction for the latest failed article
+        run: |
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -e
+              export ENV_NAME=preview
+              env_file='$ROOT/preview/.env'
+              cd '$ROOT/preview/current'
+              docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T backend python -" <<'PY'
+          import logging
+          from sqlalchemy import select
+          from app import cache
+          from app.cache import DbCache, NullCache
+          from app.config import get_settings
+          from app.db import session_scope
+          from app.fetch.fetcher import Fetcher
+          from app.llm import LLMClient, LLMError
+          from app.models import Analysis
+          from app.pipeline.extract import extract_claims
+          from app.pipeline.textutil import article_body_filter
+
+          logging.disable(logging.WARNING)
+          settings = get_settings()
+          store = DbCache()
+          cache.set_default(store)
+          with session_scope() as session:
+              failed = session.scalars(select(Analysis).where(
+                  Analysis.status == "failed", Analysis.error.like("%claim extraction failed%")
+              ).order_by(Analysis.created_at.desc()).limit(1)).first()
+              if failed is None:
+                  print("No failed claim-extraction record found")
+                  raise SystemExit(2)
+              job_id, url = failed.id, failed.url
+          print(f"Retrying extraction for failed job {job_id}")
+          article = Fetcher.from_settings(settings, cache=store).fetch_article(url)
+          if article.status != "ok" or not article.text:
+              print(f"Cached article fetch unavailable: {article.status}")
+              raise SystemExit(3)
+          try:
+              result = extract_claims(article.text, url, llm=LLMClient.from_settings(settings, cache=NullCache()),
+                                      settings=settings, body_filter=article_body_filter(article.html))
+              print(f"Fresh claim extraction succeeded: {len(result.claims)} claims, model={result.model}")
+          except LLMError as exc:
+              detail = str(exc)
+              kind = "HTTP 401" if "401" in detail else "HTTP 429" if "429" in detail else type(exc).__name__
+              print(f"Fresh claim extraction failed: {kind}")
+              raise SystemExit(4)
+          PY
