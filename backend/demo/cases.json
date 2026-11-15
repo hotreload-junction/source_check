@@ -26,9 +26,9 @@
   },
   {
     "key": "selensky",
-    "label": "News-Pravda: Selensky and a French bank",
+    "label": "News-Pravda: Selenskyj and a French bank",
     "url": "https://news-pravda.com/world/2025/03/12/1135985.html",
     "expected_verdict": "propaganda_pattern",
-    "question": "Selensky bought a french bank"
+    "question": "Selenskyj bought a French bank"
   }
 ]
