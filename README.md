@@ -1,15 +1,10 @@
 # Source Check
 
-> Propaganda borrows credibility. Source Check checks the receipts.
+> Propaganda fakes its sources. We show you where.
 
-Source Check takes a news article URL, extracts its central claims and follows every citation. For each claim
-it checks whether the cited source actually supports it (supported / distorted / contradicted / not
-mentioned / unsourced / not checkable) and shows the verbatim evidence passage. It fingerprints the
-infrastructure behind each source (shared analytics/AdSense IDs, domain age) to reveal when "independent"
-sources are run by the same operator. A "propaganda pattern" verdict needs at least two independent
-signals; unreachable sources never count against an article.
+Source Check shows whether the sources of a claim really back up what it says. Paste a link. It picks out the main claims, follows every source, and shows the exact sentence from the source as proof. Code checks that sentence against the real page, so the AI can't invent evidence. Source Check also looks at who runs the sites behind the sources, and whether they only cite each other. It calls an article propaganda only when two separate warning signs agree. Dead links and paywalls never count against it. Results are stored in MariaDB, and Verda runs the AI inference. We use Deepseek 4.1 Flash as the Brain in combination with Exa API to find the sources and evaluate the sources. Source Check runs live on Hostinger, and the methodology page shows our error rates.
 
-Junction 2026 · Hostinger challenge · built with Exa, Context.dev, MariaDB on Hostinger.
+Junction 2026 · Hostinger challenge · built with Exa, Context.dev, Verda, MariaDB on Hostinger.
 
 ## Repo map
 
