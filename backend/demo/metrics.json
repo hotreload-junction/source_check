@@ -1,0 +1,307 @@
+{
+  "generated_at": "2026-11-15T02:26:18Z",
+  "verify_model": "claude-sonnet-5-5 (extraction claude-haiku-5-5; effort medium; called through the Claude Code CLI)",
+  "prompt_version": "v10",
+  "pairs": {
+    "n": 100,
+    "n_cross_language": 0,
+    "precision": 0.8167,
+    "recall": 0.8167,
+    "confusion": {
+      "tp": 49,
+      "fp": 11,
+      "fn": 11,
+      "tn": 29
+    },
+    "abstained": 2,
+    "by_dataset": {
+      "check-covid": {
+        "n": 60,
+        "precision": 0.7619,
+        "recall": 0.8,
+        "confusion": {
+          "tp": 32,
+          "fp": 10,
+          "fn": 8,
+          "tn": 10
+        },
+        "gold_vs_verdict": {
+          "NOTENOUGHINFO -> contradicted": 6,
+          "NOTENOUGHINFO -> distorted": 5,
+          "NOTENOUGHINFO -> not_mentioned": 1,
+          "NOTENOUGHINFO -> supported": 8,
+          "REFUTE -> contradicted": 12,
+          "REFUTE -> distorted": 4,
+          "REFUTE -> not_mentioned": 4,
+          "SUPPORT -> distorted": 3,
+          "SUPPORT -> not_mentioned": 7,
+          "SUPPORT -> supported": 10
+        }
+      },
+      "wice": {
+        "n": 40,
+        "precision": 0.9444,
+        "recall": 0.85,
+        "confusion": {
+          "tp": 17,
+          "fp": 1,
+          "fn": 3,
+          "tn": 19
+        },
+        "gold_vs_verdict": {
+          "not_supported -> distorted": 1,
+          "not_supported -> not_checkable": 1,
+          "not_supported -> not_mentioned": 16,
+          "not_supported -> supported": 2,
+          "supported -> not_checkable": 1,
+          "supported -> not_mentioned": 1,
+          "supported -> supported": 18
+        }
+      }
+    }
+  },
+  "articles": {
+    "n_network": 15,
+    "n_wire": 15,
+    "fpr_wire": 0.0,
+    "tpr_network": 0.7333,
+    "confusion": {
+      "tp": 11,
+      "fp": 0,
+      "fn": 4,
+      "tn": 15
+    },
+    "fpr_wire_without_list": 0.0,
+    "tpr_network_without_list": 0.3333,
+    "confusion_without_list": {
+      "tp": 5,
+      "fp": 0,
+      "fn": 10,
+      "tn": 15
+    },
+    "n_hard_negatives": 3,
+    "fp_hard_negatives": 0,
+    "n_failed": 0,
+    "labels": {
+      "network": {
+        "propaganda_pattern": 11,
+        "insufficient_evidence": 1,
+        "well_sourced": 3
+      },
+      "wire": {
+        "insufficient_evidence": 3,
+        "weakly_sourced": 6,
+        "well_sourced": 6
+      }
+    },
+    "labels_without_list": {
+      "network": {
+        "propaganda_pattern": 5,
+        "insufficient_evidence": 3,
+        "well_sourced": 6,
+        "weakly_sourced": 1
+      },
+      "wire": {
+        "insufficient_evidence": 3,
+        "weakly_sourced": 6,
+        "well_sourced": 6
+      }
+    }
+  },
+  "thresholds": {
+    "min_bad_claims": 2,
+    "young_domain_days": 90,
+    "insufficient_ratio": 0.5,
+    "min_signals_for_pattern": 2,
+    "min_channel_claims": 2,
+    "channel_majority": 0.5,
+    "max_search_only_share": 0.5,
+    "fuzzy": 90.0
+  },
+  "tuned_on": "nothing: thresholds are start values set on principle before this run, and no prompt or threshold was changed on these items",
+  "measured_on": "100 expert-labelled claim-source pairs (Check-COVID, WiCE) and 30 articles labelled by provenance (15 from the Pravda network's own sitemaps, 15 from BBC, DW, NPR, Guardian, Al Jazeera, Kyiv Independent, Ukrainska Pravda and Meduza feeds), collected 15 Nov 2026",
+  "error_cases": [
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-607065bbf9b9e03ea4d8e4aa_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The source states that primary SARS-CoV-2 infection protects rhesus macaques against reinfection, matching the claim's core assertion; the 'small studies' detail is peripheral."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-609531e3f9b9e03ea4d8e537_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The abstract says a segment (the RBM) of a pangolin coronavirus genome, reconstructed from existing metagenomic data, has high sequence similarity to nCoV-2019. This matches the claim's core assertion, and the missing October report and 12-"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-609c42c4f9b9e03ea4d8e556_3",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source is the paper's abstract and does not contain Bhattacharya's spoken quote; it only reports findings that infections far exceeded confirmed cases, without showing him saying it."
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-609c1e04f9b9e03ea4d8e542_1",
+      "expected": "SUPPORT (supported)",
+      "got": "distorted",
+      "note": "The source reports activity against SARS-CoV-2 only in cell cultures, while the mouse results were against SARS-CoV and MERS-CoV, not the new coronavirus, and molnupiravir is not named (only EIDD-2801/NHC)."
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-60706dfbf9b9e03ea4d8e4ba_1",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source is a randomised trial of 150 patients in China measuring viral negative conversion, and says nothing about New York City observational studies of ~1,400 patients or mortality."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "wice-test02384",
+      "expected": "not_supported (not supported)",
+      "got": "supported",
+      "note": "The article presents the essay collection 'The Simpsons and Philosophy: The D'oh! of Homer', including a chapter on Bart that ends by asking whether he could be 'the Nietzschean ideal'; the 'not official' detail is peripheral and not contra"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-5f95eabc04ded09dac378bce_0",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source is a meta-analysis supporting distancing, masks and eye protection, but it does not say that 'most' (experts/authorities) recommend adopting a range of measures to slow spread and save lives."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "wice-test03760",
+      "expected": "not_supported (not supported)",
+      "got": "not_checkable",
+      "note": "Source was too long to read completely, so absence cannot be shown. (model said: not_mentioned)"
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "wice-test02095",
+      "expected": "not_supported (not supported)",
+      "got": "supported",
+      "note": "The source says the Bayern academy produced many named players such as Schweinsteiger, Lahm and Müller and provides the bulk of talent in the national side, which matches the claim that it educated many players who became regulars in the Bu"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-60948472f9b9e03ea4d8e527_1",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source abstract discusses vocalization loudness and COVID-19 transmission but does not state that talking releases about 10 times more aerosols than silent breathing, nor does it attribute any statement to Marr."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-60abdeb1f9b9e03ea4d8e689_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The study estimates more than 10 times as many infections as reported cases in sites including Florida, New York City and Utah, which means roughly nine in 10 infections went unidentified."
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-60948586f9b9e03ea4d8e529_1",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source is an MMWR report on presymptomatic transmission in Singapore (1-3 days before onset in four clusters), but it contains no statement by Smith and no WHO attribution, so it does not show the claimed speaker or the WHO assertion."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-60a1f418f9b9e03ea4d8e67a_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The source describes MIS-C as a new childhood disease associated with COVID-19, which matches the core of the claim; the 'In May' timing is not mentioned but nothing conflicts with it."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-609fe302f9b9e03ea4d8e661_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The source reports isolation of infectious SARS-CoV-2 from feces, confirming infectious virus is present in feces, which matches the claim's core assertion; the 'last month' timing and 'suspected before' are peripheral details."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-609c263bf9b9e03ea4d8e550_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The source states most convalescent plasmas lack high neutralizing activity while rare, potent neutralizing antibodies were found in individuals, matching the claim's meaning."
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-60a1ef47f9b9e03ea4d8e66e_1",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source is the Houston study itself and says nothing about a larger UK batch of sequences, which is the core assertion of the claim."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-60706338f9b9e03ea4d8e4a7_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The source finds that women are more cautious about COVID-19 than men, which is the claim's core assertion, though it does not mention the specific concern about safely returning to workplaces or describe the study as a poll."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "cc-6093541ff9b9e03ea4d8e51e_2",
+      "expected": "NOTENOUGHINFO (not supported)",
+      "got": "supported",
+      "note": "The study links encephalopathy in hospitalized Covid-19 patients to worse functional outcome at discharge and higher mortality, which is the core of the claim; the abstract does not mention length of stay, but that is a missing detail and n"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "wice-test03214",
+      "expected": "supported (supported)",
+      "got": "not_mentioned",
+      "note": "The source says she trained in the Mongol Zurag style and mixes Buddhist imagery with modernism, but she never states her painting was influenced by Buddhist thangka technique; she only says the thangka techniques could not be recovered aft"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-6093532af9b9e03ea4d8e51c_1",
+      "expected": "SUPPORT (supported)",
+      "got": "not_mentioned",
+      "note": "The source gives a single 44% estimate (CI 25-69%) of presymptomatic transmission from a study of 77 transmission pairs, but does not mention Hong Kong, Singapore or China models or a 30 to 60 percent range, so the claim's core assertion is"
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-60706568f9b9e03ea4d8e4a8_1",
+      "expected": "SUPPORT (supported)",
+      "got": "distorted",
+      "note": "The source reports 57% (13 of 23) of positive residents were asymptomatic at testing, not 56% as the claim states."
+    },
+    {
+      "kind": "fp",
+      "url_or_pair_id": "cc-609e7de0f9b9e03ea4d8e5e3_1",
+      "expected": "SUPPORT (supported)",
+      "got": "distorted",
+      "note": "The source says a preponderance of evidence shows masks reduce transmissibility per contact, but it does not say the reduction is dramatic, and it notes effectiveness depends on high compliance, so the claim's stronger wording changes the m"
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "https://canada.news-pravda.com/world/2026/11/14/41798.html",
+      "expected": "propaganda_pattern",
+      "got": "insufficient_evidence",
+      "note": "4 of 6 central claims could not be checked (source not locatable, unreachable, paywalled, social media or self-citation). Not enough evidence to judge; this does not count against the article."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "https://au.news-pravda.com/world/2026/11/15/38425.html",
+      "expected": "propaganda_pattern",
+      "got": "well_sourced",
+      "note": "One warning signal fired (shared, very young or documented-network infrastructure), but a single signal is not enough for a propaganda pattern; the checkable claims hold up."
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "https://ireland.news-pravda.com/world/2026/11/14/15521.html",
+      "expected": "propaganda_pattern",
+      "got": "well_sourced",
+      "note": "One warning signal fired (shared, very young or documented-network infrastructure), but a single signal is not enough for a propaganda pattern; the checkable claims hold up. 1 of 5 checkable claims are confirmed only by independent reports "
+    },
+    {
+      "kind": "fn",
+      "url_or_pair_id": "https://usa.news-pravda.com/world/2026/11/14/952385.html",
+      "expected": "propaganda_pattern",
+      "got": "well_sourced",
+      "note": "One warning signal fired (shared, very young or documented-network infrastructure), but a single signal is not enough for a propaganda pattern; the checkable claims hold up. 2 of 4 checkable claims are confirmed only by independent reports "
+    }
+  ]
+}

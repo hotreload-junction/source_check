@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import methodology from '../../contracts/examples/methodology.json';
-import { hasRun, label, pct, total } from './evalstats';
+import { ciText, hasRun, label, pct, total, wilson } from './evalstats';
 
 const empty = { tp: 0, fp: 0, fn: 0, tn: 0 };
 
@@ -17,5 +17,16 @@ describe('eval stats helpers', () => {
 
   it('makes threshold keys readable', () => {
     expect(label('young_domain_days')).toBe('young domain days');
+  });
+});
+
+
+describe('wilson', () => {
+  it('gives a wide upper bound for 0 of 10 and none for n = 0', () => {
+    const w = wilson(0, 10)!;
+    expect(w[0]).toBe(0);
+    expect(w[1]).toBeCloseTo(0.278, 2);
+    expect(wilson(0, 0)).toBeNull();
+    expect(ciText(0, 0)).toBe('');
   });
 });

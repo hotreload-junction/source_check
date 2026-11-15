@@ -20,7 +20,16 @@ from ..fetch.urls import SOCIAL_DOMAINS, registrable_domain
 from .html_ids import extract_ids
 from .rdap import RdapResult
 
-PLATFORM_DOMAINS = SOCIAL_DOMAINS | {"t.me", "telegram.me"}
+PLATFORM_DOMAINS = SOCIAL_DOMAINS | {
+    "t.me", "telegram.me",
+    "azureedge.net", "edgeone.app", "cloudfront.net", "fastly.net",
+    "ampproject.org", "googleusercontent.com", "archive.org", "web.archive.org",
+}
+
+
+def _is_platform(domain: str) -> bool:
+    d = domain.lower().removeprefix("www.")
+    return d in PLATFORM_DOMAINS or any(d.endswith("." + p) for p in PLATFORM_DOMAINS)
 
 
 @dataclass
@@ -28,6 +37,7 @@ class SourcePage:
     """A cited source as seen by the infra step. `html` is the raw page, None if it was not fetched."""
     domain: str
     html: str | None = None
+    is_copy: bool = False
 
 
 @dataclass
@@ -69,16 +79,29 @@ def analyze_infrastructure(
 ) -> InfraResult:
     """Build `Domain[]`, clusters and `shares_infra` edges. `rdap=None` disables age lookups (age stays null)."""
     art = registrable_domain(article_domain)
+    art_host = article_domain.lower().removeprefix("www.")
     pages: dict[str, str | None] = {art: article_html}
+    copy_domains: set[str] = set()
+    non_copy_domains: set[str] = {art}
     for s in sources:
-        dom = registrable_domain(s.domain)
-        if dom == art:
-            continue  # self-citation
+        s_host = s.domain.lower().removeprefix("www.")
+        reg = registrable_domain(s_host)
+        if reg == art:
+            if not (s.is_copy and s_host and s_host != art and s_host != art_host):
+                continue  # self-citation
+            dom = s_host
+        else:
+            dom = reg
         if pages.get(dom) is None:  # several URLs on one domain: keep any HTML we have
             pages[dom] = s.html
+        if s.is_copy:
+            copy_domains.add(dom)
+        else:
+            non_copy_domains.add(dom)
 
+    copy_only = copy_domains - non_copy_domains
     ages: dict[str, RdapResult] = {}
-    lookup = [d for d in pages if rdap and d not in PLATFORM_DOMAINS]
+    lookup = [d for d in pages if rdap and not _is_platform(d) and d not in copy_only]
     if lookup:
         with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(lookup)))) as pool:
             for d, res in zip(lookup, pool.map(_safe(rdap), lookup)):
@@ -86,7 +109,7 @@ def analyze_infrastructure(
 
     domains: list[dict] = []
     for d, html in pages.items():
-        ids = extract_ids(html) if d not in PLATFORM_DOMAINS else extract_ids(None)
+        ids = extract_ids(html) if not _is_platform(d) else extract_ids(None)
         age = ages.get(d)
         domains.append({
             "domain": d,
@@ -99,7 +122,7 @@ def analyze_infrastructure(
             "known_network": None,         # set by the pipeline from signals/networks.py (published lists)
         })
 
-    shared = _shared_ids(domains)
+    shared = _shared_ids(domains, copy_only=copy_only)
     _assign_clusters(domains, shared)
     return InfraResult(domains=domains, edges=_edges(domains), shared_ids=shared)
 
@@ -113,12 +136,12 @@ def _safe(rdap: Callable[[str], RdapResult]) -> Callable[[str], RdapResult]:
     return run
 
 
-def _shared_ids(domains: list[dict]) -> list[SharedId]:
+def _shared_ids(domains: list[dict], copy_only: set[str] | frozenset[str] = frozenset()) -> list[SharedId]:
     by_id: dict[str, list[str]] = {}
     for d in domains:
         for i in (*d["analytics_ids"], *d["adsense_ids"]):
             by_id.setdefault(i, []).append(d["domain"])
-    return [SharedId(i, ds) for i, ds in by_id.items() if len(ds) >= 2]
+    return [SharedId(i, ds) for i, ds in by_id.items() if len(ds) >= 2 and any(dom not in copy_only for dom in ds)]
 
 
 def _assign_clusters(domains: list[dict], shared: list[SharedId]) -> None:

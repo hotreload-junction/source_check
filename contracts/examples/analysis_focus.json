@@ -28,6 +28,22 @@
           "s1"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s1",
+            "verdict": "supported",
+            "page_verdict": "supported",
+            "quote_original": "the new programme will expand coverage to 40 districts by 2027",
+            "quote_translation": null,
+            "language": "en",
+            "fuzzy_score": 100.0,
+            "explanation": "The source states exactly this.",
+            "note": null,
+            "model": "claude-sonnet-5-5",
+            "prompt_version": "v10"
+          }
+        ],
+        "check_text": null,
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -48,6 +64,8 @@
         "char_end": 459,
         "source_ids": [],
         "found_source_ids": [],
+        "source_checks": [],
+        "check_text": null,
         "verdict": "unsourced",
         "subtype": null,
         "evidence": null,
@@ -64,6 +82,22 @@
           "s2"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s2",
+            "verdict": "not_checkable",
+            "page_verdict": null,
+            "quote_original": null,
+            "quote_translation": null,
+            "language": null,
+            "fuzzy_score": null,
+            "explanation": "Source could not be read (blocked).",
+            "note": null,
+            "model": null,
+            "prompt_version": null
+          }
+        ],
+        "check_text": null,
         "verdict": "not_mentioned",
         "subtype": null,
         "evidence": null,
@@ -287,6 +321,9 @@
       "fuzzy_threshold": 90.0,
       "depth": 1,
       "duration_s": 4.2,
+      "cost_usd": 0.412,
+      "llm_calls": 57,
+      "skipped": [],
       "focus_prompt_version": "f1"
     }
   }

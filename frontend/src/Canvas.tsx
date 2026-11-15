@@ -4,7 +4,7 @@ import { Logo } from './Logo';
 import { cardLabels, typeWord, type Tone } from './labels';
 import { useCompact } from './responsive';
 import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal, srcName } from './theme';
-import type { TEdge, TNode, Tree, View } from './tree';
+import { pairCheck, type TEdge, type TNode, type Tree, type View } from './tree';
 import type { ClaimVerdict } from './types';
 
 // Shared, override-aware view helpers (built in App).
@@ -67,15 +67,15 @@ export function sourceColor(ctx: Ctx, n: TNode): string {
 
 export function edgeLabel(ctx: Ctx, e: TEdge): string {
   if (e.type === 'nosrc') return 'No source';
-  if (e.type === 'sub') return 'Cites';
   if (e.type === 'back') return 'Cites back';
   const v = ctx.edgeVerdict(e);
+  if (e.type === 'sub') return v ? CLAIM_V[v].label : 'Cites'; // a source of a source carries its own check, when it has one
   return v ? CLAIM_V[v].label : 'Cited';
 }
 
 export function edgeColor(ctx: Ctx, e: TEdge): string {
   if (e.type === 'nosrc' || e.type === 'back') return CL.r;
-  const v = e.type === 'cites' ? ctx.edgeVerdict(e) : null;
+  const v = e.type === 'cites' || e.type === 'sub' ? ctx.edgeVerdict(e) : null;
   return v ? CLAIM_V[v].c : CL.p;
 }
 
@@ -441,6 +441,8 @@ function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx;
   const ev = e.evidence && claim?.evidence ? claim.evidence : null;
   const cur = ctx.edgeVerdict(e);
   const judged = e.type === 'cites' && e.verdict != null;
+  const chk = e.type === 'cites' && claim && !e.evidence && e.to.kind === 'source' ? pairCheck(claim, e.to.id) : null; // this page's own check
+  const subChk = e.type === 'sub' ? e.to.source?.check ?? null : null;
   // Desktop: a card hanging off the label, scaled with the graph. Phone: a bottom sheet in a portal, because
   // a fixed element inside the transformed graph would be positioned (and shrunk) relative to the graph.
   const card = (
@@ -464,13 +466,20 @@ function EdgeCard({ ctx, e, c, up, compact, close, classify, pick }: { ctx: Ctx;
       </div>
       {claim && e.type !== 'sub' && e.type !== 'back' && <div style={{ marginTop: 8, color: TH.mut }}>Claim: <span style={{ color: TH.ink }}>{claim.text}</span></div>}
       {e.type === 'cites' && !judged && <div style={{ marginTop: 4 }}>The claim cites this source, but its verdict rests on another source.</div>}
-      {(judged || e.type === 'nosrc') && claim?.explanation && <div style={{ marginTop: 4 }}>{claim.explanation}</div>}
-      {e.type === 'sub' && <div style={{ marginTop: 8 }}>{e.from.source ? srcName(e.from.source) : 'A source'} cites {e.to.source ? srcName(e.to.source) : 'another source'}. Sources of sources are not judged per claim.</div>}
+      {chk && <div style={{ marginTop: 4 }}>{chk.explanation || 'Checked against this page.'}</div>}
+      {(judged || e.type === 'nosrc') && !chk && claim?.explanation && <div style={{ marginTop: 4 }}>{claim.explanation}</div>}
+      {e.type === 'sub' && <div style={{ marginTop: 8 }}>{e.from.source ? srcName(e.from.source) : 'A source'} cites {e.to.source ? srcName(e.to.source) : 'another source'}.{subChk ? ` ${subChk.explanation}` : ' This page was not checked against the claim.'}</div>}
       {e.type === 'back' && <div style={{ marginTop: 8 }}>This citation leads back to the article or its operator cluster (citation circle).</div>}
       {ev && (
         <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: TH.bg }}>
           <div>“{ev.quote_original}”</div>
           {ev.quote_translation && <div style={{ marginTop: 4, color: TH.mut }}>{ev.language.toUpperCase()} → EN: “{ev.quote_translation}”</div>}
+        </div>
+      )}
+      {(chk?.quote_original || subChk?.quote_original) && (
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: TH.bg }}>
+          <div>“{chk?.quote_original ?? subChk?.quote_original}”</div>
+          {chk?.quote_translation && <div style={{ marginTop: 4, color: TH.mut }}>{(chk.language ?? '').toUpperCase()} → EN: “{chk.quote_translation}”</div>}
         </div>
       )}
       {e.type === 'cites' && (

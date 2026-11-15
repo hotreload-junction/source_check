@@ -10,6 +10,13 @@ verdicts and finally the article label. Instead:
 3. a sentence counts when MORE THAN HALF of the votes name it; of those, sentences that name a source (link or
    attribution) are preferred, `min_unsourced_claims` slots stay reserved for unsourced ones; document order inside.
 
+EXTRACT_MODE=summary (default) replaces step 2 and the preference of step 3: the model SUMMARISES the article into 5-8 key
+points, each citing the numbered sentences that state it (plus a few concrete "details" and the sources the sentences name).
+Centrality comes from the summary (a classifier labels ~85% of all sentences checkable and cannot rank), reproducibility from
+K=3 readings: a sentence counts when more than half cite it, the best sentence per key point is taken (one claim per assertion),
+and 2 slots go to checkable details, unsourced ones first. The claim stays a verbatim article sentence with exact offsets.
+EXTRACT_MODE=votes is the classifier + majority vote described above (also the fallback when the summary gives nothing).
+
 Held out (DW, Al Jazeera, Guardian, TASS; 5 repeats each): mean overlap 1.00 with K=5 against 0.66 for the single ranked call.
 Sources stay code-only: links and attributions come from the sentence / paragraph, never from the model's guess.
 """
@@ -59,6 +66,7 @@ class ExtractedClaim:
     locate_score: float = 100.0    # kept for audit compatibility: units are exact slices, never fuzzy-located
     votes: int = 0                 # how many of the K readings named this sentence
     context: str = ""              # the claim's paragraph (markdown): where the occasion ("In a May interview with ...") is named
+    check_text: str | None = None  # self-contained wording used to SEARCH and VERIFY (statement.py); `text` stays what is shown
 
 
 @dataclass
@@ -71,6 +79,8 @@ class ExtractionResult:
     credits: float = 0.0
     n_votes: int = 0               # readings that answered (K minus failures)
     units: list[tuple[int, int, str]] = field(default_factory=list)   # the numbered sentences (focus.py reuses them)
+    alternates: list[int] = field(default_factory=list)   # next-best sentence indices (summary mode): refill when a pick is not checkable
+    alternate_attrs: dict[int, list[str]] = field(default_factory=dict)   # their attributions
 
 
 def _parse_vote(data: dict, n_units: int) -> dict[int, tuple[str, ...]]:
@@ -92,6 +102,127 @@ def _parse_vote(data: dict, n_units: int) -> dict[int, tuple[str, ...]]:
     return out
 
 
+SUMMARY_PROMPT = """You pick the CENTRAL CHECKABLE CLAIMS of a news article for a source-checking tool, by summarising the article.
+
+The article is given as numbered sentences. Write 5 to 8 KEY POINTS: the central assertions the article makes or rests its argument on, most central first. Each key point is one short sentence in your own words plus the numbers of the article sentences that STATE it (1 to 3 numbers; a sentence must state the point itself, not merely be on the same topic; list the sentence that states it most directly FIRST).
+Prefer: the article's main claims, concrete facts and figures that carry the argument, and statements the article attributes to a named person, report or document.
+Leave out: personal anecdotes and feelings of individual interviewees, descriptions of one person's life, opinion, speculation, predictions, general background, rhetorical questions, routine no-comment lines ("X has not commented"), headlines, bylines, navigation, share, related-article and advertising text.
+
+Then list up to 4 DETAILS: further sentences (not cited in a key point) that state a concrete, checkable fact, such as a figure, a date, an event or a statement attributed to someone, even though they are not central.
+
+"sources": for every sentence you cited (in key points and details) that presents a person, organisation, document or report as the SOURCE of what it says ("X said ...", "according to Y", "a study by Z found ..."), give those names exactly as the article names them (a role such as "the researchers" is fine; add the person's or study's name if the article names it anywhere). A sentence that continues what the previous sentence said or quoted has the same source as that sentence. Leave out sentences that state something as plain fact.
+The article may be in any language.
+
+Answer with JSON only: {"points": [{"point": "...", "sentences": [12, 13]}], "details": [31, 47], "sources": [{"id": 12, "attributions": ["..."]}]}"""
+
+ABSENT_RANK = 8          # a reading that did not cite a sentence counts as this key-point rank (later = less central)
+
+
+@dataclass
+class _Reading:
+    points: list[list[int]] = field(default_factory=list)      # key points, most central first: the sentences citing each
+    details: list[int] = field(default_factory=list)
+    attrs: dict[int, tuple[str, ...]] = field(default_factory=dict)
+
+
+def _ids(raw, n_units: int, limit: int) -> list[int]:
+    out: list[int] = []
+    for v in raw if isinstance(raw, list) else []:
+        try:
+            i = int(v)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= i < n_units and i not in out:
+            out.append(i)
+    return out[:limit]
+
+
+def _parse_summary(data: dict, n_units: int) -> _Reading:
+    pts = data.get("points")
+    if not isinstance(pts, list):
+        raise LLMError("summary output has no 'points' list")
+    r = _Reading()
+    for p in pts[:10]:
+        ids = _ids(p.get("sentences") if isinstance(p, dict) else None, n_units, 3)
+        if ids:
+            r.points.append(ids)
+    r.details = _ids(data.get("details"), n_units, 6)
+    for item in data.get("sources") if isinstance(data.get("sources"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        ids = _ids([item.get("id")], n_units, 1)
+        names = item.get("attributions")
+        if ids and isinstance(names, list):
+            r.attrs[ids[0]] = tuple(a.strip() for a in names if isinstance(a, str) and a.strip())
+    if not r.points:
+        raise LLMError("summary output has no usable key point")
+    return r
+
+
+def select_by_summary(readings: list[_Reading], texts: dict[int, str], unsourced: Callable[[int], bool], *, limit: int,
+                      detail_slots: int) -> tuple[list[int], collections.Counter, list[int]]:
+    """Claims from K summary readings: centrality from the key-point order, ONE sentence per key point, then checkable details.
+    Returns (sentence indices in document order, votes per sentence, alternates: the next-best sentences in rank order for
+    refilling a slot). Pure code, deterministic."""
+    k = len(readings)
+    support: collections.Counter = collections.Counter()
+    ranks: dict[int, list[int]] = collections.defaultdict(list)
+    poss: dict[int, list[int]] = collections.defaultdict(list)
+    together: dict[int, set[int]] = collections.defaultdict(set)
+    detail_votes: collections.Counter = collections.Counter()
+    for r in readings:
+        seen: set[int] = set()
+        for rank, ids in enumerate(r.points):
+            for pos, i in enumerate(ids):
+                if i not in seen:
+                    support[i] += 1
+                    seen.add(i)
+                ranks[i].append(rank)
+                poss[i].append(pos)
+                together[i].update(ids)
+        for i in set(r.details):
+            detail_votes[i] += 1
+
+    def centrality(i: int) -> tuple:
+        mean_rank = (sum(ranks[i]) + (k - support[i]) * ABSENT_RANK) / k
+        return (mean_rank, sum(poss[i]) / len(poss[i]), i)
+
+    wanted = max(0, min(detail_slots, limit - 1))
+    core = sorted((i for i, c in support.items() if c * 2 > k), key=centrality)
+    picked: list[int] = []
+    covered: set[int] = set()
+    picked_texts: list[str] = []
+    for i in core:
+        if len(picked) >= limit - wanted:
+            break
+        if i in covered or (texts.get(i) and _is_near_dup(texts[i], picked_texts)):
+            continue
+        picked.append(i)
+        covered |= together[i]              # the other sentences of the same key point are the same assertion
+        picked_texts.append(texts.get(i, ""))
+    taken = set(picked)
+    # details: checkable facts that are not central; unsourced ones first (they test the article's sourcing), then by votes
+    pool = [i for i, c in detail_votes.items() if c * 2 > k and i not in taken and i not in covered]
+    pool.sort(key=lambda i: (not unsourced(i), -detail_votes[i], i))
+    for i in pool:
+        if len(picked) >= limit:
+            break
+        if texts.get(i) and _is_near_dup(texts[i], picked_texts):
+            continue
+        picked.append(i)
+        picked_texts.append(texts.get(i, ""))
+    votes = collections.Counter({i: max(support[i], detail_votes[i]) for i in picked})
+    chosen = set(picked)
+    alternates: list[int] = []
+    for i in [*core, *pool]:
+        if i in chosen or i in covered or i in alternates:
+            continue
+        if texts.get(i) and _is_near_dup(texts[i], [texts.get(j, "") for j in (*picked, *alternates)]):
+            continue
+        alternates.append(i)
+    return sorted(picked), votes, alternates[:6]
+
+
 def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | None = None,
                    settings: Settings | None = None, body_filter: Callable[[str], bool] | None = None) -> ExtractionResult:
     """`body_filter`: only sentences of the article's main text are candidates (textutil.article_body_filter), so
@@ -104,6 +235,11 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
     if not units:
         return ExtractionResult([], s.model_extract)
     numbered = "\n".join(f"[{i}] {text}" for i, (_, _, text) in enumerate(units))
+    if s.extract_mode == "summary":
+        res = _extract_summary(article_md, article_url, units, numbered, llm, s)
+        if res is not None:
+            return res
+        log.warning("summary extraction gave nothing usable: falling back to the classifier vote")
     k = max(1, s.extract_votes)
 
     def read(i: int):
@@ -149,6 +285,59 @@ def extract_claims(article_md: str, article_url: str = "", *, llm: LLMClient | N
         claims, results[0].model if results else s.model_extract, [],
         sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
         n_votes=len(votes), units=units)
+
+
+def _extract_summary(article_md: str, article_url: str, units: list[tuple[int, int, str]], numbered: str, llm: LLMClient,
+                     s: Settings) -> ExtractionResult | None:
+    """Summary-based extraction (see the module docstring). None = no usable reading or no claim: the caller falls back."""
+    k = max(1, s.summary_votes)
+
+    def read(i: int):
+        # the reading index keeps the K requests different (and fixed, so every reading replays from the step cache)
+        return llm.chat_json(s.model_extract, SUMMARY_PROMPT,
+                             f"Reading {i + 1} of {k}.\nARTICLE (url: {article_url or 'n/a'}):\n\n{numbered}", max_tokens=4000)
+
+    with ThreadPoolExecutor(max_workers=k, thread_name_prefix="summary") as pool:
+        futures = [pool.submit(read, i) for i in range(k)]
+        results = []
+        for f in futures:
+            try:
+                results.append(f.result())
+            except LLMError as exc:
+                log.warning("one summary reading failed: %s", exc)
+    readings: list[_Reading] = []
+    for r in results:
+        try:
+            readings.append(_parse_summary(r.data, len(units)))
+        except LLMError as exc:
+            log.warning("one summary reading unusable: %s", exc)
+    if not readings:
+        return None
+    texts = {i: units[i][2] for i in range(len(units))}
+    attr_votes = [rd.attrs for rd in readings]
+
+    def unsourced(i: int) -> bool:
+        start, end, _ = units[i]
+        return not attach_links(article_md, start, end, article_url) and not _attributions(attr_votes, i)
+
+    ok = lambda i: not _NO_COMMENT_RE.search(texts[i].strip())
+    filtered = [_Reading([[i for i in ids if ok(i)] for ids in rd.points if any(ok(i) for i in ids)],
+                         [i for i in rd.details if ok(i)], rd.attrs) for rd in readings]
+    keep, counts, alternates = select_by_summary(filtered, texts, unsourced, limit=s.max_claims, detail_slots=s.summary_detail_slots)
+    if not keep:
+        return None
+    links = {i: attach_links(article_md, units[i][0], units[i][1], article_url) for i in keep}
+    attrs = {i: list(_attributions(attr_votes, i)) for i in keep}
+    _carry_attributions(units, article_md, keep, attrs, attr_votes)
+    claims = [ExtractedClaim(id=f"c{n + 1}", text=article_md[units[i][0]:units[i][1]], char_start=units[i][0], char_end=units[i][1],
+                             links=links[i], attributions=attrs[i], votes=counts[i],
+                             context=article_md[slice(*paragraph_bounds(article_md, units[i][0], units[i][1]))][:2000])
+              for n, i in enumerate(keep)]
+    return ExtractionResult(
+        claims, results[0].model if results else s.model_extract, [],
+        sum(r.prompt_tokens for r in results), sum(r.completion_tokens for r in results), sum(r.credits for r in results),
+        n_votes=len(readings), units=units, alternates=alternates,
+        alternate_attrs={i: list(_attributions(attr_votes, i)) for i in alternates})
 
 
 def _carry_attributions(units: list[tuple[int, int, str]], article_md: str, majority: list[int],

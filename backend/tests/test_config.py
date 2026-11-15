@@ -8,11 +8,30 @@ def test_defaults_match_env_example():
     s = Settings(_env_file=None)
     assert s.fuzzy_threshold == 90
     assert s.max_claims == 6
-    assert s.max_depth == 3
+    assert s.max_depth == 2
     assert s.max_concurrent_analyses == 2
-    assert s.prompt_version == "v10"
+    assert s.prompt_version == "v13"
+    assert s.llm_provider_resolved == "verda"
+    assert (s.model_extract, s.model_verify) == ("deepseek-4-1-flash-1017", "deepseek-4-1-flash-1017")
+    assert s.screen_candidates is False and s.screen_model == ""
+    assert s.light_model == s.check_model == s.model_verify
+    assert s.llm_missing == ["VERDA_API_KEY"]
     assert s.origin_check is True
     assert s.extract_votes == 5
+    assert (s.extract_mode, s.summary_votes, s.summary_detail_slots) == ("summary", 3, 2)
+    assert s.contextualize_claims is True
+    assert (s.time_budget_s, s.cost_budget_usd, s.chain_start_limit_s, s.max_chain_searches) == (170.0, 1.0, 120.0, 1)
+    assert (s.exa_agent_timeout_s, s.factcheck_timeout_s) == (50.0, 50.0)
+
+
+def test_verda_forces_one_model_even_with_stale_model_settings():
+    s = Settings(_env_file=None, llm_provider="verda", verda_api_key="key", model_extract="claude-haiku-5.5",
+                 model_verify="gemini-4-argon", model_light="claude-haiku-5-5", model_check="claude-haiku-5-5",
+                 model_screen="claude-haiku-5-5", screen_candidates=True, prompt_version="v6")
+    assert s.model_extract == s.model_verify == "deepseek-4-1-flash-1017"
+    assert s.light_model == s.check_model == s.model_verify
+    assert s.screen_candidates is False and s.screen_model == ""
+    assert s.prompt_version == "v13"
 
 
 def test_max_depth_is_bounded_1_to_5(monkeypatch):

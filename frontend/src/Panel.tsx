@@ -1,11 +1,12 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { cap, edgeColor, edgeLabel, sourceColor, TONE, type Ctx } from './Canvas';
+import { cap, edgeColor, edgeLabel, TONE, type Ctx } from './Canvas';
 import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
 import { useCompact } from './responsive';
 import { locate, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
-import type { TNode } from './tree';
+import { pairCheck, type TNode } from './tree';
+import type { ClaimVerdict, Source } from './types';
 
 const box: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` };
 
@@ -83,8 +84,6 @@ export function Panel({ ctx, n, pick, close, compact = false }: { ctx: Ctx; n: T
     kind = n.kids.length ? 'Intermediate source' : s.depth >= 3 ? `Deeper source (depth ${s.depth}) · origin` : s.depth === 2 ? 'Source of a source · origin' : 'Source';
     ti = srcName(s);
     meta = `${KIND[s.kind]} · ${FETCH[s.fetch_status]}${s.fetched_via ? ' via ' + s.fetched_via.replace('_', '.') : ''}`;
-    const cnt = Math.max(1, n.citedBy.length);
-    ring = <Ring deg={360} c={sourceColor(ctx, n)} text={`${cnt}×`} label={n.citedBy.length > 1 ? `Cited by ${cnt} claims` : 'Cited once'} />;
     logo = <Logo domain={s.domain} glyph={GLY[s.kind]} color={pal(srcName(s))} size={lg} />;
   }
 
@@ -173,17 +172,23 @@ function RootSections({ ctx }: { ctx: Ctx }) {
       <span style={{ color: TH.mut, overflowWrap: 'anywhere', ...(compact ? { gridColumn: '1 / -1' } : {}) }}>{detail}</span>
     </div>
   );
+  const ai = view.overview?.source === 'ai';
   return (
     <>
-      <div style={{ ...box, marginTop: 20, border: `2px solid ${av.c}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: av.c }} />
-          <span style={{ fontWeight: 700, fontSize: 14 }}>{av.label}</span>
+      {/* 1. Summary (AI) */}
+      <Section title="Summary" right={<span style={{ fontSize: 11.5, color: TH.mut }}>{ai ? 'AI-written from the verified results · never changes the verdict' : 'rule-based'}</span>}>
+        <div style={{ ...box, border: `2px solid ${av.c}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: av.c }} />
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{av.label}</span>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55 }}>{view.overview?.text ?? view.verdict.summary}</div>
         </div>
-        <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.5 }}>{view.verdict.summary}</div>
-      </div>
-      <Section title="Signals">
+      </Section>
+      {/* 2. Rules (fixed, code) */}
+      <Section title="Rules">
         <div style={box}>
+          {view.overview && <div style={{ fontSize: 13, lineHeight: 1.5, paddingBottom: 8 }}><b>Verdict rule:</b> {view.verdict.summary}</div>}
           {sig('Evidence', sg.evidence.fired, sg.evidence.detail)}
           {sig('Infrastructure', sg.infrastructure.fired, sg.infrastructure.reasons.length ? sg.infrastructure.reasons.join(' · ') : 'No shared analytics/AdSense IDs, no young source domains, no domain on a published network list.')}
           {sig('Citation circle', sg.circle.fired, view.audit?.depth === 1 ? 'Needs depth 2; not run for this analysis.' : sg.circle.path ? sg.circle.path.join(' → ') : 'No source leads back to the article.')}
@@ -193,25 +198,62 @@ function RootSections({ ctx }: { ctx: Ctx }) {
           </div>
         </div>
       </Section>
+      {/* 3. Source (link; the text preview follows in "Source text") */}
+      <Section title="Source">
+        <div style={box}>
+          <a href={view.article.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{view.article.domain} ↗</a>
+          <div style={{ marginTop: 4, fontSize: 12.5, color: TH.mut, overflowWrap: 'anywhere' }}>{view.article.url}</div>
+        </div>
+      </Section>
     </>
   );
 }
 
+const linkStyle: CSSProperties = { color: TH.ink, fontWeight: 700, fontSize: 13, overflowWrap: 'anywhere' };
+
+function SrcLink({ s, fallback }: { s?: Source | null; fallback: string }) {
+  const name = s ? srcName(s) : fallback;
+  return s?.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{name} ↗</a> : <span style={linkStyle}>{name}</span>;
+}
+
 function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
   const c = n.claim!, v = ctx.claimVerdict(n), ev = c.evidence;
-  const evSrc = ev ? ctx.view.sources.find((s) => s.id === ev.source_id) : null;
+  const { view } = ctx;
+  const src = (id: string) => view.sources.find((s) => s.id === id) ?? null;
+  const evSrc = ev ? src(ev.source_id) : null;
+  const found = new Set(c.found_source_ids ?? []);
+  const others = (c.source_checks ?? []).filter((k) => !ev || k.source_id !== ev.source_id);
+  const unread = [...c.source_ids, ...found].filter((id) => !ev || id !== ev.source_id).filter((id) => !others.some((k) => k.source_id === id));
+  const how = (id: string) => (found.has(id) ? 'found by search' : 'cited by the article');
+  const threshold = view.audit?.fuzzy_threshold ?? 90;
   return (
     <>
-      <div style={{ ...box, marginTop: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ ...cap, flex: 1 }}>Verdict</div>
-          <Pill c={CLAIM_V[v].c}>{CLAIM_V[v].label}</Pill>
-          {c.subtype && <span style={{ fontSize: 12, color: TH.mut }}>{SUBTYPE[c.subtype]}</span>}
+      {/* 1. Summary (AI) */}
+      <Section title="Summary" right={c.overview && view.done ? <span style={{ fontSize: 11.5, color: TH.mut }}>AI-written from the checked pages</span> : undefined}>
+        <div style={box}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ ...cap, flex: 1 }}>Verdict</div>
+            <Pill c={CLAIM_V[v].c}>{CLAIM_V[v].label}</Pill>
+            {c.subtype && <span style={{ fontSize: 12, color: TH.mut }}>{SUBTYPE[c.subtype]}</span>}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, fontWeight: 500 }}>{view.done ? (c.overview ?? c.explanation) : 'Still being checked …'}</div>
         </div>
-        <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{ctx.view.done ? c.explanation : 'Still being checked …'}</div>
-        {ctx.reviewed(n) && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>AI verdict: {CLAIM_V[c.verdict].label}. The colour shows your local review.</div>}
-        {v === 'not_checkable' && <div style={{ marginTop: 6, fontSize: 12, color: TH.mut }}>Not checkable is neutral: it never counts against the article.</div>}
-      </div>
+      </Section>
+      {/* 2. Rules (fixed, code) */}
+      <Section title="Rules">
+        <div style={box}>
+          {c.overview && <Row k="Verdict basis">{c.explanation}</Row>}
+          <Row k="Quote first">
+            {ev
+              ? `Verbatim quote found in the source (match ${ev.fuzzy_score.toFixed(0)}, needs ${threshold}).`
+              : 'No verified quote: without one, a claim can never be "supported".'}
+          </Row>
+          <Row k="Source given">{c.source_ids.length ? 'The article cites a source for this claim.' : found.size ? 'The article cites nothing; the pages below were found by search.' : 'The article gives no source.'}</Row>
+          {v === 'not_checkable' && <Row k="Neutral">Not checkable never counts against the article.</Row>}
+          {c.check_text && <Row k="Checked as">“{c.check_text}” (the sentence needs its context; the claim above is shown as written)</Row>}
+          {ctx.reviewed(n) && <Row k="Your review">AI verdict: {CLAIM_V[c.verdict].label}. The colour shows your local review.</Row>}
+        </div>
+      </Section>
       {c.focus && (
         <div style={{ ...box, marginTop: 12, border: `2px dashed ${TH.ink}` }}>
           <div style={cap}>Your question</div>
@@ -223,14 +265,33 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
           </div>
         </div>
       )}
-      {ev && (
-        <Section title="Evidence" right={<span style={{ fontSize: 11.5, color: TH.mut }}>verbatim from {(evSrc ? srcName(evSrc) : ev.source_id)}</span>}>
-          <div style={{ ...box, fontSize: 14, lineHeight: 1.55 }}>
-            <span style={{ background: CLAIM_V[v].c + '40', borderBottom: `2px solid ${CLAIM_V[v].c}`, borderRadius: 3, fontWeight: 600 }}>“{ev.quote_original}”</span>
-            {ev.quote_translation && <div style={{ marginTop: 8, fontSize: 13, color: TH.mut }}>{ev.language.toUpperCase()} → EN: “{ev.quote_translation}”</div>}
+      {/* 3. Source (link + preview: the verbatim passage, then every other page checked) */}
+      <Section title="Source" right={<span style={{ fontSize: 11.5, color: TH.mut }}>link and the passage the verdict rests on</span>}>
+        {ev && (
+          <div style={{ ...box, marginBottom: 10 }}>
+            <SrcLink s={evSrc} fallback={ev.source_id} />
+            <span style={{ fontSize: 12, color: TH.mut }}> · {how(ev.source_id)}</span>
+            <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55 }}>
+              <span style={{ background: CLAIM_V[v].c + '40', borderBottom: `2px solid ${CLAIM_V[v].c}`, borderRadius: 3, fontWeight: 600 }}>“{ev.quote_original}”</span>
+              {ev.quote_translation && <div style={{ marginTop: 8, fontSize: 13, color: TH.mut }}>{ev.language.toUpperCase()} → EN: “{ev.quote_translation}”</div>}
+            </div>
           </div>
-        </Section>
-      )}
+        )}
+        {others.map((k) => (
+          <div key={k.source_id} style={{ ...box, marginBottom: 10 }}>
+            <SrcLink s={src(k.source_id)} fallback={k.source_id} />
+            <span style={{ fontSize: 12, color: TH.mut }}> · {how(k.source_id)}</span>
+            <CheckBody k={{ verdict: k.verdict, quote: k.quote_original, translation: k.quote_translation, language: k.language, explanation: k.explanation, note: k.note, model: k.model, version: k.prompt_version }} />
+          </div>
+        ))}
+        {unread.map((id) => (
+          <div key={id} style={{ ...box, marginBottom: 10 }}>
+            <SrcLink s={src(id)} fallback={src(id)?.attribution_text ?? id} />
+            <span style={{ fontSize: 12, color: TH.mut }}> · {how(id)} · not read</span>
+          </div>
+        ))}
+        {!ev && !others.length && !unread.length && <div style={{ ...box, color: TH.mut, fontSize: 13 }}>No source page for this claim.</div>}
+      </Section>
     </>
   );
 }
@@ -252,11 +313,23 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
             <Pill c={edgeColor(ctx, e)}>{edgeLabel(ctx, e)}</Pill>
           </div>
           <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45 }}><span style={{ color: TH.mut }}>Claimed in the article:</span> {e.claim!.text}</div>
-          {e.verdict != null
-            ? <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{e.claim!.explanation}</div>
-            : <div style={{ marginTop: 6, fontSize: 13, color: TH.mut }}>Cited by the claim, but its verdict rests on another source.</div>}
+          {(() => {
+            const k = e.claim && !e.evidence ? pairCheck(e.claim, n.id) : null;
+            if (k) return <CheckBody k={{ verdict: k.verdict, quote: k.quote_original, translation: k.quote_translation, language: k.language, explanation: k.explanation, note: k.note, model: k.model, version: k.prompt_version }} />;
+            return e.verdict != null
+              ? <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{e.claim!.explanation}</div>
+              : <div style={{ marginTop: 6, fontSize: 13, color: TH.mut }}>Cited by the claim, but its verdict rests on another source.</div>;
+          })()}
         </div>
       ))}
+
+      {s.check && (
+        <Section title="Check of this source" right={<span style={{ fontSize: 11.5, color: TH.mut }}>against the claim it is cited for · context, not part of the article verdict</span>}>
+          <div style={box}>
+            <CheckBody k={{ verdict: s.check.verdict, quote: s.check.quote_original, translation: null, language: null, explanation: s.check.explanation, note: null, model: s.check.model, version: s.check.prompt_version }} />
+          </div>
+        </Section>
+      )}
 
       <Section title="Source type and reputation" right={<span style={{ fontSize: 11.5, color: TH.mut }}>Context only, never part of a verdict</span>}>
         <ReputationBox ctx={ctx} n={n} />
@@ -346,5 +419,26 @@ function ReputationBox({ ctx, n }: { ctx: Ctx; n: TNode }) {
         <Row k="Reputation">{pending ? 'Pending' : 'Not collected for this domain'}</Row>
       ))}
     </div>
+  );
+}
+
+/** One page's check against a claim: verdict, the page's own sentence (verbatim, quote first) and what produced it. */
+function CheckBody({ k }: { k: { verdict: ClaimVerdict; quote: string | null; translation: string | null; language: string | null; explanation: string; note: string | null; model: string | null; version: string | null } }) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+        <Pill c={CLAIM_V[k.verdict].c}>{CLAIM_V[k.verdict].label}</Pill>
+        {k.verdict === 'not_checkable' && <span style={{ fontSize: 12, color: TH.mut }}>Neutral: never counts against the article.</span>}
+      </div>
+      {k.explanation && <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{k.explanation}</div>}
+      {k.note && k.note !== k.explanation && <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}>{k.note}</div>}
+      {k.quote && (
+        <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.55 }}>
+          <span style={{ background: CLAIM_V[k.verdict].c + '40', borderBottom: `2px solid ${CLAIM_V[k.verdict].c}`, borderRadius: 3, fontWeight: 600 }}>“{k.quote}”</span>
+          {k.translation && <div style={{ marginTop: 4, fontSize: 12.5, color: TH.mut }}>{(k.language ?? '').toUpperCase()} → EN: “{k.translation}”</div>}
+        </div>
+      )}
+      {k.model && <div style={{ marginTop: 6, fontSize: 11.5, color: TH.mut }}>Checked by {k.model} · prompt {k.version}</div>}
+    </>
   );
 }

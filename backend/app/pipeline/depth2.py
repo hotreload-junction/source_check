@@ -196,13 +196,15 @@ def _is_search_page(url: str) -> bool:
 def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher: Fetcher, article_url: str,
                    article_domain: str, max_depth: int = 2, emit: Emit | None = None,
                    deadline_s: float = DEADLINE_S, llm: LLMClient | None = None,
-                   settings: Settings | None = None, step_cache=None) -> Depth2Result:
+                   settings: Settings | None = None, step_cache=None, run_budget=None) -> Depth2Result:
     """Add depth-2..max_depth sources to `rows` (mutated: ids continue after the last source).
 
     `rows` are the initial contract Source dicts; `assessments` the ClaimAssessments they came from (fetched text
     and verified quotes live there); `claims` the contract Claim dicts (which claim cites which source).
     A source whose passage links nothing usable but NAMES where its information comes from ("the New York Times reported")
     gets that source searched for (`chainsearch.py`, Exa Agent + our searches) when `settings.chain_search` is on.
+    `run_budget` (RunBudget): a hop or a chain search that would start after the time / cost budget is used up is skipped (and
+    recorded in `run_budget.skipped`), a running hop is cut to the time that is left.
     With `llm` + `settings`, every newly read depth >= 2 source is CHECKED against the claim it is cited for (quote
     first, like every verdict) and gets `Source.check`; without them the structure is recorded but nothing is judged.
     """
@@ -226,7 +228,7 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
     claim_by_source: dict[str, tuple[str, str]] = {}
     for c in claims:
         for sid in (*c["source_ids"], *c.get("found_source_ids", ())):
-            claim_by_source.setdefault(sid, (c["id"], c["text"]))
+            claim_by_source.setdefault(sid, (c["id"], c.get("check_text") or c["text"]))
     chain_by_source: dict[str, tuple[str, ...]] = {}
     alt_quote_by_source: dict[str, str | None] = {}
     rqm = rows_quote_map(rows, quote_by_url)
@@ -245,7 +247,10 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
     chain_cache = None
 
     for cur_depth in range(1, max_depth):
-        end = time.monotonic() + deadline_s      # per hop: a slow hop 2 must not starve hops 3..5
+        if run_budget is not None and cur_depth > 1 and not run_budget.allow(f"depth {cur_depth + 1}"):
+            break
+        hop_s = deadline_s if run_budget is None else min(deadline_s, run_budget.time_left())
+        end = time.monotonic() + hop_s           # per hop: a slow hop 2 must not starve hops 3..5
         parents = [r for r in rows if r["depth"] == cur_depth and r["url"] and r["fetch_status"] == "ok"]
         if not parents:
             break
@@ -332,15 +337,15 @@ def expand_sources(rows: list[dict], assessments, claims: list[dict], *, fetcher
                 out("edge", edge)
             res.citations.append(Citation(c.claim_id, c.parent["id"], child["id"], c.domain,
                                           chain=chain_by_source[c.parent["id"]]))
-        if unlinked and searches_left > 0:
+        if unlinked and searches_left > 0 and (run_budget is None or run_budget.allow_chain_search()):
             if chain_cache is None:
                 from .assess import _FetchCache      # assess imports this module: import it late
                 chain_cache = _FetchCache(fetcher, article_url)
             searches_left -= _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_source,
                                            alt_quote_by_source, text_by_url, pub_by_url, res, out, llm=llm, settings=settings,
-                                           cache=chain_cache, step_cache=step_cache, max_searches=searches_left)
+                                           cache=chain_cache, step_cache=step_cache, max_searches=searches_left, budget=run_budget)
         if llm is not None and settings is not None:
-            _check_sources(to_check, llm, settings)
+            _check_sources(to_check, llm, settings, run_budget)
     if chain_cache is not None:
         chain_cache.join_html(timeout=5.0)
         for r, pg in zip(res.rows, res.pages):          # the raw HTML of found pages (source type), after the searches
@@ -358,7 +363,7 @@ def _parse_dt(v) -> datetime | None:
 
 
 def _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_source, alt_quote_by_source, text_by_url,
-                  pub_by_url, res: Depth2Result, out, *, llm, settings, cache, step_cache, max_searches: int) -> int:
+                  pub_by_url, res: Depth2Result, out, *, llm, settings, cache, step_cache, max_searches: int, budget=None) -> int:
     """Name + look for the source each of these passages points to (in parallel, one hop deadline). Adds one row per
     passage that names a source: the page we found (verified quote, `check`), else a stub with just the name.
     Returns how many searches ran (they count against `max_chain_searches`)."""
@@ -371,11 +376,11 @@ def _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_s
             jobs.append((parent, claim_id, claim_text, parent_text, passage))
     if not jobs:
         return 0
-    end = time.monotonic() + settings.chain_search_deadline_s
+    end = time.monotonic() + (settings.chain_search_deadline_s if budget is None else min(settings.chain_search_deadline_s, budget.time_left()))
     # 1. naming is one cheap LLM call: do it for every passage, so the (paid) searches below are not spent on passages
     #    that name nobody ("plain fact", "our reporters")
     with ThreadPoolExecutor(max_workers=min(len(jobs), 6), thread_name_prefix="chainname") as npool:
-        names = list(npool.map(lambda j: named_source(j[4][0], j[4][1], j[2], j[0]["domain"], llm=llm, model=settings.model_extract), jobs))
+        names = list(npool.map(lambda j: named_source(j[4][0], j[4][1], j[2], j[0]["domain"], llm=llm, model=settings.light_model), jobs))
     jobs = [(j, who) for j, who in zip(jobs, names) if who][:max_searches]
     if not jobs:
         return 0
@@ -425,15 +430,15 @@ def _search_named(unlinked, next_depth, rows, known, claim_by_source, chain_by_s
     return len(jobs)
 
 
-def _check_sources(items: list[tuple[dict, str, str]], llm: LLMClient, settings: Settings) -> None:
+def _check_sources(items: list[tuple[dict, str, str]], llm: LLMClient, settings: Settings, budget=None) -> None:
     """Judge each newly read source against the claim it is cited for and store `Source.check` (display only: it
     never reaches `verdict.py`, so a depth-2 page can neither condemn nor rescue an article). A failed or late check
     leaves the key out, which means "not checked"."""
     if not items:
         return
-    end = time.monotonic() + CHECK_DEADLINE_S
+    end = time.monotonic() + (CHECK_DEADLINE_S if budget is None else min(CHECK_DEADLINE_S, budget.time_left()))
     pool = ThreadPoolExecutor(max_workers=min(len(items), MAX_CHECK_WORKERS), thread_name_prefix="d2check")
-    futures = [(row, pool.submit(verify_claim, claim_text, text, llm=llm, settings=settings, factcheck=True))
+    futures = [(row, pool.submit(verify_claim, claim_text, text, llm=llm, settings=settings, factcheck=True, model=settings.check_model))
                for row, claim_text, text in items]
     for row, fut in futures:
         try:

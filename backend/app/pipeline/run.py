@@ -34,8 +34,11 @@ from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .copies import find_article_copies
 from .depth2 import expand_sources
+from .budget import RunBudget
+from .statement import contextualize
 from .extract import ExtractedClaim, extract_claims
 from .origin import check_origins
+from .overview import write_overview
 from .textutil import article_body_filter, build_plain
 
 log = logging.getLogger("citetrace.run")
@@ -150,6 +153,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     archive = _CachedArchive(archive, sc) if archive is not None else None
     out = emit or (lambda event, data: None)
     t0 = time.monotonic()
+    budget = RunBudget(s, llm, t0)      # the time / cost budget of this analysis (pipeline/budget.py)
 
     def progress(step: str, message: str, pct: int) -> None:
         out("progress", {"step": step, "message": message, "pct": pct})
@@ -173,6 +177,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         ex = extract_claims(text_md, url, llm=llm, settings=s, body_filter=article_body_filter(art.html))
     except LLMError as exc:
         raise AnalysisError(f"Claim extraction failed: {exc}") from exc
+    ex = contextualize(ex, text_md, art.title or "", llm=llm, settings=s, article_url=url)   # self-contained check sentence, not-checkable refill
     claims = ex.claims
 
     # 2b. reader focus (F6): where does the article make the assertion the reader asks about? Never changes the label.
@@ -194,11 +199,6 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         rdap_pool.submit(rdap.lookup, d)
         if archive is not None and d not in PLATFORM_DOMAINS:
             rdap_pool.submit(archive.lookup, d)
-
-    # mirrors of the article on other domains: searched while the claims are verified, joined before the infrastructure step
-    copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
-    copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
-                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
 
     # mirrors of the article on other domains: searched while claims are verified, joined before infrastructure step
     copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
@@ -259,7 +259,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
             copies = copies_future.result(timeout=30)
         except Exception:      # slow or failed: no mirrors is the neutral answer
             copies = []
-        pages += [SourcePage(domain=c.domain, html=c.html) for c in copies]
+        pages += [SourcePage(domain=c.domain, html=c.html, is_copy=True) for c in copies]
         if copies:
             progress("infra_signals", f"Found the same text on {len(copies)} other domains", 86)
     copies_pool.shutdown(wait=False)
@@ -269,10 +269,10 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     depth = 1
     d2_edges: list[dict] = []
     circles = []
-    if s.max_depth >= 2 and reg.rows:
+    if s.max_depth >= 2 and reg.rows and budget.allow_first_hop():
         progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
-                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc)
+                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc, run_budget=budget)
         depth = s.max_depth
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
         searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
@@ -314,6 +314,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
                       circle_path(circles), network_reasons=net_reasons,
                       declared_reposts=[d.line for d in declared_reposts(text_md)],
                       channel_claim_ids=channel_ids, linked_claims=linked)
+    # 5b. AI overview (overview.py): the finished results in plain English, display only (verdict.py never reads it)
+    progress("verdict", "Writing the summary", 97)
+    overview = write_overview(art.title or article_host, claim_dicts, reg.rows, decision, llm=llm, settings=s)
+    for cd in claim_dicts:
+        cd["overview"] = overview.claims.get(cd["id"])
     nodes, edges = _graph(art.title or article_host, article_domain, claim_dicts, reg.rows, infra, domain_cluster, d2_edges, searched)
     for n in nodes:
         if n["type"] in ("domain", "source"):
@@ -322,6 +327,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         if e["type"] in ("hosted_on", "shares_infra", "cites_back"):
             out("edge", e)
 
+    usage = budget.usage()
     result = {
         "article": {"url": url, "domain": article_host, "title": art.title, "published_at": art.published_at,
                     "text_markdown": text_md},
@@ -331,12 +337,17 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         "graph": {"nodes": nodes, "edges": edges},
         "signals": decision["signals"],
         "verdict": decision["verdict"],
-        "focus": ({"question": focus.question, "status": focus.status,
+        "overview": overview.article,
+        "focus":({"question": focus.question, "status": focus.status,
                    "claim_ids": [c["id"] for c in claim_dicts if c["focus"]], "note": focus_note(focus, claim_dicts)}
                   if focus is not None else None),
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
                   "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1),
-                  "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None},
+                  "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None,
+                  "overview_prompt_version": overview.article["prompt_version"],
+                  # what this analysis cost: LLM calls that were really made (replays are free), USD at list prices; Exa / Context.dev not metered
+                  "cost_usd": round(usage.usd, 3), "llm_calls": usage.calls,
+                  "skipped": budget.skipped},                        # extras left out because the time / cost budget was used up
     }
     progress("verdict", "Done", 100)
     return AnalysisOutput(result, assessments, reg.rows)
@@ -424,6 +435,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
     source_ids: list[str] = []
     found_ids: list[str] = []        # unsourced claim: pages the search found (the article cites none: source_ids stays empty)
     anchors = {l.url: l.anchor_text for l in c.links}
+    checked: dict[str, SourceAssessment] = {}      # source row id -> how this claim's check of that page came out
 
     def node_event(row: dict) -> None:
         out("node", {"id": row["id"], "type": "source", "label": row["domain"] or row["attribution_text"] or "unknown",
@@ -435,6 +447,8 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
         target = source_ids if into is None else into
         if row["id"] not in target:
             target.append(row["id"])
+        if sa.url and row["id"] not in checked:
+            checked[row["id"]] = sa
         if new:
             node_event(row)
         out("edge", {"id": f"e-{c.id}-{row['id']}", "source": c.id, "target": row["id"], "type": "cites"})
@@ -475,8 +489,21 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
                     "quote_original": ev.quote_original, "quote_translation": ev.quote_translation,
                     "language": ev.language or "und", "fuzzy_score": round(ev.fuzzy_score or 0.0, 1)}
     return {"id": c.id, "text": c.text, "char_start": c.char_start, "char_end": c.char_end, "source_ids": source_ids,
-            "found_source_ids": found_ids,
+            "found_source_ids": found_ids, "source_checks": [_source_check(sid, sa) for sid, sa in checked.items()],
+            "check_text": c.check_text,
             "verdict": a.verdict, "subtype": a.subtype, "evidence": evidence, "explanation": a.explanation}
+
+
+def _source_check(source_id: str, sa: SourceAssessment) -> dict:
+    """Contract `Claim.source_checks[]`: how THIS claim's check of ONE page came out, for every page that was read (or
+    could not be), not only the one the claim verdict rests on. `verdict` is what counts (after the neutral mappings:
+    unreachable, paywall, a loosely attached link, a secondary report ...); `page_verdict` is what the page itself says."""
+    v = sa.verify
+    return {"source_id": source_id, "verdict": sa.verdict, "page_verdict": v.verdict if v else None,
+            "quote_original": v.quote_original if v else None, "quote_translation": v.quote_translation if v else None,
+            "language": v.language if v else None, "fuzzy_score": round(v.fuzzy_score, 1) if v and v.fuzzy_score is not None else None,
+            "explanation": (v.explanation if v and v.explanation else sa.note) or "", "note": sa.note or None,
+            "model": v.model if v else None, "prompt_version": v.prompt_version if v else None}
 
 
 def _graph(title: str, article_domain: str, claims: list[dict], sources: list[dict], infra, domain_cluster: dict,

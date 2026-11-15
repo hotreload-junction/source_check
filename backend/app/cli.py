@@ -27,8 +27,7 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, format="%(name)s: %(message)s")
     s = get_settings()
-    missing = [n for n, v in (("AI_ROUTER_BASE_URL", s.ai_router_base_url), ("AI_ROUTER_API_KEY", s.ai_router_api_key),
-                              ("MODEL_EXTRACT", s.model_extract), ("MODEL_VERIFY", s.model_verify)) if not v]
+    missing = s.llm_missing
     if missing:
         print(f"error: missing in .env: {', '.join(missing)}", file=sys.stderr)
         return 2

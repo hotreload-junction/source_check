@@ -301,7 +301,7 @@ def test_named_candidates_capped_to_bound_cost():
                  llm=make_llm("supported", QUOTE, calls, source_type="secondary"),
                  exa=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": u} for u in urls]}))),
                  settings=SETTINGS_ALL)
-    assert len(calls) <= 4 and res[0].verdict == "not_checkable"
+    assert len(calls) <= 5 and res[0].verdict == "not_checkable"  # one search-plan call plus bounded candidate checks
 
 
 def test_named_source_not_found_is_neutral_not_unsourced():
@@ -388,7 +388,7 @@ def _planner_llm(verdict="supported"):
 
 
 SEARCH = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
-                  search_unsourced=True, exa_agent=False)
+                  search_unsourced=True, exa_agent=False, factcheck_agent=False)
 FOUND = "https://www.orig.gov.test/interview"
 
 
@@ -428,7 +428,7 @@ def _two_claims_llm(c2_verdict="supported"):
 
 def _exa_only_for_claim_1():
     def handler(request):
-        found = "Claim number 1" in request.content.decode()
+        found = "only-claim-1" in request.content.decode()
         return httpx.Response(200, json={"results": [{"url": FOUND, "title": "T"}] if found else []})
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -533,3 +533,190 @@ def test_cross_check_attributed_reuses_same_speaker_source_across_claims():
     )
     assert res[0].verdict == "supported" and res[0].best.url == orig_url
     assert res[1].verdict == "supported" and res[1].best.url == orig_url
+
+
+# ------------------------------------------------------------------ candidate screen (cheap model first)
+SCREEN = Settings(_env_file=None, llm_provider="router", model_extract="vm", model_verify="vm", model_screen="cheap",
+                  screen_candidates=True, exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
+                  search_unsourced=False, exa_agent=False, factcheck_agent=False)
+ORIG = "https://www.orig.gov.test/interview"
+
+
+def by_model(answers, calls):
+    """A fake LLM that answers per MODEL: answers = {"cheap": verdict, "vm": verdict}; `calls` collects the models asked."""
+    from app.pipeline.verify import SYSTEM_PROMPT
+
+    def handler(request):
+        body = json.loads(request.content)
+        model = body["model"]
+        if body["messages"][0]["content"].startswith(SYSTEM_PROMPT):
+            calls.append(model)
+        v = answers[model]
+        if isinstance(v, Exception):
+            return httpx.Response(500, json={})
+        quote = QUOTE if v == "supported" else ""
+        c = json.dumps({"quote_original": quote, "quote_translation": None, "language": "en", "verdict": v, "explanation": f"{model} says {v}", "source_type": "original"})
+        return httpx.Response(200, json={"model": model, "choices": [{"message": {"content": c}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_screen_stops_a_candidate_the_cheap_model_says_is_not_mentioned():
+    calls = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
+                  exa=exa_client(), settings=SCREEN)
+    assert calls == ["cheap"]                                  # the strong model was never asked
+    assert a.verdict == "not_checkable" and "does not contain this quote" in a.sources[0].note
+    assert a.sources[0].verify.model == "cheap"                # the audit trail names who read the page
+
+
+def test_screen_passes_everything_else_to_the_strong_model_which_decides():
+    for cheap in ("supported", "distorted", "contradicted"):
+        calls = []
+        (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": cheap, "vm": "supported"}, calls),
+                      exa=exa_client(), settings=SCREEN)
+        assert calls == ["cheap", "vm"] and a.verdict == "supported" and a.best.verify.model == "vm"
+
+
+def test_screen_failure_falls_back_to_the_strong_model():
+    calls = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": RuntimeError(), "vm": "supported"}, calls),
+                  exa=exa_client(), settings=SCREEN)
+    assert calls == ["cheap", "vm"] and a.verdict == "supported"
+
+
+def test_pages_the_article_cites_are_never_screened():
+    calls = []
+    (a,), _ = run([claim(1, ["https://src.test/x"])], {"https://src.test/x": page("https://src.test/x")},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), settings=SCREEN)
+    assert calls == ["vm"] and a.verdict == "supported"
+
+
+def test_screen_is_off_without_a_cheap_model_or_when_switched_off():
+    router = Settings(_env_file=None, llm_provider="router", model_extract="vm", model_verify="vm", exa_api_key="exa",
+                      prompt_version="vT", search_unsourced=False, exa_agent=False, factcheck_agent=False)
+    off = Settings(_env_file=None, model_extract="vm", model_verify="vm", model_screen="cheap", screen_candidates=False, exa_api_key="exa", prompt_version="vT",
+                   search_unsourced=False, exa_agent=False, factcheck_agent=False)
+    assert router.screen_model == "" and off.screen_model == ""
+    assert Settings(_env_file=None, anthropic_api_key="k").screen_model == ""
+    for st in (router, off):
+        calls = []
+        run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
+            exa=exa_client(), settings=st)
+        assert calls == ["vm"]
+
+
+# ------------------------------------------------------------------ agent first, own searches only when the agent settles nothing
+AGENT_URL = "https://api.exa.ai/agent/runs"
+FIRST = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT", search_unsourced=False,
+                 exa_agent=True, factcheck_agent=False, agent_first=True)
+SIDE_BY_SIDE = Settings(**{**FIRST.model_dump(), "agent_first": False})
+
+
+def exa_world(agent_urls, search_urls, log):
+    """One mock client for Exa search AND the Agent API; `log` collects 'search' / 'agent' calls."""
+    def handler(request):
+        if str(request.url).startswith(AGENT_URL):
+            if request.method == "POST":
+                log.append("agent")
+                return httpx.Response(200, json={"id": "run1"})
+            return httpx.Response(200, json={"status": "completed", "output": {"structured": {"found": bool(agent_urls),
+                                  "sources": [{"url": u, "kind": "original", "quote": None} for u in agent_urls]}}})
+        log.append("search")
+        return httpx.Response(200, json={"results": [{"url": u, "title": "T"} for u in search_urls]})
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_agent_first_skips_our_searches_when_the_agent_finds_the_original(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+                  exa=exa_world([ORIG], ["https://other.test/x"], log), settings=FIRST)
+    assert a.verdict == "supported" and a.best.url == ORIG
+    assert log == ["agent"]                                    # no search request at all
+
+
+def test_agent_first_falls_back_to_our_searches_when_the_agent_finds_nothing(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+                  exa=exa_world([], [ORIG], log), settings=FIRST)
+    assert a.verdict == "supported" and a.best.url == ORIG
+    assert log[0] == "agent" and "search" in log               # the agent first, then our own searches
+
+
+def test_agent_first_off_runs_both_side_by_side(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+        exa=exa_world([ORIG], [ORIG], log), settings=SIDE_BY_SIDE)
+    assert "agent" in log and "search" in log
+
+
+def test_unsourced_agent_first_searches_only_if_the_factcheck_agent_settles_nothing(monkeypatch):
+    from app.pipeline import assess
+    from app.pipeline.factcheck import FactHit, FactResult
+    st = Settings(**{**SEARCH.model_dump(), "factcheck_agent": True, "agent_first": True, "exa_agent": True})
+    for hits, expect_search in (([FactHit(FOUND)], False), ([], True)):
+        monkeypatch.setattr(assess, "_run_factcheck", lambda *a, _h=hits, **k: FactResult(_h, True, status="completed"))
+        log = []
+        (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=make_llm("supported", QUOTE), exa=exa_world([], [FOUND], log), settings=st)
+        assert ("search" in log) is expect_search, hits
+        assert a.verdict == "supported" and a.best.url == FOUND
+
+
+# ------------------------------------------------------------------ the check sentence is what search and verify use
+def test_check_text_is_verified_and_the_returned_claim_is_the_original():
+    import dataclasses
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content)["messages"][1]["content"])
+        c = json.dumps({"quote_original": QUOTE, "quote_translation": None, "language": "en", "verdict": "supported", "explanation": "ok.", "source_type": "original"})
+        return httpx.Response(200, json={"model": "vm", "choices": [{"message": {"content": c}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    c = dataclasses.replace(claim(1, ["https://src.test/x"]), check_text="In the 2025 survey, the programme will expand coverage to 40 districts by 2027.")
+    (a,), _ = run([c], {"https://src.test/x": page("https://src.test/x")}, llm=llm)
+    assert "In the 2025 survey" in seen[0] and "Claim number 1 text." not in seen[0]       # the model read the check sentence
+    assert a.claim is c and a.claim.text == "Claim number 1 text." and a.verdict == "supported"
+
+
+def test_screen_bypassed_for_venue_phrase_or_factcheck(monkeypatch):
+    from app.pipeline import assess
+    from app.pipeline.evidence import Candidate
+    from app.pipeline.exa import NamedSourceHit
+    from app.pipeline.factcheck import FactHit, FactResult
+
+    # venue_hosted or phrase_hit skips _screen and goes straight to MODEL_VERIFY
+    calls = []
+    monkeypatch.setattr(assess, "gather_candidates", lambda *a, **k: [
+        Candidate(NamedSourceHit(ORIG, "T", None, "the Finnish Ministry"), venue_hosted=True),
+    ])
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), exa=exa_client(), settings=SCREEN)
+    assert calls == ["vm"] and a.verdict == "supported"
+
+    # factcheck_agent also skips _screen on returned pages
+    calls.clear()
+    st_fc = Settings(**{**SEARCH.model_dump(), "llm_provider": "router", "model_extract": "vm", "model_screen": "cheap",
+                       "screen_candidates": True, "factcheck_agent": True, "agent_first": True})
+    monkeypatch.setattr(assess, "_run_factcheck", lambda *a, **k: FactResult([FactHit(FOUND)], True, status="completed"))
+    (b,), _ = run([claim(1)], {FOUND: page(FOUND)},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), exa=exa_client(None), settings=st_fc)
+    assert calls == ["vm"] and b.verdict == "supported"
+
+
+def test_rsp_generally_reliable_corroborates_attributed_claim():
+    reuters = "https://www.reuters.com/world/story"
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {reuters: page(reuters)},
+                  llm=make_llm("supported", QUOTE, source_type="secondary"),
+                  exa=exa_client(reuters), settings=SETTINGS_ALL)
+    assert a.verdict == "supported" and a.best.url == reuters and "reuters.com" in a.explanation
+
+    unknown = "https://random-blog.test/story"
+    (b,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {unknown: page(unknown)},
+                  llm=make_llm("supported", QUOTE, source_type="secondary"),
+                  exa=exa_client(unknown), settings=SETTINGS_ALL)
+    assert b.verdict == "not_checkable" and b.best.corroborated

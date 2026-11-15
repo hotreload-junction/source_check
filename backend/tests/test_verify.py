@@ -131,3 +131,67 @@ def test_fuzzy_score_matches_ordered_ellipsis_segments_and_rejects_bad_ones():
     assert fuzzy_score(reversed_order, src) < 90.0
     assert fuzzy_score(fabricated_part, src) < 90.0
     assert fuzzy_score(too_short_part, src) < 90.0
+
+
+WALL = "Sign in to continue to Google Trends. Use your Google account to see what the world is searching for. " * 2
+
+
+def test_login_wall_page_is_not_checkable_and_costs_no_model_call():
+    seen = []
+    r = verify_claim("Searches for male loneliness spiked in 2023.", WALL, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_checkable" and r.downgraded and "login" in r.explanation and not r.has_evidence
+    assert seen == []
+
+
+def test_a_normal_short_page_still_reaches_the_model():
+    seen = []
+    r = verify_claim("Searches for male loneliness spiked in 2023.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_mentioned" and len(seen) == 1
+
+
+SSO = ("Sign in  [Can’t access your account?](https://login.microsoftonline.com/f610c0b7-bd24-4b39-810b-3dc280afb590/saml2?SAMLRequest="
+       + "fZLNbsIwEIRfJfI9sRMSCBZBSuFQJNoikvbQS%2BUYh1hy7NTrlPbtC6Q%2FVKo47" * 6 + "&RelayState=ss%3Amem%3A25f55a946bd8c#)")
+
+
+def test_sso_login_form_that_is_mostly_a_link_is_not_checkable():
+    # live: a WHO PDF behind a Microsoft login came back as "Sign in" + one long SAML link and was judged "not mentioned"
+    from app.fetch.fetcher import looks_like_wall
+    assert looks_like_wall(SSO) and len(SSO) > 200                      # long raw text, almost no visible words
+    seen = []
+    r = verify_claim("The UK government commissioned research on loneliness.", SSO, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_checkable" and r.downgraded and seen == []
+
+
+def test_ordinary_pages_that_mention_login_are_not_walls():
+    from app.fetch.fetcher import looks_like_wall
+    article = ("The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, according to the "
+               "official report. Critics asked how the new login system for the benefit portal would protect passwords. " * 4)
+    assert not looks_like_wall(article)
+    assert not looks_like_wall("Sign in to read more is how many paywalled pages end, but this page has a whole report. " * 40)   # > 2000 chars
+    assert looks_like_wall("Log in") and looks_like_wall("Please sign in to view this document.") and not looks_like_wall("")
+
+
+def test_anchor_text_passed_only_when_meaningful():
+    seen = []
+    verify_claim("A long sentence about multiple things.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen),
+                 settings=SETTINGS, anchor_text="expanded coverage")
+    assert "LINK ANCHOR: expanded coverage" in seen[0]["messages"][1]["content"]
+    assert "LINK ANCHOR" in seen[0]["messages"][0]["content"]
+    seen.clear()
+    verify_claim("Short anchor ignored.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen),
+                 settings=SETTINGS, anchor_text="ok")
+    assert "LINK ANCHOR" not in seen[0]["messages"][1]["content"]
+
+
+def test_long_source_window_selects_relevant_tail_paragraph():
+    filler = ("Unrelated procedural paragraph covering municipal zoning archives. " * 20).strip()
+    head = "\n\n".join([filler] * 25)
+    target = "The programme will expand coverage to 40 districts by 2027, officials confirmed."
+    long_src = f"{head}\n\n{target}\n\n" + "\n\n".join([filler] * 35)
+    assert len(long_src) > MAX_SOURCE_CHARS
+    seen = []
+    r = verify_claim("The programme expands coverage to 40 districts by 2027.", long_src,
+                     llm=llm_returning(out("supported", target), seen), settings=SETTINGS)
+    assert r.verdict == "supported" and r.has_evidence
+    assert target in seen[0]["messages"][1]["content"]
+    assert len(seen[0]["messages"][1]["content"]) < MAX_SOURCE_CHARS + 1000

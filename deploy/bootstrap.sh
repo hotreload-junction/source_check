@@ -16,7 +16,7 @@ for env_name in live preview; do
     grep -Ev '^(PROMPT_VERSION|MAX_DEPTH)=' "$src/.env.example" > "$dir/.env"; chmod 600 "$dir/.env"
     printf '\n# --- VPS (%s) ---\nMARIADB_PASSWORD=%s\nSITE_HOST=%s\nPUBLIC_BASE_URL=https://%s\n' \
       "$env_name" "$(openssl rand -hex 16)" "$host" "$host" >> "$dir/.env"
-    echo "bootstrap: wrote $dir/.env (add the API keys: AI_ROUTER_*, CONTEXT_DEV_*, EXA_*)"
+    echo "bootstrap: wrote $dir/.env (add the API keys: ANTHROPIC_API_KEY, CONTEXT_DEV_*, EXA_*)"
   fi
 done
 echo "bootstrap: done. DNS for $LIVE_HOST and $PREVIEW_HOST must resolve to this VPS."

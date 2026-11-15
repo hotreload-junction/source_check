@@ -122,16 +122,36 @@ _NAMES = {"evidence": "weak claim support", "infrastructure": "shared, very youn
           "circle": "a citation circle", "laundering": "content republished from Telegram/social channels"}
 
 
-def _pattern(fired: list[str]) -> dict:
+def claims_sentence(claims: Sequence[ClaimInput]) -> str:
+    """How many central claims lack support and how: against the sources checked vs. backed by none. Never says
+    "false": a distorted/contradicted claim disagrees with the pages read, an unsourced/not_mentioned one is unbacked."""
+    n = len(claims)
+    against = sum(1 for c in claims if c.verdict in ("contradicted", "distorted"))
+    unbacked = sum(1 for c in claims if c.verdict in ("not_mentioned", "unsourced"))
+    bad = against + unbacked
+    if not bad:
+        return ""
+    lead = (f"All {n} central claims" if bad == n else f"Most central claims ({bad} of {n})" if bad > n / 2
+            else f"{bad} of {n} central claims")
+    parts = []
+    if against:
+        parts.append(f"{against} {'is' if against == 1 else 'are'} contradicted or distorted by the sources checked")
+    if unbacked:
+        parts.append(f"{unbacked} {'is' if unbacked == 1 else 'are'} not backed by any source checked")
+    return f"{lead} lack support: {', '.join(parts)}."
+
+
+def _pattern(fired: list[str], claims: Sequence[ClaimInput]) -> dict:
+    tail = f" {claims_sentence(claims)}" if "evidence" in fired else ""
     return {"label": "propaganda_pattern",
-            "summary": "Independent signals agree: " + " and ".join(_NAMES[k] for k in fired) + "."}
+            "summary": "Independent signals agree: " + " and ".join(_NAMES[k] for k in fired) + "." + tail}
 
 
 def _label(claims: Sequence[ClaimInput], signals: dict) -> dict:
     fired = [k for k in SIGNAL_ORDER if signals[k]["fired"]]
     independent = [k for k in fired if k in CLAIM_INDEPENDENT]
     if len(independent) >= MIN_SIGNALS_FOR_PATTERN:   # facts about infrastructure / provenance, not about claims
-        return _pattern(fired)
+        return _pattern(fired, claims)
 
     n = len(claims)
     unchecked = sum(1 for c in claims if c.verdict == "not_checkable")
@@ -144,11 +164,10 @@ def _label(claims: Sequence[ClaimInput], signals: dict) -> dict:
                 "summary": f"{why} Not enough evidence to judge; this does not count against the article."}
 
     if len(fired) >= MIN_SIGNALS_FOR_PATTERN:
-        return _pattern(fired)
+        return _pattern(fired, claims)
     if fired == ["evidence"]:
         return {"label": "weakly_sourced",
-                "summary": "Several central claims are unsupported by their sources or unsourced, "
-                           "but no sign of coordinated infrastructure was found."}
+                "summary": f"{claims_sentence(claims)} No sign of coordinated infrastructure was found."}
     checkable = [c for c in claims if c.verdict != "not_checkable"]
     search_only = [c for c in checkable if c.search_only]
     if checkable and len(search_only) / len(checkable) > MAX_SEARCH_ONLY_SHARE:

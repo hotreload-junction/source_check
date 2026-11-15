@@ -163,3 +163,37 @@ def test_find_cited_runs_plan_search_fetch_and_quote_first_verify():
                                    llm=llm, settings=SETTINGS, exa_client=exa)
     assert cited.who == "The New York Times" and cited.found is not None
     assert cited.found.url == NYT_URL and cited.found.verify.quote_original == NYT_QUOTE and cited.found.verify.fuzzy_score >= 90
+
+
+# ------------------------------------------------------------------ display-only checks use the cheap model
+def models_seen(seen):
+    def handler(request):
+        body = json.loads(request.content)
+        seen.append(body["model"])
+        data = {"quote_original": NYT_QUOTE, "quote_translation": None, "language": "en", "verdict": "supported",
+                "explanation": "The page states it.", "source_type": "original"}
+        return httpx.Response(200, json={"model": body["model"], "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(data)}}]})
+    return LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_depth_2_checks_use_the_check_model_not_the_verify_model():
+    from app.pipeline.depth2 import _check_sources
+    seen = []
+    row = {"url": NYT_URL}
+    st = Settings(**{**SETTINGS.model_dump(), "model_verify": "strong", "model_check": "cheap-check"})
+    _check_sources([(row, "The ministry will expand coverage.", NYT_QUOTE)], models_seen(seen), st)
+    assert seen == ["cheap-check"] and row["check"]["model"] == "cheap-check" and row["check"]["verdict"] == "supported"
+    # no cheap model configured and the router in use: the verify model, as before
+    seen.clear()
+    _check_sources([({"url": NYT_URL}, "The ministry will expand coverage.", NYT_QUOTE)], models_seen(seen),
+                   Settings(**{**SETTINGS.model_dump(), "model_verify": "strong"}))
+    assert seen == ["strong"]
+    assert Settings(_env_file=None, llm_provider="verda", anthropic_api_key="k", model_verify="claude-sonnet-5-5").check_model == "deepseek-4-1-flash-1017"
+
+
+def test_chain_search_does_not_start_after_the_chain_start_limit_and_says_so(monkeypatch):
+    calls = []
+    r = run(monkeypatch, calls=calls, settings=Settings(**{**SETTINGS.model_dump(), "chain_start_limit_s": 1e-9}))
+    assert calls == [] and all(s["depth"] == 1 for s in r["sources"])                      # no naming call, no search
+    assert r["audit"]["skipped"] == ["chain search (time budget)"]
+    assert len(r["claims"]) == 3                                                           # the claim checks are untouched

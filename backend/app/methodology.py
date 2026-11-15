@@ -20,7 +20,9 @@ _ZERO = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
 def candidate_paths(settings: Settings) -> list[Path]:
     if settings.metrics_path:
         return [Path(settings.metrics_path)]
-    return [REPO_ROOT / "eval" / "results" / "metrics.json", Path("/app/eval/results/metrics.json")]
+    # eval/ is not in the backend image (build context backend/), so eval/metrics.py also writes backend/demo/metrics.json
+    return [REPO_ROOT / "eval" / "results" / "metrics.json", Path(__file__).resolve().parents[1] / "demo" / "metrics.json",
+            Path("/app/eval/results/metrics.json")]
 
 
 def empty_methodology(settings: Settings) -> dict:

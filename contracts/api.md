@@ -65,10 +65,30 @@ domains:  Domain[]
 graph:    {nodes: GraphNode[], edges: GraphEdge[]}
 signals:  Signals
 verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
+overview: Overview           # additive: plain-English summary of the finished check (absent in older results)
 focus:    Focus | null       # null when no question was sent
 audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1..5, duration_s,
-           focus_prompt_version: str|null}   # null without a question
+           cost_usd: float, llm_calls: int, skipped: str[],
+           focus_prompt_version: str|null,   # null without a question
+           overview_prompt_version: str}     # additive: prompt version of Result.overview / Claim.overview
+          # additive: cost_usd = what the LLM calls of THIS analysis cost at list prices (calls really made; replays from the step cache are
+          # free; Exa / Context.dev are not metered), llm_calls = how many. skipped = extras left out because the time / cost budget
+          # (TIME_BUDGET_S, COST_BUDGET_USD) was used up, e.g. "source chain (time budget)", "chain search (cost budget)"; [] = nothing cut.
+          # The claim checks themselves are never skipped.
 ```
+```
+```
+Overview: {text: str,                 # starts with the claim counts written by CODE ("Of 6 central claims: 3 supported by a source, ...");
+                                      # source "ai": followed by 2-3 sentences the model wrote from the finished results
+           source: "ai" | "rule",     # rule = counts only (AI_OVERVIEW=false, the call failed, or a code guard rejected the text)
+           model: str|null,           # null for rule
+           prompt_version: str}
+```
+Overview rules (`backend/app/pipeline/overview.py`): DISPLAY ONLY, `verdict.py` never reads it (label, signals and eval are the
+same with or without it). One MODEL_LIGHT call after the verdict; the model gets only the results (claims, verdicts, verified
+quotes, explanations, signals), never the article text. Code rejects a text with a number or capitalised name not in that input,
+a claim described outside its verdict category (a supported claim called false or exaggerated, a not_checkable one called false
+or true ...), "propaganda"/"lies" unless the label is propaganda_pattern, or a claim id in the text.
 ```
 Focus: {question: str,                          # as sent, whitespace collapsed
         status: "found" | "not_in_article" | "failed",
@@ -105,8 +125,20 @@ evidence: {
   fuzzy_score: float          # 0-100, rapidfuzz partial_ratio vs fetched source text
 } | null
 explanation: str              # one sentence: why this verdict
+source_checks: [{source_id: str, verdict: ClaimVerdict, page_verdict: ClaimVerdict|null, quote_original: str|null,
+                 quote_translation: str|null, language: str|null, fuzzy_score: float|null, explanation: str, note: str|null,
+                 model: str|null, prompt_version: str|null}]
+   # additive: how THIS claim's check of EACH cited / found page came out, not only the one the verdict rests on (`evidence`).
+   # `verdict` = what counts (after the neutral mappings: unreadable, paywall, loosely attached link, secondary report ...);
+   # `page_verdict` = what the page itself says (null = the page could not be read). Quote first: the quote is fuzzy-checked
+   # like every verdict. [] = nothing was read for this claim. Absent in older results.
+check_text: str|null          # additive: the self-contained wording that search and verification used (a sentence that needs its
+   # context, e.g. "Another 31% expect turbulence" -> "In the Global Risks Report 2025 survey, another 31% of respondents expect
+   # turbulence ..."); null = the sentence was used as written. `text` and the offsets never change. Backend/app/pipeline/statement.py
 central: bool                 # additive (F6): true = one of the article's central claims, counts for the verdict
 focus: bool                   # additive (F6): true = matches the reader's question (Result.focus); absent in older results = false
+overview: str|null            # additive: 1-2 AI-written sentences on what the checked pages say about this claim (see Overview rules);
+                              # null = not written or rejected by a code guard -> show `explanation`. Absent in older results
 ```
 `ClaimVerdict` = `supported` | `distorted` | `contradicted` | `not_mentioned` | `unsourced` | `not_checkable`
 
@@ -214,6 +246,13 @@ articles: {n_network, n_wire, fpr_wire, tpr_network,
 thresholds: {name: value}     # e.g. {"min_bad_claims": 2, "young_domain_days": 90, "fuzzy": 90}
 tuned_on: str, measured_on: str
 error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
+# additive, optional (eval/metrics.py):
+pairs.abstained: int                       # pairs answered not_checkable (counted as "not flagged")
+pairs.by_dataset: {name: {n, precision, recall, confusion}}
+articles.fpr_wire_without_list, articles.tpr_network_without_list: float, articles.confusion_without_list
+                                           # same articles decided without the published network list (VIGINUM)
+articles.n_hard_negatives, articles.fp_hard_negatives, articles.n_failed: int
+articles.labels, articles.labels_without_list: {"network"|"wire": {ArticleVerdict: count}}
 ```
 
 
@@ -284,3 +323,10 @@ Quote first: the model must copy the words that show the origin from the claim's
 (`FUZZY_THRESHOLD`), a malformed answer or an LLM error leaves the verdict unchanged. Claims whose cited page was unreachable,
 paywalled, social or self-cited are never re-classified (they stay neutral). The `claim` SSE event is sent again with the new
 verdict.
+
+## LLM provider configuration
+
+The default provider is Verda's OpenAI-compatible endpoint (`VERDA_BASE_URL`, default
+`https://inference.verda.com/v1`; secret `VERDA_API_KEY`). In Verda mode, extraction, helper calls and verification use
+`deepseek-4-1-flash-1017`; candidate pre-screening is disabled and every candidate goes directly to verification.
+Anthropic and Hostinger AI Router remain available only when selected explicitly with `LLM_PROVIDER`.

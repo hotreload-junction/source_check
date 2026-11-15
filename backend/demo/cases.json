@@ -16,5 +16,26 @@
     "label": "Blog post (placeholder case)",
     "url": "https://www.astralcodexten.com/p/book-review-the-scout-mindset",
     "placeholder": true
+  },
+  {
+    "key": "expose",
+    "label": "Expose News: “CDC, UK Gov & Oxford University confirm COVID vaccination DOES NOT WORK”",
+    "url": "https://expose-news.com/2023/01/09/cdc-ukgov-oxford-uni-covid-vaccine-kills/",
+    "expected_verdict": "weakly_sourced",
+    "question": "covid vaccination doesn't work and is potentially lethal"
+  },
+  {
+    "key": "selensky",
+    "label": "News-Pravda: Selenskyj and a French bank",
+    "url": "https://news-pravda.com/world/2025/03/12/1135985.html",
+    "expected_verdict": "propaganda_pattern",
+    "question": "Selenskyj bought a French bank"
+  },
+  {
+    "key": "starshield",
+    "label": "The Guardian: SpaceX and Starshield",
+    "url": "https://www.theguardian.com/world/2026/nov/14/spacex-not-honest-slowing-starshield-elon-musk-volodymyr-zelenskyy",
+    "expected_verdict": "well_sourced",
+    "question": "SpaceX lied about restricting Ukraine’s use of Starshield"
   }
 ]

@@ -365,3 +365,36 @@ def test_repeated_continue_reading_cards_do_not_trigger_paywall():
     )
     assert ends_cut_off(cards) is False
     assert ends_cut_off(("Main article paragraph with real content. " * 12) + "\nStory Continues") is True
+
+
+# ------------------------------------------------------------------ login / consent / bot walls are "could not read"
+def test_short_login_wall_page_is_blocked_not_ok():
+    wall = ("<html><body><article><p>Sign in to continue to Google Trends. Use your Google account to see what the world is "
+            "searching for. Explore search interest by topic, region and time, and compare terms over the years. "
+            "Trending now, year in search, and more tools are available once you are signed in with your account.</p></article></body></html>")
+    r = make(lambda req: httpx.Response(200, text=wall, headers={"content-type": "text/html"})).fetch_source("https://example.org/explore", ART)
+    assert r.status == "blocked" and "login" in r.error
+
+
+def test_a_long_article_that_mentions_a_captcha_is_still_ok():
+    body = "<html><body><article><p>" + ("The company said profits rose strongly in the third quarter. " * 60) + \
+        "Users also complained that the captcha on the login page was broken.</p></article></body></html>"
+    r = make(lambda req: httpx.Response(200, text=body, headers={"content-type": "text/html"})).fetch_source("https://example.org/x", ART)
+    assert r.status == "ok"
+
+
+def test_client_rendered_tool_pages_are_blocked_without_a_request():
+    def boom(request):
+        raise AssertionError("must not hit the network")
+    f = make(boom)
+    for url in ("https://trends.google.com/trends/explore?q=male%20loneliness", "https://trends.google.com/explore?q=x",
+                "https://www.google.com/trends/explore?q=x"):
+        r = f.fetch_source(url, ART)
+        assert r.status == "blocked", url
+
+
+def test_sso_login_form_from_context_dev_is_blocked_not_ok():
+    from app.fetch.fetcher import _finish
+    sso = ("Sign in  [Can’t access your account?](https://login.microsoftonline.com/f610c0b7/saml2?SAMLRequest=" + "fZLNbsIwEIRfJfI9sRMSCBZB" * 20 + "#)")
+    r = _finish("https://iris.who.int/x.pdf", "link", sso, "context_dev", html=None, title=None, final_url=None)
+    assert r.status == "blocked" and "login" in r.error

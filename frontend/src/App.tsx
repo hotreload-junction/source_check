@@ -126,7 +126,11 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   // ---- derived, override-aware helpers ----
   const ctx: Ctx = useMemo(() => {
-    const judgedEdge = (n: TNode): TEdge | undefined => tree.edges.find((e) => e.from === n && e.type === 'cites' && e.verdict != null);
+    // the edge the CLAIM verdict sits on: the evidence page, or the only cited page (other pages carry their own check, not the claim's verdict)
+    const judgedEdge = (n: TNode): TEdge | undefined => {
+      const mine = tree.edges.filter((e) => e.from === n && e.type === 'cites');
+      return mine.find((e) => e.evidence) ?? (mine.length === 1 && mine[0].verdict != null ? mine[0] : undefined);
+    };
     const infra = view.signals?.infrastructure.reasons ?? [];
     return {
       tree, view,
@@ -207,7 +211,10 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
       display: 'grid', gridTemplateColumns: compact ? 'auto 1fr' : '1fr auto 1fr', alignItems: 'center', justifyItems: 'start', gap: compact ? 8 : 14, flex: 'none',
       padding: compact ? `max(10px, env(safe-area-inset-top)) max(${px}px, env(safe-area-inset-right)) 8px max(${px}px, env(safe-area-inset-left))` : '10px 18px',
     }}>
-      <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: compact ? '10px 14px' : '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, background: TH.card, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textDecoration: 'none', color: TH.ink }}>← Back</a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: compact ? '10px 14px' : '6px 12px', border: `1.5px solid ${TH.line}`, borderRadius: 8, background: TH.card, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textDecoration: 'none', color: TH.ink }}>← Back</a>
+        <a href="#/methodology" title="How the verdicts are made" style={{ padding: compact ? '10px 8px' : '6px 8px', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', textDecoration: 'none', color: TH.mut }}>How it works</a>
+      </div>
       <a href="#/" title="Back to start" style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: '-.01em', textDecoration: 'none', color: TH.ink, justifySelf: compact ? 'end' : undefined }}>
         <Wordmark />
       </a>

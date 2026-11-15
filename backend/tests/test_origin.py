@@ -100,3 +100,18 @@ def test_switch_off_and_llm_failure_keep_verdicts():
     calls = []
     assert run(ROOT, calls, settings=off)["claims"][2]["verdict"] == "unsourced" and calls == []
     assert run("error")["claims"][2]["verdict"] == "unsourced"
+
+
+def check(page_verdict, quote="a verbatim sentence from the page"):
+    return {"source_id": "s5", "verdict": "not_checkable", "page_verdict": page_verdict, "quote_original": quote, "explanation": "x"}
+
+
+def test_pages_that_were_read_and_quoted_keep_the_claim_out_of_the_origin_check():
+    base = {"verdict": "not_checkable", "evidence": None, "subtype": None, "source_ids": [], "found_source_ids": ["s5", "s6"]}
+    # "Sources disagree": one found page confirms, another contradicts, both with a verified quote
+    both = {**base, "source_checks": [check("supported"), check("contradicted")]}
+    assert not eligible(both, {})
+    assert not eligible({**base, "source_checks": [check("distorted")]}, {})
+    # a page that was read but says nothing about the claim, or could not be read, is no evidence: still asked
+    assert eligible({**base, "source_checks": [check("not_mentioned", None), check(None, None)]}, {})
+    assert eligible({**base, "source_checks": []}, {}) and eligible(base, {})      # no checks (older result): as before

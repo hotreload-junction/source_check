@@ -13,6 +13,32 @@ export interface Evidence {
   fuzzy_score: number;
 }
 
+/** How ONE claim's check of ONE cited / found page came out (contract Claim.source_checks). `verdict` is what counts;
+ *  `page_verdict` is what the page itself says (null = it could not be read). */
+export interface ClaimSourceCheck {
+  source_id: string;
+  verdict: ClaimVerdict;
+  page_verdict: ClaimVerdict | null;
+  quote_original: string | null;
+  quote_translation: string | null;
+  language: string | null;
+  fuzzy_score: number | null;
+  explanation: string;
+  note: string | null;
+  model: string | null;
+  prompt_version: string | null;
+}
+
+/** Check of a depth >= 2 source against the claim it is cited for (contract Source.check). Display only. */
+export interface SourceCheck {
+  verdict: ClaimVerdict;
+  quote_original: string | null;
+  fuzzy_score: number | null;
+  explanation: string;
+  model: string;
+  prompt_version: string;
+}
+
 export interface Claim {
   id: string;
   text: string;
@@ -20,12 +46,23 @@ export interface Claim {
   char_end: number | null;
   source_ids: string[];
   found_source_ids?: string[];
+  check_text?: string | null; // self-contained wording search and check used (null = the sentence as written); `text` is never changed
+  source_checks?: ClaimSourceCheck[]; // every cited / found page this claim was checked against; absent in older results
   verdict: ClaimVerdict;
   subtype: 'self_citation' | 'social_media' | null;
   evidence: Evidence | null;
   explanation: string;
   central?: boolean; // F6: false = found only through the reader's question, does not count for the verdict
   focus?: boolean;   // F6: matches the reader's question (Result.focus)
+  overview?: string | null; // AI-written summary of what the checked pages say (display only); null/absent -> show `explanation`
+}
+
+// Plain-English summary of the finished check (display only, never changes the verdict). Starts with code-written counts.
+export interface Overview {
+  text: string;
+  source: 'ai' | 'rule'; // rule = counts only (AI off, failed, or rejected by a code guard)
+  model: string | null;
+  prompt_version: string;
 }
 
 // F6: optional reader question about one point of the article
@@ -58,6 +95,7 @@ export interface Source {
   fetched_via: 'context_dev' | 'trafilatura' | 'telegram' | null;
   source_type?: SourceType | null; // PLAN Q1; absent in older results = null
   source_type_reason?: string | null;
+  check?: SourceCheck | null; // depth >= 2: the page checked against the claim it is cited for; absent = not checked
 }
 
 export interface Domain {
@@ -106,6 +144,7 @@ export interface Result {
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
   signals: Signals;
   verdict: { label: ArticleVerdict; summary: string };
+  overview?: Overview | null; // optional: older cached results lack it
   focus?: Focus | null; // optional: older cached results lack it
   audit: {
     model_extract: string;
@@ -115,6 +154,10 @@ export interface Result {
     depth: 1 | 2 | 3;
     duration_s: number;
     focus_prompt_version?: string | null;
+    overview_prompt_version?: string;
+    cost_usd?: number;     // LLM cost of this analysis at list prices (calls really made); Exa / Context.dev not metered
+    llm_calls?: number;
+    skipped?: string[];    // extras left out because the time / cost budget was used up
   };
 }
 
@@ -138,8 +181,18 @@ export interface Methodology {
   generated_at: string;
   verify_model: string;
   prompt_version: string;
-  pairs: { n: number; n_cross_language: number; precision: number; recall: number; confusion: Confusion };
-  articles: { n_network: number; n_wire: number; fpr_wire: number; tpr_network: number; confusion: Confusion };
+  pairs: {
+    n: number; n_cross_language: number; precision: number; recall: number; confusion: Confusion;
+    abstained?: number;
+    by_dataset?: Record<string, { n: number; precision: number; recall: number; confusion: Confusion }>;
+  };
+  articles: {
+    n_network: number; n_wire: number; fpr_wire: number; tpr_network: number; confusion: Confusion;
+    // additive (eval/metrics.py): the same articles decided without the published network list
+    fpr_wire_without_list?: number; tpr_network_without_list?: number; confusion_without_list?: Confusion;
+    n_hard_negatives?: number; fp_hard_negatives?: number; n_failed?: number;
+    labels?: Record<string, Record<string, number>>; labels_without_list?: Record<string, Record<string, number>>;
+  };
   thresholds: Record<string, number>;
   tuned_on: string;
   measured_on: string;

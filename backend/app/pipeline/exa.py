@@ -147,7 +147,7 @@ def _safe_norm(url: str) -> str | None:
 
 
 def find_copies(url: str, *, api_key: str, client: httpx.Client | None = None, timeout: float = 25.0, cache=None,
-                limit: int = 10, max_chars: int = 20_000) -> list[dict]:
+                limit: int = 10, max_chars: int = 20_000, exclude_domain: str | None = None) -> list[dict]:
     """Pages on OTHER domains that Exa finds similar to `url`, with Exa's own copy of their text: [{"url", "text"}].
     Used to find mirrors of an article (the same text on a network of sites). Never raises; a failed search is cached briefly."""
     if not api_key or not url:
@@ -155,11 +155,11 @@ def find_copies(url: str, *, api_key: str, client: httpx.Client | None = None, t
     from .. import cache as cachemod
 
     step_cache = cache if cache is not None else cachemod.get_default()
-    ckey = cachemod.make_key("exa_copies", url)
+    ckey = cachemod.make_key("exa_copies", url, exclude_domain) if exclude_domain else cachemod.make_key("exa_copies", url)
     hit = step_cache.get("exa_copies", ckey)
     if hit is not None:
         return hit
-    body = {"url": url, "numResults": limit, "excludeDomains": [registrable_domain(url)],
+    body = {"url": url, "numResults": limit, "excludeDomains": [exclude_domain or registrable_domain(url)],
             "contents": {"text": {"maxCharacters": max_chars}}}
     for attempt in range(EXA_RETRIES):
         try:

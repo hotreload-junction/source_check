@@ -16,6 +16,9 @@ Quote first, verdict second: the model must copy the words of the PARAGRAPH that
 fuzzy-matches them against that paragraph (FUZZY_THRESHOLD). No match, a malformed answer or an LLM error -> the claim
 keeps its verdict. Doubtful cases are told to the model as "root", so an uncertain answer never penalises the article.
 Claims whose cited page was unreachable, paywalled, social or self-cited are never sent here: those stay neutral.
+Neither are claims for which a page was READ and quoted verbatim (`Claim.source_checks`): pages that confirm or refute the
+claim ("Sources disagree", a corroborating report without the original) are evidence, and a vague wording in the article
+must not overwrite what they show. Their neutral verdict and explanation stay.
 """
 from __future__ import annotations
 
@@ -66,9 +69,16 @@ class OriginResult:
     model: str
 
 
+def has_verified_page(cd: dict) -> bool:
+    """A page was read for this claim and its verbatim, fuzzy-checked quote confirms, distorts or contradicts it."""
+    return any(k.get("quote_original") and k.get("page_verdict") in ("supported", "distorted", "contradicted")
+               for k in cd.get("source_checks") or ())
+
+
 def eligible(cd: dict, rows_by_id: dict[str, dict]) -> bool:
-    """No evidence, no subtype (self / social stay neutral), and no cited page with a URL (unreachable stays neutral)."""
-    if cd.get("verdict") not in ELIGIBLE_VERDICTS or cd.get("evidence") or cd.get("subtype"):
+    """No evidence, no subtype (self / social stay neutral), no page that was read and quoted (found pages that agree or
+    disagree stay as they are), and no cited page with a URL (unreachable stays neutral)."""
+    if cd.get("verdict") not in ELIGIBLE_VERDICTS or cd.get("evidence") or cd.get("subtype") or has_verified_page(cd):
         return False
     return all(rows_by_id.get(sid, {}).get("url") is None for sid in cd.get("source_ids", ()))
 

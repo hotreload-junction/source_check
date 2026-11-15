@@ -28,6 +28,22 @@
           "s1"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s1",
+            "verdict": "not_mentioned",
+            "page_verdict": "not_mentioned",
+            "quote_original": "Источники сообщают о новых атаках беспилотников на прошлой неделе.",
+            "quote_translation": "Sources report new drone attacks last week.",
+            "language": "ru",
+            "fuzzy_score": 97.0,
+            "explanation": "The cited page reports the attacks but says nothing about officials calling them staged.",
+            "note": null,
+            "model": "claude-sonnet-5-5",
+            "prompt_version": "v10"
+          }
+        ],
+        "check_text": "Another 31% of respondents expect turbulence.",
         "verdict": "not_mentioned",
         "subtype": null,
         "evidence": {
@@ -39,7 +55,8 @@
         },
         "explanation": "The cited page reports the attacks but says nothing about officials calling them staged.",
         "central": true,
-        "focus": false
+        "focus": false,
+        "overview": "The cited page reports drone attacks last week, but nowhere says that officials called them staged."
       },
       {
         "id": "c2",
@@ -50,6 +67,22 @@
           "s2"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s2",
+            "verdict": "supported",
+            "page_verdict": "supported",
+            "quote_original": "The incident remains under investigation by the relevant authorities.",
+            "quote_translation": null,
+            "language": "en",
+            "fuzzy_score": 100.0,
+            "explanation": "The ministry statement says the same thing.",
+            "note": null,
+            "model": "claude-sonnet-5-5",
+            "prompt_version": "v10"
+          }
+        ],
+        "check_text": null,
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -61,7 +94,8 @@
         },
         "explanation": "The ministry statement says the same thing.",
         "central": true,
-        "focus": false
+        "focus": false,
+        "overview": "The ministry's own statement says the incident remains under investigation, as the article reports."
       },
       {
         "id": "c3",
@@ -72,6 +106,22 @@
           "s3"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s3",
+            "verdict": "distorted",
+            "page_verdict": "distorted",
+            "quote_original": "I cannot rule out that some of the published images were edited.",
+            "quote_translation": null,
+            "language": "en",
+            "fuzzy_score": 94.5,
+            "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'.",
+            "note": null,
+            "model": "claude-sonnet-5-5",
+            "prompt_version": "v10"
+          }
+        ],
+        "check_text": null,
         "verdict": "distorted",
         "subtype": null,
         "evidence": {
@@ -83,7 +133,8 @@
         },
         "explanation": "One expert said some images might be edited; the article turns this into 'analysts agree the evidence was fabricated'.",
         "central": true,
-        "focus": false
+        "focus": false,
+        "overview": "One expert said only that some images might have been edited; the article turns this into all independent analysts agreeing the evidence was fabricated."
       },
       {
         "id": "c4",
@@ -92,12 +143,15 @@
         "char_end": 486,
         "source_ids": [],
         "found_source_ids": [],
+        "source_checks": [],
+        "check_text": null,
         "verdict": "unsourced",
         "subtype": null,
         "evidence": null,
         "explanation": "No source is given for this claim.",
         "central": true,
-        "focus": false
+        "focus": false,
+        "overview": null
       }
     ],
     "sources": [
@@ -446,6 +500,12 @@
       "label": "propaganda_pattern",
       "summary": "Three of four central claims are not backed by the cited sources, and the main 'independent' source shares an analytics ID with the article's own site and is 55 days old."
     },
+    "overview": {
+      "text": "Of 4 central claims: 1 supported by a source, 1 overstated or distorted, 1 not found in the cited source, 1 without any source. Only the statement that the incident is still under investigation is backed by its source. The article turns one expert's caution into a consensus that the evidence was fabricated, and its main source shares an analytics ID with the article's own site.",
+      "source": "ai",
+      "model": "EXAMPLE-cheap-model",
+      "prompt_version": "o1"
+    },
     "focus": null,
     "audit": {
       "model_extract": "EXAMPLE-cheap-model",
@@ -454,7 +514,11 @@
       "fuzzy_threshold": 90,
       "depth": 1,
       "duration_s": 74.2,
-      "focus_prompt_version": null
+      "cost_usd": 0.412,
+      "llm_calls": 57,
+      "skipped": [],
+      "focus_prompt_version": null,
+      "overview_prompt_version": "o1"
     }
   }
 }

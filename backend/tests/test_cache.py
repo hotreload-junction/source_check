@@ -239,7 +239,8 @@ def run_once(mem, counter, refresh=False):
     out = analyze(tr.ARTICLE_URL, fetcher=tr.FakeFetcher(tr.art(), pages), llm=llm, settings=tr.SETTINGS,
                   rdap=tr.FakeRdap({"news-front.net": 55}), refresh=refresh)
     r = json.loads(json.dumps(out.result))
-    r["audit"].pop("duration_s")
+    for k in ("duration_s", "cost_usd", "llm_calls"):       # the replay really is cheaper: nothing is asked again
+        r["audit"].pop(k)
     return r
 
 

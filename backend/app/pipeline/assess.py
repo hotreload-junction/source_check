@@ -12,6 +12,7 @@ unlocated named sources, failed LLM calls, and negative verdicts the code could 
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import threading
 import time
@@ -26,6 +27,8 @@ from ..fetch import Fetcher, FetchResult
 from ..fetch.urls import classify_url, is_same_domain, registrable_domain
 from ..llm import LLMClient, LLMError
 from ..models import ClaimVerdictRecord
+from ..signals.networks import match_network
+from ..signals.reputation import snapshots
 from datetime import datetime
 
 from .depth2 import passage_links
@@ -136,6 +139,14 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                   article_text: str = "") -> list[ClaimAssessment]:
     s = settings or get_settings()
     cache = _FetchCache(fetcher, article_url)
+    # Search and verify use the self-contained check sentence (`check_text`, statement.py); what is returned and shown keeps the
+    # claim as written: `restore` puts the original back on every assessment before anyone sees it
+    originals = list(claims)
+    claims = [dataclasses.replace(c, text=c.check_text) if c.check_text else c for c in originals]
+
+    def restore(a: "ClaimAssessment", i: int) -> "ClaimAssessment":
+        a.claim = originals[i]
+        return a
     deadline = time.monotonic() + s.claim_deadline_s
     # claims are independent and almost all wait on the network: run them all at once (max 6 by contract)
     pool = ThreadPoolExecutor(max_workers=max_workers or max(len(claims), 1), thread_name_prefix="claim")
@@ -147,13 +158,13 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
     attr_keys = [{k for a in c.attributions if (k := _name_key(a))} for c in claims]
     for i, (claim, fut) in enumerate(zip(claims, futures)):
         try:
-            results.append(fut.result(timeout=max(deadline - time.monotonic(), 0.0)))
+            results.append(restore(fut.result(timeout=max(deadline - time.monotonic(), 0.0)), i))
         except FutureTimeout:
             # Bounded latency beats completeness for a live demo: neutral, never evidence against the article.
             log.warning("claim %s not finished within %.0fs, marking not_checkable", claim.id, s.claim_deadline_s)
             fut.cancel()
-            results.append(ClaimAssessment(claim, "not_checkable", None,
-                                           "Checking the sources took too long, so this claim was left unverified."))
+            results.append(restore(ClaimAssessment(claim, "not_checkable", None,
+                                                   "Checking the sources took too long, so this claim was left unverified."), i))
         if s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
             held.append(i)
         elif (s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "not_checkable"
@@ -175,6 +186,8 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
                                     published_at=published_at, article_text=article_text)
         except Exception as exc:    # never break the analysis for a bonus check
             log.warning("attributed cross-check failed: %s", exc)
+    for i in range(len(results)):                  # cross-checks build new assessments: the shown claim is always the original
+        restore(results[i], i)
     if on_claim:
         for i in sorted([*held, *attr_held]):
             on_claim(i, results[i])
@@ -211,7 +224,8 @@ def _assess_linked(claim, article_url, *, cache, llm, settings, exa_client, publ
             jobs.append(lambda l=link: _assess_self_citation(claim, l, article_url, cache, llm, settings, published_at))
         else:
             jobs.append(lambda l=link: [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
-                                                       loose_link=(l.scope == "paragraph" or _is_homepage(l.url)))])
+                                                       loose_link=(l.scope == "paragraph" or _is_homepage(l.url)),
+                                                       anchor_text=(l.anchor_text if l.scope == "sentence" else None))])
     with ThreadPoolExecutor(max_workers=max(len(jobs), 1), thread_name_prefix="cited") as pool:
         sources = [sa for group in pool.map(lambda j: j(), jobs) for sa in group]
     res = _aggregate(claim, sources)
@@ -271,12 +285,25 @@ def _is_homepage(url: str) -> bool:
 
 
 # ---------------------------------------------------------------------------------------------- searched sources
+def _agent_first(settings: Settings, legacy: bool) -> bool:
+    """Agent first, our own Exa searches only when the agent's pages settle nothing (AGENT_FIRST). Needs the agent that is in play."""
+    return bool(settings.agent_first and settings.exa_api_key and (settings.exa_agent if legacy else settings.factcheck_agent))
+
+
+def _own_candidates(plan: SearchPlan, claim: ExtractedClaim, article_url: str, *, settings: Settings, exa_client,
+                    published_at: datetime | None, step_cache) -> list[Candidate]:
+    return gather_candidates(plan, claim.text, article_url, published_at, api_key=settings.exa_api_key, exa_client=exa_client,
+                             step_cache=step_cache, limit=settings.max_evidence_candidates, include_secondary=settings.verify_secondary)
+
+
 def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm: LLMClient, settings: Settings, exa_client,
-              published_at: datetime | None, step_cache, legacy_agent: bool = True) -> tuple[SearchPlan, list[Candidate], AgentResult]:
+              published_at: datetime | None, step_cache, legacy_agent: bool = True,
+              own_searches: bool = True) -> tuple[SearchPlan, list[Candidate], AgentResult]:
     """Candidate pages for a claim the article gives no link for: plan, then OUR searches and the Exa Agent side by side,
-    merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)"""
+    merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)
+    `own_searches=False` (AGENT_FIRST): the agent only; the caller runs our searches afterwards if the agent's pages settle nothing."""
     who = claim.attributions[0] if attributed else None
-    plan = plan_search(who, claim.text, claim.context, published_at, llm=llm, model=settings.model_extract)
+    plan = plan_search(who, claim.text, claim.context, published_at, llm=llm, model=settings.light_model)
     agent = AgentResult(status="disabled")
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="discover") as pool:
         agent_future = None
@@ -287,9 +314,8 @@ def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm:
             agent_future = pool.submit(find_sources, body, api_key=settings.exa_api_key, article_url=article_url,
                                        timeout_s=settings.exa_agent_timeout_s, concurrency=settings.exa_agent_concurrency,
                                        client=exa_client, cache=step_cache)
-        ours = gather_candidates(plan, claim.text, article_url, published_at, api_key=settings.exa_api_key, exa_client=exa_client,
-                                 step_cache=step_cache, limit=settings.max_evidence_candidates,
-                                 include_secondary=settings.verify_secondary)
+        ours = _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                               step_cache=step_cache) if own_searches else []
         if agent_future is not None:
             agent = agent_future.result()
     merged = merge_agent_hits(ours, agent.hits, plan, plan.speaker or who, settings.max_evidence_candidates)
@@ -306,10 +332,17 @@ def _verify_all(claim, cands, who, article_url, cache, llm, settings, published_
 
 
 def _assess_attributed(claim, article_url, *, cache, llm, settings, exa_client, published_at, step_cache, article_text) -> ClaimAssessment:
+    staged = _agent_first(settings, legacy=True)
     plan, cands, _agent = _discover(claim, article_url, attributed=True, llm=llm, settings=settings, exa_client=exa_client,
-                                    published_at=published_at, step_cache=step_cache)
+                                    published_at=published_at, step_cache=step_cache, own_searches=not staged)
     who = plan.speaker or claim.attributions[0]
     sources = _verify_all(claim, cands, who, article_url, cache, llm, settings, published_at, plan, article_text)
+    if staged and not any(sa.verdict == "supported" for sa in sources):
+        # the agent's pages settle nothing (no original found, or none at all): now our own searches, minus what was read
+        seen = {c.hit.url for c in cands}
+        more = [c for c in _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                                           step_cache=step_cache) if c.hit.url not in seen]
+        sources += _verify_all(claim, more, who, article_url, cache, llm, settings, published_at, plan, article_text)
     if not sources:   # attributed but nothing located -> neutral, never "unsourced"
         return ClaimAssessment(claim, "not_checkable", None, f"{NOT_VERIFIED} It is attributed to {who}, but no page containing it was found.",
                                plan=plan)
@@ -324,16 +357,23 @@ def _assess_unsourced(claim, article_url, *, cache, llm, settings, exa_client, p
     says the article itself gave no source, and the page is listed in `found_source_ids`, not `source_ids`. Nothing that
     supports it: the claim stays `unsourced`. A page that does not support it is ignored (never held against the article)."""
     use_fc = settings.factcheck_agent and bool(settings.exa_api_key)
+    staged = use_fc and _agent_first(settings, legacy=False)
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="factcheck") as pool:
         # the fact-check agent needs no plan: it runs next to our own searches and replaces the support-only agent run
         fut = pool.submit(_run_factcheck, claim, article_url, settings=settings, published_at=published_at, step_cache=step_cache) if use_fc else None
         plan, cands, _agent = _discover(claim, article_url, attributed=False, llm=llm, settings=settings, exa_client=exa_client,
-                                        published_at=published_at, step_cache=step_cache, legacy_agent=not use_fc)
+                                        published_at=published_at, step_cache=step_cache, legacy_agent=not use_fc,
+                                        own_searches=not staged)
         fact = fut.result() if fut else FactResult(status="disabled")
     fact_urls = {h.url for h in fact.hits}
     cands = [c for c in cands if c.hit.url not in fact_urls]      # a page both found is verified once, in fact-check mode
     sources = _verify_all(claim, cands, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
     sources += _verify_factcheck(claim, fact, article_url, cache, llm, settings, published_at, plan, article_text)
+    if staged and not any(sa.verdict == "supported" or (sa.verdict in _REFUTING and sa.verify and sa.verify.has_evidence) for sa in sources):
+        # the agent confirmed or refuted nothing: now our own searches, minus the pages it already returned
+        more = [c for c in _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                                           step_cache=step_cache) if c.hit.url not in fact_urls]
+        sources += _verify_all(claim, more, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
     return _found_assessment(claim, sources, plan, settings)
 
 
@@ -405,10 +445,16 @@ def _attributed_after_factcheck(claim, base: ClaimAssessment, sources: list[Sour
         for sa in confirming[:keep]:
             sa.corroborated = True
         top = confirming[0]
-        verdict = "supported" if settings.corroboration_counts else "not_checkable"
+        trusted = next((sa for sa in confirming if _is_trusted_corroborator(sa.url)), None)
+        if settings.corroboration_counts or trusted is not None:
+            chosen = trusted or top
+            verdict = "supported"
+            expl = (f"The original statement attributed to {who} could not be found, and independent reporting by "
+                    f"{registrable_domain(chosen.url)} confirms the facts.")
+            return ClaimAssessment(claim, verdict, None, expl, list(base.sources) + confirming[:keep], chosen, base.plan)
         expl = (f"{NOT_VERIFIED} Independent sources confirm the facts, but the original statement attributed to {who} could not be "
                 f"found: {registrable_domain(top.url)}.")
-        return ClaimAssessment(claim, verdict, None, expl, list(base.sources) + confirming[:keep], top if verdict == "supported" else None, base.plan)
+        return ClaimAssessment(claim, "not_checkable", None, expl, list(base.sources) + confirming[:keep], None, base.plan)
     return base
 
 
@@ -520,10 +566,22 @@ def _cross_check_attributed(claims: list[ExtractedClaim], results: list[ClaimAss
         results[i] = a
 
 
+def _is_trusted_corroborator(url: str | None) -> bool:
+    """True when a corroborating URL belongs to a WP:RSP generally-reliable outlet outside documented networks."""
+    if not url or match_network(url) is not None:
+        return False
+    dom = registrable_domain(url)
+    rows = snapshots().rsp.get(dom, [])
+    return bool(rows) and any("generally_reliable" in row.get("statuses", []) and not row.get("blacklisted") for row in rows) and not any(
+        s in ("generally_unreliable", "deprecated") for row in rows for s in row.get("statuses", [])
+    )
+
+
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
                    llm: LLMClient, settings: Settings, published_at: datetime | None = None,
                    loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None,
-                   article_text: str = "", found_unsourced: bool = False, factcheck: bool = False) -> SourceAssessment:
+                   article_text: str = "", found_unsourced: bool = False, factcheck: bool = False,
+                   anchor_text: str | None = None) -> SourceAssessment:
     fetch = cache.get(url)
     kind = "named" if (attribution or found_unsourced or factcheck) else fetch.kind
     searched = bool(attribution) or found_unsourced or factcheck   # a page we FOUND, not one the article cites
@@ -537,11 +595,19 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
     try:
         # Search results can be stale (a 2025 page, an earlier forum): tell the model when the claim was reported, and
         # which occasion / venue the article itself names (a May interview is older than a November article and right)
-        v = verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings, factcheck=True) if factcheck else verify_claim(
-            claim.text, fetch.text or "", llm=llm, settings=settings,
-            article_date=published_at.date() if (published_at and searched) else None,
-            occasion=plan.occasion if (plan and searched) else None,
-            venue=plan.venue if (plan and searched) else None)
+        def judge(model: str | None = None) -> VerifyResult:
+            if factcheck:
+                return verify_claim(claim.text, fetch.text or "", llm=llm, settings=settings, factcheck=True, model=model)
+            return verify_claim(
+                claim.text, fetch.text or "", llm=llm, settings=settings,
+                article_date=published_at.date() if (published_at and searched) else None,
+                occasion=plan.occasion if (plan and searched) else None,
+                venue=plan.venue if (plan and searched) else None,
+                anchor_text=anchor_text if not searched else None, model=model)
+
+        v = _screen(judge, settings) if (searched and not factcheck and not venue_hosted and not phrase_hit and fetch.text) else None
+        if v is None:
+            v = judge()
     except LLMError as exc:
         log.warning("verify failed for %s: %s", url, exc)
         return SourceAssessment(url, kind, attribution, fetch, None, "not_checkable", "Verification could not be completed.",
@@ -571,7 +637,7 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
         elif verdict != "supported":
             verdict, note = "not_checkable", "A page was found but it does not support this claim."
     elif kind == "named" and not original_like:
-        # Another outlet, not the statement itself. It can corroborate; it decides only if the team switched that on.
+        # Another outlet, not the statement itself. It can corroborate; it counts when configured or WP:RSP generally_reliable.
         corroborated = v.verdict == "supported"
         if corroborated and article_text:
             # A wire story is republished by dozens of sites. Such a copy is the article itself, not independent
@@ -581,8 +647,13 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
                 return SourceAssessment(url, kind, attribution, fetch, v, "not_checkable",
                                         NOT_VERIFIED + " The page found is a copy or syndication of the article itself, not independent reporting.",
                                         venue_hosted=venue_hosted, phrase_hit=phrase_hit, agent_kind=agent_kind)
-        if corroborated and settings.corroboration_counts:
+        if corroborated and (settings.corroboration_counts or _is_trusted_corroborator(url)):
             verdict = "supported"
+            if not settings.corroboration_counts:
+                v = dataclasses.replace(
+                    v,
+                    explanation=f"Independent reporting by {registrable_domain(url)} confirms this attributed statement: {v.explanation}",
+                )
         else:
             verdict = "not_checkable"
             note = ("Independent reporting confirms the quote, but the original (the interview, transcript or statement "
@@ -603,6 +674,23 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
                 NOT_VERIFIED + " A page was found but it differs from the claim, so it cannot be confirmed to be what the article refers to.")
     return SourceAssessment(url, kind, attribution, fetch, v, verdict, note, corroborated,
                             venue_hosted=venue_hosted, phrase_hit=phrase_hit, agent_kind=agent_kind)
+
+
+def _screen(judge: Callable[..., VerifyResult], settings: Settings) -> VerifyResult | None:
+    """Candidate screen: one cheap-model read of a page SEARCH found, same prompt and quote check as the real verify. Returns
+    its result only when the page does not mention the claim (`not_mentioned`, not downgraded): such a page is neutral anyway
+    (`not_checkable`, "a page was found but it does not ..."), so MODEL_VERIFY is not asked. Anything else, an error or an
+    inconclusive answer returns None and the page goes on to MODEL_VERIFY, which decides every supported / distorted /
+    contradicted. The audit trail keeps the screen's model on the skipped page."""
+    model = settings.screen_model
+    if not model or model == settings.model_verify:
+        return None
+    try:
+        sv = judge(model)
+    except LLMError as exc:
+        log.info("candidate screen failed, verifying with the full model: %s", exc)
+        return None
+    return sv if sv.verdict == "not_mentioned" and not sv.downgraded else None
 
 
 def _aggregate(claim: ExtractedClaim, sources: list[SourceAssessment]) -> ClaimAssessment:

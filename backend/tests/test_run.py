@@ -23,7 +23,7 @@ ARTICLE = (
 SRC_BAD = "Sources report new drone attacks last week across the region. Officials declined to comment on any other matter."
 SRC_OK = "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, report says."
 SETTINGS = Settings(_env_file=None, model_extract="mx", model_verify="mv", exa_api_key="", prompt_version="vT",
-                    fuzzy_threshold=90, claim_deadline_s=30, max_depth=1)   # depth 1 pinned: these tests have no depth-2 pages
+                    fuzzy_threshold=90, claim_deadline_s=30, max_depth=1, extract_mode="votes")   # depth 1 pinned: these tests have no depth-2 pages
 
 
 class FakeFetcher:
@@ -118,7 +118,7 @@ def run(pages, article=None, rdap=None, events=None, extract=EXTRACT):
 
 def test_result_matches_contract_shape_and_invariants(pages):
     r = run(pages).result
-    assert set(r) == {"article", "claims", "sources", "domains", "graph", "signals", "verdict", "focus", "audit"}
+    assert set(r) == {"article", "claims", "sources", "domains", "graph", "signals", "verdict", "overview", "focus", "audit"}
     assert r["focus"] is None and all(c["central"] and not c["focus"] for c in r["claims"])
     assert r["article"]["domain"] == "pravda-mirror.com" and r["article"]["published_at"] == "2026-11-12T08:00:00Z"
     assert r["article"]["text_markdown"] == ARTICLE
@@ -242,3 +242,50 @@ def test_unresolved_attribution_is_one_stub_source_shared_by_its_claims(pages):
     assert r["sources"][0]["fetch_status"] == "not_fetched" and r["sources"][0]["attribution_text"] == "the ministry"
     assert r["claims"][0]["source_ids"] == r["claims"][1]["source_ids"] == ["s1"]
     assert r["domains"][0]["is_article_domain"] and len(r["domains"]) == 1       # a stub adds no domain node
+
+
+def test_every_cited_source_carries_its_own_check_on_the_claim(pages):
+    r = run(pages).result
+    by_id = {c["id"]: c for c in r["claims"]}
+    (ck,) = by_id["c2"]["source_checks"]
+    s = next(x for x in r["sources"] if x["id"] == ck["source_id"])
+    assert s["domain"] == "ministry.gov.uk" and ck["verdict"] == "supported" and ck["page_verdict"] == "supported"
+    assert ck["quote_original"] and ck["fuzzy_score"] >= 90 and ck["model"] and ck["prompt_version"] == "vT"
+    (bad,) = by_id["c1"]["source_checks"]                     # a source that does NOT back the claim is checked and shown too
+    assert bad["verdict"] == "not_mentioned" and bad["quote_original"] is None and bad["explanation"]
+    assert by_id["c3"]["source_checks"] == []                 # nothing cited, nothing checked
+
+
+def test_unreadable_cited_source_is_a_neutral_check_with_the_reason(pages):
+    pages["https://ministry.gov.uk/report"] = FetchResult("https://ministry.gov.uk/report", "link", "paywall", error="paywall")
+    r = run(pages).result
+    ck = next(c for c in r["claims"] if c["id"] == "c2")["source_checks"][0]
+    assert ck["verdict"] == "not_checkable" and ck["page_verdict"] is None and ck["quote_original"] is None
+    assert "paywall" in ck["explanation"].lower()
+
+
+def test_check_sentence_is_what_gets_verified_but_the_shown_claim_never_changes(pages):
+    stmt = "The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, according to its report."
+    asked = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        sysmsg, user = body["messages"][0]["content"], body["messages"][1]["content"]
+        if "CHECKABLE FACTUAL CLAIMS" in sysmsg:
+            content = json.dumps({"claims": ids_for(user, EXTRACT)})
+        elif "ON ITS OWN" in sysmsg:
+            sentence = user.split("SENTENCE: ")[1].split("\n")[0]
+            content = json.dumps({"needs_context": "programme will expand" in sentence, "statement": stmt if "programme will expand" in sentence else sentence, "checkable": True})
+        elif "check whether a SOURCE" in sysmsg:
+            asked.append(user.split("SOURCE:")[0])
+            content = json.dumps(verifier(user))
+        else:
+            content = json.dumps({"domains": [], "query": ""})
+        return httpx.Response(200, json={"model": "m", "choices": [{"finish_reason": "stop", "message": {"content": content}}]})
+    llm = LLMClient("https://r.test/v1", "k", retries=0, backoff_s=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    r = analyze(ARTICLE_URL, fetcher=FakeFetcher(art(), pages), llm=llm, settings=SETTINGS, rdap=FakeRdap({})).result
+    c2 = next(c for c in r["claims"] if "programme will expand" in c["text"])
+    assert c2["text"].startswith(EXTRACT[1]["text"]) and c2["text"] != stmt and c2["check_text"] == stmt                   # shown: as written; checked as: the sentence with context
+    assert any("according to its report" in a for a in asked)                              # the verify model read the check sentence
+    assert all(c["check_text"] is None for c in r["claims"] if c is not c2)
+    assert r["article"]["text_markdown"][c2["char_start"]:c2["char_end"]] == c2["text"]            # offsets still point at the original sentence

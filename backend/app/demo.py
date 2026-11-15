@@ -69,7 +69,8 @@ def demo_list(settings: Settings | None = None) -> list[dict]:
     for c in load_cases(settings):
         exp = c.get("expected_verdict")
         out.append({"key": c["key"], "label": c["label"], "url": c["url"], "job_id": job_id(c["key"]),
-                    "expected_verdict": exp if exp in LABELS else c["result"]["verdict"]["label"]})
+                    "expected_verdict": exp if exp in LABELS else c["result"]["verdict"]["label"],
+                    **({"question": c["question"]} if c.get("question") else {})})
     return out
 
 

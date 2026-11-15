@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import done from '../../contracts/examples/analysis_done.json';
 import wire from './mocks/wire.json';
-import { buildTree, fromLive, fromResult, pairVerdict, type View } from './tree';
+import { buildTree, fromLive, fromResult, pairCheck, pairVerdict, type View } from './tree';
 import type { Analysis, Claim, Source } from './types';
 
 const result = (done as unknown as Analysis).result!;
@@ -89,5 +89,37 @@ describe('fromLive', () => {
     expect(v.article.domain).toBe('news.example.com');
     expect(v.done).toBe(false);
     expect(buildTree(v, new Map()).by.s1.parent!.id).toBe('c1');
+  });
+});
+
+describe('per-source checks', () => {
+  const chk = (source_id: string, verdict: Claim['verdict']) => ({ source_id, verdict, page_verdict: verdict, quote_original: 'q', quote_translation: null, language: 'en', fuzzy_score: 100, explanation: 'why', note: null, model: 'm', prompt_version: 'v' });
+
+  it('gives every checked page its own verdict when the claim verdict rests on none of them', () => {
+    const c = claim('c1', [], { verdict: 'unsourced', found_source_ids: ['s1', 's2'], source_checks: [chk('s1', 'supported'), chk('s2', 'contradicted')] });
+    expect(pairVerdict(c, 's1')).toEqual({ verdict: 'supported', evidence: false });
+    expect(pairVerdict(c, 's2')).toEqual({ verdict: 'contradicted', evidence: false });
+    expect(pairCheck(c, 's2')!.explanation).toBe('why');
+    expect(pairCheck(c, 'zzz')).toBeNull();
+  });
+
+  it('keeps the claim verdict on the evidence page and on a single cited page', () => {
+    const ev = { source_id: 's1', quote_original: 'q', quote_translation: null, language: 'en', fuzzy_score: 100 };
+    const c = claim('c1', ['s1', 's2'], { verdict: 'supported', evidence: ev, source_checks: [chk('s1', 'supported'), chk('s2', 'not_mentioned')] });
+    expect(pairVerdict(c, 's1')).toEqual({ verdict: 'supported', evidence: true });
+    expect(pairVerdict(c, 's2').verdict).toBe('not_mentioned');
+    expect(pairVerdict(claim('c2', ['s9'], { verdict: 'not_checkable' }), 's9').verdict).toBe('not_checkable');
+  });
+
+  it('older results without source_checks behave as before', () => {
+    expect(pairVerdict(claim('c1', ['s1', 's2']), 's2')).toEqual({ verdict: null, evidence: false });
+  });
+
+  it('puts a depth-2 source check on the source -> source edge', () => {
+    const deep = source('s2', { depth: 2, parent_source_id: 's1', check: { verdict: 'distorted', quote_original: 'q', fuzzy_score: 95, explanation: 'e', model: 'm', prompt_version: 'v' } });
+    const t = buildTree(view([claim('c1', ['s1'])], [source('s1'), deep]), new Map());
+    const e = t.edges.find((x) => x.to.id === 's2')!;
+    expect(e.type).toBe('sub');
+    expect(e.verdict).toBe('distorted');
   });
 });

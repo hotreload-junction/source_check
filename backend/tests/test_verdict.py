@@ -55,6 +55,25 @@ def test_only_evidence_weakly_sourced():
     assert label(cl(*BAD2), [dom("b.net", 900)]) == "weakly_sourced"
 
 
+def test_weakly_sourced_summary_says_how_claims_fail():
+    s = decide(cl("contradicted", "distorted", "distorted", "not_mentioned", "unsourced"))["verdict"]["summary"]
+    assert s.startswith("All 5 central claims lack support: 3 are contradicted or distorted by the sources checked, "
+                        "2 are not backed by any source checked.")
+    assert "false" not in s.lower()
+
+
+def test_claims_sentence_quantifier():
+    assert v.claims_sentence(cl("distorted", "unsourced", "unsourced", "supported")).startswith("Most central claims (3 of 4)")
+    assert v.claims_sentence(cl(*BAD2)) == ("2 of 4 central claims lack support: 1 is contradicted or distorted by the "
+                                            "sources checked, 1 is not backed by any source checked.")
+    assert v.claims_sentence(cl(*OK)) == ""
+
+
+def test_pattern_summary_adds_claims_sentence_only_when_evidence_fired():
+    assert "2 of 4 central claims lack support" in decide(cl(*BAD2), [dom("b.net", 400)], SHARED)["verdict"]["summary"]
+    assert "lack support" not in decide(cl(*OK), [], SHARED, ["a", "s1", "a"])["verdict"]["summary"]
+
+
 def test_only_infra_well_sourced():
     assert label(cl(*OK), [dom("b.net", 10)]) == "well_sourced"
     assert label(cl(*OK), [], SHARED) == "well_sourced"

@@ -1,0 +1,86 @@
+name: sync-verda-key
+
+on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/sync-verda-key.yml]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: VPS environment to update
+        type: choice
+        options: [preview, live]
+        required: true
+        default: preview
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Run one-time Verda key sync on VPS' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        target: ${{ github.event_name == 'push' && fromJSON('["preview","live"]') || fromJSON(format('["{0}"]', inputs.target)) }}
+    concurrency:
+      group: sync-verda-key-${{ matrix.target }}
+      cancel-in-progress: false
+    environment: ${{ matrix.target }}
+    env:
+      TARGET: ${{ matrix.target }}
+      HOST: ${{ vars.DEPLOY_HOST }}
+      USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
+      ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
+    steps:
+      - name: Validate configuration
+        env:
+          VERDA_API_KEY: ${{ secrets.VERDA_API_KEY }}
+        run: |
+          test -n "$HOST"
+          test -n "$VERDA_API_KEY"
+
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+
+      - name: Update VPS environment and restart current release
+        env:
+          VERDA_API_KEY: ${{ secrets.VERDA_API_KEY }}
+        run: |
+          printf '%s\n' "$VERDA_API_KEY" | ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -euo pipefail
+              IFS= read -r key
+              test -n \"\$key\"
+              env_file='$ROOT/$TARGET/.env'
+              exec 9>'$ROOT/$TARGET/.deploy.lock'
+              flock -w 600 9
+              test -f \"\$env_file\"
+              umask 077
+              tmp=\$(mktemp \"\$env_file.XXXXXX\")
+              trap 'rm -f \"\$tmp\"' EXIT
+              awk '!/^VERDA_API_KEY=/' \"\$env_file\" > \"\$tmp\"
+              printf 'VERDA_API_KEY=%s\\n' \"\$key\" >> \"\$tmp\"
+              chmod 600 \"\$tmp\"
+              mv \"\$tmp\" \"\$env_file\"
+              export ENV_NAME='$TARGET'
+              current=\$(readlink -f '$ROOT/$TARGET/current')
+              test -d \"\$current\"
+              cd \"\$current\"
+              docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" up -d --force-recreate backend
+              for i in \$(seq 1 30); do
+                health=\$(docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T web wget -qO- http://localhost/api/health 2>/dev/null || true)
+                if printf '%s' \"\$health\" | grep -F '\"ok\":true' >/dev/null; then
+                  printf '%s\\n' \"\$health\"
+                  exit 0
+                fi
+                sleep 4
+              done
+              echo 'health check failed after 120 seconds' >&2
+              exit 1"

@@ -30,3 +30,34 @@ def test_a_failed_search_is_neutral(monkeypatch):
         raise RuntimeError("exa down")
     monkeypatch.setattr(copies_mod, "find_copies", boom)
     assert find_article_copies("https://news.example/a", _COPY_ARTICLE, api_key="k", fetcher=_HtmlFetcher()) == []
+
+
+def test_canonical_reverse_proxy_mirror_is_dropped(monkeypatch):
+    class _CanonFetcher:
+        def fetch_html(self, url):
+            if "proxy" in url:
+                return '<html><head><link rel="canonical" href="https://news.example/a"></head></html>'
+            return f"<html>{url}</html>"
+
+    monkeypatch.setattr(copies_mod, "find_copies", lambda *a, **k: [
+        {"url": "https://cdn-proxy.example/a", "text": _COPY_ARTICLE},
+        {"url": "https://mirror-two.example/a", "text": _COPY_ARTICLE},
+    ])
+    got = find_article_copies("https://news.example/a", _COPY_ARTICLE, api_key="k", fetcher=_CanonFetcher())
+    assert [(c.domain, c.url) for c in got] == [("mirror-two.example", "https://mirror-two.example/a")]
+
+
+def test_sibling_subdomain_copy_is_kept_when_article_on_subdomain(monkeypatch):
+    got = []
+
+    def fake_find_copies(*a, **k):
+        got.append(k.get("exclude_domain"))
+        return [
+            {"url": "https://canada.net.example/a", "text": _COPY_ARTICLE},  # same host -> skipped
+            {"url": "https://usa.net.example/a", "text": _COPY_ARTICLE},     # sibling subdomain -> kept
+        ]
+
+    monkeypatch.setattr(copies_mod, "find_copies", fake_find_copies)
+    res = find_article_copies("https://canada.net.example/a", _COPY_ARTICLE, api_key="k", fetcher=_HtmlFetcher())
+    assert got == ["canada.net.example"]
+    assert [(c.domain, c.url) for c in res] == [("usa.net.example", "https://usa.net.example/a")]

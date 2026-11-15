@@ -19,7 +19,7 @@ from ..pipeline.textutil import build_plain
 # "Source:" in the languages the Pravda network publishes in most (the label precedes the channel name)
 _SOURCE_LABEL = re.compile(
     r"^\s*(?:source|sources|источник|джерело|quelle|fuente|fonte|źródło|zdroj|kilde|källa|bron|lähde|forrás|izvor|"
-    r"πηγή|kaynak|sursa|šaltinis|avots|allikas)\s*:\s*(?P<rest>.*)$", re.I)
+    r"πηγή|kaynak|sursa|šaltinis|avots|allikas|originally published (?:on|by)|first published (?:on|by)|via)\s*:\s*(?P<rest>.*)$", re.I)
 _TELEGRAM_WORD = re.compile(r"\b(?:telegram|телеграм|телеграмм|tg)\b", re.I)
 _TELEGRAM_LINK = re.compile(r"https?://(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/", re.I)
 _MD_ESCAPE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|])")    # markdown backslash escapes: ukraine\_watch -> ukraine_watch
@@ -64,7 +64,7 @@ def channel_sourced_claims(claims: list[dict], sources: list[dict]) -> tuple[lis
     channel, linked = [], 0
     for c in claims:
         cited = [by_id[i] for i in c.get("source_ids", []) if i in by_id]
-        links = [s for s in cited if s.get("url") and s.get("depth", 1) == 1 and s.get("kind") != "named"]
+        links = [s for s in cited if s.get("url") and s.get("depth", 1) == 1 and s.get("kind") not in ("named", "self")]
         if not links:
             continue
         linked += 1
