@@ -99,13 +99,17 @@ export function criteria(v: View, t: Tree): Row[] {
   // 1. how good the sources are
   const rated = origins.map((s) => ({ s, r: rate(s, dom.get(s.domain!)) })).filter((x): x is { s: Source; r: number } => x.r != null);
   const n = rated.length || 1;
-  const strong = origins.filter((s) => typeOf(s) === 'official' || typeOf(s) === 'academic');
+  // A source only counts FOR the article when it backs a claim: one that contradicts, distorts or does not contain what the article
+  // says is no argument for objectivity, however official it is (same rule as the variety row). The con side keeps looking at all.
+  const backDom = new Set(backing.map((s) => s.domain!));
+  const backOrigins = origins.filter((s) => backDom.has(s.domain!));
+  const strong = backOrigins.filter((s) => typeOf(s) === 'official' || typeOf(s) === 'academic');
   const weak = origins.filter((s) => ['press_release', 'blog', 'social'].includes(typeOf(s)));
   const net = origins.filter((s) => dom.get(s.domain!)?.known_network);
   const sPro: string[] = [];
   const sCon: string[] = [];
-  if (strong.length) sPro.push(`${strong.length} of ${origins.length} origin sources are official or academic (${doms(strong)}).`);
-  const rel = origins.filter((s) => rspOf(s) === 'reliable');
+  if (strong.length) sPro.push(`${strong.length} of ${plural(backOrigins.length, 'origin source')} that back a claim ${strong.length === 1 ? 'is' : 'are'} official or academic (${doms(strong)}).`);
+  const rel = backOrigins.filter((s) => rspOf(s) === 'reliable');
   if (rel.length) sPro.push(`Wikipedia's Perennial Sources list rates ${doms(rel)} as generally reliable.`);
   for (const [k, txt] of [['deprecated', 'deprecated'], ['unreliable', 'generally unreliable'], ['mixed', 'topic-dependent or without consensus']] as const) {
     const l = origins.filter((s) => rspOf(s) === k);
@@ -116,7 +120,7 @@ export function criteria(v: View, t: Tree): Row[] {
   const sources: Row = {
     key: 'sources', label: 'Quality of the sources',
     basis: origins.length ? `${rated.length} of ${plural(origins.length, 'origin source')} rated by source type and reputation lists${rated.length < origins.length ? `; ${origins.length - rated.length} unclassified, left out` : ''}` : 'No origin source found',
-    pro: cell(sPro, rated.filter((x) => x.r >= 0.7).reduce((a, x) => a + (x.r - 0.5) * 2, 0) / n),
+    pro: cell(sPro, rated.filter((x) => x.r >= 0.7 && backDom.has(x.s.domain!)).reduce((a, x) => a + (x.r - 0.5) * 2, 0) / n),
     con: cell(sCon, rated.filter((x) => x.r < 0.5).reduce((a, x) => a + (0.5 - x.r) * 2, 0) / n),
   };
 

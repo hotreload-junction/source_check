@@ -57,6 +57,14 @@ describe('criteria', () => {
     expect(bad.con.items[0]).toContain('a.example as deprecated');
   });
 
+  it('source quality: an official source that contradicts, distorts or lacks the claim is no argument for objectivity', () => {
+    const { row } = setup([source('a', { source_type: 'official' }), source('b', { source_type: 'academic' }), source('c', { source_type: 'official' })],
+      { verdicts: ['contradicted', 'distorted', 'supported'] });
+    expect(row('sources').pro.items.join(' ')).toMatch(/1 of 1 origin source that back a claim is official or academic \(c\.example\)/);
+    const none = setup([source('a', { source_type: 'official' })], { verdicts: ['not_mentioned'] });
+    expect(none.row('sources').pro.items).toEqual([]);
+  });
+
   it('source quality: unclassified sources are left out, not guessed', () => {
     const r = setup([source('a'), source('b')]).row('sources');
     expect(r.pro.strength + r.con.strength).toBe(0);
