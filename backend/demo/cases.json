@@ -30,5 +30,12 @@
     "url": "https://news-pravda.com/world/2025/03/12/1135985.html",
     "expected_verdict": "propaganda_pattern",
     "question": "Selenskyj bought a French bank"
+  },
+  {
+    "key": "starshield",
+    "label": "The Guardian: SpaceX and Starshield",
+    "url": "https://www.theguardian.com/world/2026/nov/14/spacex-not-honest-slowing-starshield-elon-musk-volodymyr-zelenskyy",
+    "expected_verdict": "well_sourced",
+    "question": "SpaceX lied about restricting Ukraine’s use of Starshield"
   }
 ]
