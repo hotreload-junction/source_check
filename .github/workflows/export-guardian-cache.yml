@@ -1,0 +1,72 @@
+name: export-guardian-cache
+
+on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/export-guardian-cache.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Export cached Guardian demo result' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    environment: preview
+    env:
+      HOST: ${{ vars.DEPLOY_HOST }}
+      USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
+      ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
+    steps:
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+
+      - name: Export the cached result without printing article content
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -e
+              export ENV_NAME=preview
+              env_file='$ROOT/preview/.env'
+              cd '$ROOT/preview/current'
+              docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T backend python -" > "$RUNNER_TEMP/guardian-result.json" <<'PY'
+          import json
+          import sys
+          from sqlalchemy import select
+          from app.db import session_scope
+          from app.models import Analysis
+
+          article_slug = "spacex-not-honest-slowing-starshield"
+          with session_scope() as session:
+              rows = session.scalars(
+                  select(Analysis)
+                  .where(Analysis.url.like(f"%{article_slug}%"), Analysis.status == "done", Analysis.result.is_not(None))
+                  .order_by(Analysis.created_at.desc())
+              ).all()
+              if not rows:
+                  statuses = session.scalars(
+                      select(Analysis.status).where(Analysis.url.like(f"%{article_slug}%"))
+                  ).all()
+                  print(f"No completed cached analysis for the Guardian URL; matching statuses: {statuses}", file=sys.stderr)
+                  raise SystemExit(4)
+              print(json.dumps(rows[0].result, ensure_ascii=False))
+          PY
+          python3 -m json.tool "$RUNNER_TEMP/guardian-result.json" >/dev/null
+
+      - name: Upload the result for the demo build
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-demo-cache
+          path: ${{ runner.temp }}/guardian-result.json
+          retention-days: 1
