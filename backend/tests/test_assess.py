@@ -675,3 +675,41 @@ def test_check_text_is_verified_and_the_returned_claim_is_the_original():
     (a,), _ = run([c], {"https://src.test/x": page("https://src.test/x")}, llm=llm)
     assert "In the 2025 survey" in seen[0] and "Claim number 1 text." not in seen[0]       # the model read the check sentence
     assert a.claim is c and a.claim.text == "Claim number 1 text." and a.verdict == "supported"
+
+
+def test_screen_bypassed_for_venue_phrase_or_factcheck(monkeypatch):
+    from app.pipeline import assess
+    from app.pipeline.evidence import Candidate
+    from app.pipeline.exa import NamedSourceHit
+    from app.pipeline.factcheck import FactHit, FactResult
+
+    # venue_hosted or phrase_hit skips _screen and goes straight to MODEL_VERIFY
+    calls = []
+    monkeypatch.setattr(assess, "gather_candidates", lambda *a, **k: [
+        Candidate(NamedSourceHit(ORIG, "T", None, "the Finnish Ministry"), venue_hosted=True),
+    ])
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), exa=exa_client(), settings=SCREEN)
+    assert calls == ["vm"] and a.verdict == "supported"
+
+    # factcheck_agent also skips _screen on returned pages
+    calls.clear()
+    st_fc = Settings(**{**SEARCH.model_dump(), "model_screen": "cheap", "factcheck_agent": True, "agent_first": True})
+    monkeypatch.setattr(assess, "_run_factcheck", lambda *a, **k: FactResult([FactHit(FOUND)], True, status="completed"))
+    (b,), _ = run([claim(1)], {FOUND: page(FOUND)},
+                  llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), exa=exa_client(None), settings=st_fc)
+    assert calls == ["vm"] and b.verdict == "supported"
+
+
+def test_rsp_generally_reliable_corroborates_attributed_claim():
+    reuters = "https://www.reuters.com/world/story"
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {reuters: page(reuters)},
+                  llm=make_llm("supported", QUOTE, source_type="secondary"),
+                  exa=exa_client(reuters), settings=SETTINGS_ALL)
+    assert a.verdict == "supported" and a.best.url == reuters and "reuters.com" in a.explanation
+
+    unknown = "https://random-blog.test/story"
+    (b,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {unknown: page(unknown)},
+                  llm=make_llm("supported", QUOTE, source_type="secondary"),
+                  exa=exa_client(unknown), settings=SETTINGS_ALL)
+    assert b.verdict == "not_checkable" and b.best.corroborated

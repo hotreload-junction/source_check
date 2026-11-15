@@ -61,8 +61,9 @@ def src(i, kind, url="https://x.test/p", depth=1):
 
 def test_channel_sourced_claims_counts_only_the_articles_links():
     sources = [src("s1", "telegram"), src("s2", "telegram"), src("s3", "link"), src("s4", "named", url=None),
-               src("s5", "named", depth=2), src("s6", "social")]
-    claims = [{"id": "c1", "source_ids": ["s1"]}, {"id": "c2", "source_ids": ["s2", "s6"]},
+               src("s5", "named", depth=2), src("s6", "social"), src("s7", "self")]
+    claims = [{"id": "c1", "source_ids": ["s1", "s7"]},       # self-link doesn't mask Telegram channel
+              {"id": "c2", "source_ids": ["s2", "s6"]},
               {"id": "c3", "source_ids": ["s1", "s3"]},            # also a normal link -> not channel-only
               {"id": "c4", "source_ids": ["s4", "s5"]},            # named person + found page: not the article's link
               {"id": "c5", "source_ids": []}]

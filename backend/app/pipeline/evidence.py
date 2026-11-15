@@ -42,7 +42,7 @@ You get the CLAIM, its PARAGRAPH (the occasion is often named there, e.g. "In a 
 - "venue": the outlet, programme, institution or event the article names for it (e.g. "Fox Business", "UN Security Council"); null if none is named.
 - "date_from"/"date_to": the period the statement was made, as absolute dates computed from the ARTICLE DATE ("a May interview" in an article of November 2026 -> 2026-05-01 to 2026-05-31; "on Tuesday", "last week" likewise); null if the article does not say when.
 - "domains": up to 3 website domains where the original would be published: the venue's own site, the speaker's official site, or (no source named) the official statistics / agency / ministry site for the topic. Only domains you are confident exist.
-- "queries": up to 3 plain keyword searches (4 to 9 words, no quotation marks) that would find the original: speaker + venue + month/year + topic. Different angles, not rewordings.
+- "queries": up to 3 plain keyword searches (4 to 9 words, no quotation marks) that would find the original: speaker + venue + month/year + topic. Different angles, not rewordings. When the speaker, institution or venue operates in a non-English language (e.g. German, French, Spanish, Russian, Ukrainian, Polish, Finnish), include at least one query in that native language alongside English.
 - "phrases": up to 2 VERBATIM fragments of 2 to 5 words copied from words the article QUOTES as the speaker's own; [] if nothing is quoted."""
 
 

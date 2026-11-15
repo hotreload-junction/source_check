@@ -258,7 +258,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
             copies = copies_future.result(timeout=30)
         except Exception:      # slow or failed: no mirrors is the neutral answer
             copies = []
-        pages += [SourcePage(domain=c.domain, html=c.html) for c in copies]
+        pages += [SourcePage(domain=c.domain, html=c.html, is_copy=True) for c in copies]
         if copies:
             progress("infra_signals", f"Found the same text on {len(copies)} other domains", 86)
     copies_pool.shutdown(wait=False)

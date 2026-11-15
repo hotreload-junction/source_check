@@ -27,6 +27,8 @@ from ..fetch import Fetcher, FetchResult
 from ..fetch.urls import classify_url, is_same_domain, registrable_domain
 from ..llm import LLMClient, LLMError
 from ..models import ClaimVerdictRecord
+from ..signals.networks import match_network
+from ..signals.reputation import snapshots
 from datetime import datetime
 
 from .depth2 import passage_links
@@ -222,7 +224,8 @@ def _assess_linked(claim, article_url, *, cache, llm, settings, exa_client, publ
             jobs.append(lambda l=link: _assess_self_citation(claim, l, article_url, cache, llm, settings, published_at))
         else:
             jobs.append(lambda l=link: [_assess_source(claim, l.url, None, article_url, cache, llm, settings,
-                                                       loose_link=(l.scope == "paragraph" or _is_homepage(l.url)))])
+                                                       loose_link=(l.scope == "paragraph" or _is_homepage(l.url)),
+                                                       anchor_text=(l.anchor_text if l.scope == "sentence" else None))])
     with ThreadPoolExecutor(max_workers=max(len(jobs), 1), thread_name_prefix="cited") as pool:
         sources = [sa for group in pool.map(lambda j: j(), jobs) for sa in group]
     res = _aggregate(claim, sources)
@@ -442,10 +445,16 @@ def _attributed_after_factcheck(claim, base: ClaimAssessment, sources: list[Sour
         for sa in confirming[:keep]:
             sa.corroborated = True
         top = confirming[0]
-        verdict = "supported" if settings.corroboration_counts else "not_checkable"
+        trusted = next((sa for sa in confirming if _is_trusted_corroborator(sa.url)), None)
+        if settings.corroboration_counts or trusted is not None:
+            chosen = trusted or top
+            verdict = "supported"
+            expl = (f"The original statement attributed to {who} could not be found, and independent reporting by "
+                    f"{registrable_domain(chosen.url)} confirms the facts.")
+            return ClaimAssessment(claim, verdict, None, expl, list(base.sources) + confirming[:keep], chosen, base.plan)
         expl = (f"{NOT_VERIFIED} Independent sources confirm the facts, but the original statement attributed to {who} could not be "
                 f"found: {registrable_domain(top.url)}.")
-        return ClaimAssessment(claim, verdict, None, expl, list(base.sources) + confirming[:keep], top if verdict == "supported" else None, base.plan)
+        return ClaimAssessment(claim, "not_checkable", None, expl, list(base.sources) + confirming[:keep], None, base.plan)
     return base
 
 
@@ -557,10 +566,22 @@ def _cross_check_attributed(claims: list[ExtractedClaim], results: list[ClaimAss
         results[i] = a
 
 
+def _is_trusted_corroborator(url: str | None) -> bool:
+    """True when a corroborating URL belongs to a WP:RSP generally-reliable outlet outside documented networks."""
+    if not url or match_network(url) is not None:
+        return False
+    dom = registrable_domain(url)
+    rows = snapshots().rsp.get(dom, [])
+    return bool(rows) and any("generally_reliable" in row.get("statuses", []) and not row.get("blacklisted") for row in rows) and not any(
+        s in ("generally_unreliable", "deprecated") for row in rows for s in row.get("statuses", [])
+    )
+
+
 def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, article_url: str, cache: _FetchCache,
                    llm: LLMClient, settings: Settings, published_at: datetime | None = None,
                    loose_link: bool = False, plan: SearchPlan | None = None, cand: Candidate | None = None,
-                   article_text: str = "", found_unsourced: bool = False, factcheck: bool = False) -> SourceAssessment:
+                   article_text: str = "", found_unsourced: bool = False, factcheck: bool = False,
+                   anchor_text: str | None = None) -> SourceAssessment:
     fetch = cache.get(url)
     kind = "named" if (attribution or found_unsourced or factcheck) else fetch.kind
     searched = bool(attribution) or found_unsourced or factcheck   # a page we FOUND, not one the article cites
@@ -581,9 +602,10 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
                 claim.text, fetch.text or "", llm=llm, settings=settings,
                 article_date=published_at.date() if (published_at and searched) else None,
                 occasion=plan.occasion if (plan and searched) else None,
-                venue=plan.venue if (plan and searched) else None, model=model)
+                venue=plan.venue if (plan and searched) else None,
+                anchor_text=anchor_text if not searched else None, model=model)
 
-        v = _screen(judge, settings) if searched and fetch.text else None
+        v = _screen(judge, settings) if (searched and not factcheck and not venue_hosted and not phrase_hit and fetch.text) else None
         if v is None:
             v = judge()
     except LLMError as exc:
@@ -615,7 +637,7 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
         elif verdict != "supported":
             verdict, note = "not_checkable", "A page was found but it does not support this claim."
     elif kind == "named" and not original_like:
-        # Another outlet, not the statement itself. It can corroborate; it decides only if the team switched that on.
+        # Another outlet, not the statement itself. It can corroborate; it counts when configured or WP:RSP generally_reliable.
         corroborated = v.verdict == "supported"
         if corroborated and article_text:
             # A wire story is republished by dozens of sites. Such a copy is the article itself, not independent
@@ -625,8 +647,13 @@ def _assess_source(claim: ExtractedClaim, url: str, attribution: str | None, art
                 return SourceAssessment(url, kind, attribution, fetch, v, "not_checkable",
                                         NOT_VERIFIED + " The page found is a copy or syndication of the article itself, not independent reporting.",
                                         venue_hosted=venue_hosted, phrase_hit=phrase_hit, agent_kind=agent_kind)
-        if corroborated and settings.corroboration_counts:
+        if corroborated and (settings.corroboration_counts or _is_trusted_corroborator(url)):
             verdict = "supported"
+            if not settings.corroboration_counts:
+                v = dataclasses.replace(
+                    v,
+                    explanation=f"Independent reporting by {registrable_domain(url)} confirms this attributed statement: {v.explanation}",
+                )
         else:
             verdict = "not_checkable"
             note = ("Independent reporting confirms the quote, but the original (the interview, transcript or statement "

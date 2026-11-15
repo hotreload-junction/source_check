@@ -29,15 +29,16 @@ SYSTEM_PROMPT = """You check whether a SOURCE text supports a CLAIM taken from a
 First find the passage in the SOURCE that is most relevant to the claim and copy it VERBATIM (character for character, in the source's own language, at most 3 sentences). Only then give the verdict.
 
 Verdicts:
-- "supported": the passage you quote itself makes the CORE assertion of the claim (same event, figure, speaker and meaning). A passage on the same topic that does not say this is NOT support. Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them. However, if the claim asserts a cause, reason, scandal, or second substantive allegation (e.g., "resigned following revelations of X", "did Y because of Z", or named individuals/entities central to the allegation), a source that only confirms the bare event without mentioning that cause or substantive allegation does NOT support the claim: answer "not_mentioned" (or "distorted" if the source gives a different reason).
-- "distorted": the source covers the same matter, but something it states CONFLICTS with the claim or changes its meaning: a different number, date or name, the wrong speaker, a stronger or weaker wording ("may" turned into "will"), a dropped qualifier that changes the sense, an opinion presented as fact. A detail that is merely missing from the source is NOT distortion.
+- "supported": the passage you quote itself makes the CORE assertion of the claim (same event, figure, speaker and meaning). A passage on the same topic that does not say this is NOT support. Peripheral details the claim adds that the source simply does not mention (the weekday, a background figure such as a population, a place name) do NOT matter, as long as nothing in the source conflicts with them. However, if the claim asserts a cause, reason, scandal, or second substantive allegation (e.g., "resigned following revelations of X", "did Y because of Z", or named individuals/entities central to the allegation), or attributes a specific measured outcome/metric, specific population/setting/scope, comparison group, or named dataset/survey/poll that the source never mentions, a source that only confirms the bare event without mentioning that cause, outcome, scope, or allegation does NOT support the claim: answer "not_mentioned" (or "distorted" if the source gives a different reason or figure).
+- "distorted": the source covers the same matter, but something it states CONFLICTS with the claim or changes its meaning: a different number, date or name, the wrong speaker, a stronger or weaker wording ("may" turned into "will"), a dropped qualifier that changes the sense, an opinion presented as fact. A detail that is merely missing from the source is NOT distortion. Standard rounding of the same underlying figure or fraction (e.g., 56% or 57% for 13 out of 23, or "about/nearly 60%" for 58.7%) is "supported", NOT "distorted".
 - "contradicted": the source says the opposite of the claim.
 - "not_mentioned": the core assertion is not in the source (also when the source only touches a loosely related topic). Use an empty quote.
 
 Rules:
 - If an ARTICLE DATE is given, the claim was reported then. When the SOURCE is about a clearly different occasion or time (another year, an earlier meeting, an older statement, a different office-holder), it does not support the claim: answer "not_mentioned".
 - If an OCCASION is given, it is what the article itself names for the claim (e.g. an interview with a named outlet in a named month). A source from THAT occasion is the right one even when it is older than the article; a source from another occasion is not.
-- When the claim says that someone SAID, WARNED, ANNOUNCED or CLAIMED something, the passage you quote must show THAT person saying it (their own words, or a report of what they said). A question put to them, or the interviewer's own framing, is not the statement: if only that is there, answer "not_mentioned".
+- When the claim says that someone SAID, WARNED, ANNOUNCED or CLAIMED something, the passage you quote must show THAT person saying it (their own words, or a report of what they said). A question put to them, or the interviewer's own framing, is not the statement: if only that is there, answer "not_mentioned". Exception: when the SOURCE is the underlying scientific paper, official report, study or institutional document itself and the claim attributes a finding to its authors or issuing institution, a passage stating that finding directly in the document counts as support even if the document does not quote its own author in the third person.
+- If a LINK ANCHOR is given, the article placed the citation link on that phrase inside the claim sentence. When a multi-clause sentence has a LINK ANCHOR, the SOURCE only needs to support the assertion anchored by that phrase (provided nothing in the source conflicts with the rest of the sentence).
 - Never invent or "clean up" the quote. If you cannot copy a passage that exists in the SOURCE, use "not_mentioned" with an empty quote.
 - A claim that is merely plausible or consistent with the source is NOT supported; the passage must say it.
 - "quote_translation": English translation of the quote, or null if the quote is already English.
@@ -111,9 +112,49 @@ def fuzzy_score(quote: str, source_text: str) -> float:
     return score
 
 
+_STEM_RE = re.compile(r"[a-zA-Z\u00C0-\u024F\u0400-\u04FF]{4,}")
+
+
+def _select_source_window(shown: str, claim_text: str, max_chars: int = MAX_SOURCE_CHARS) -> str:
+    """When a source exceeds MAX_SOURCE_CHARS, keep the leading context plus claim-relevant tail sections."""
+    if len(shown) <= max_chars:
+        return shown
+    stems = {w[:5] for w in _STEM_RE.findall(claim_text.lower())}
+    if not stems:
+        return shown[:max_chars]
+    head_len = min(25_000, max_chars // 2)
+    head = shown[:head_len]
+    tail = shown[head_len:]
+    raw_chunks = [c.strip() for c in re.split(r"\n\s*\n", tail) if c.strip()]
+    if len(raw_chunks) <= 1:
+        raw_chunks = [tail[i:i + 2000].strip() for i in range(0, len(tail), 2000) if tail[i:i + 2000].strip()]
+    scored = []
+    for idx, chunk in enumerate(raw_chunks):
+        low = chunk.lower()
+        hits = sum(1 for s in stems if s in low)
+        if hits > 0:
+            scored.append((hits, idx, chunk))
+    if not scored:
+        return shown[:max_chars]
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    budget = max_chars - len(head) - 10
+    chosen: list[tuple[int, str]] = []
+    used = 0
+    for _, idx, chunk in scored:
+        sep = 2 if chosen else 0
+        if used + sep + len(chunk) <= budget:
+            chosen.append((idx, chunk))
+            used += sep + len(chunk)
+    if not chosen:
+        return shown[:max_chars]
+    chosen.sort(key=lambda x: x[0])
+    return (head.rstrip() + "\n\n" + "\n\n".join(c for _, c in chosen))[:max_chars]
+
+
 def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = None,
                  settings: Settings | None = None, article_date: date | None = None, occasion: str | None = None,
-                 venue: str | None = None, factcheck: bool = False, model: str | None = None) -> VerifyResult:
+                 venue: str | None = None, anchor_text: str | None = None, factcheck: bool = False,
+                 model: str | None = None) -> VerifyResult:
     s = settings or get_settings()
     if looks_like_wall(source_text):
         # A sign-in / consent / bot-check page (e.g. Google Trends asks to log in): the fetch got a wall, not the source.
@@ -125,13 +166,18 @@ def verify_claim(claim_text: str, source_text: str, *, llm: LLMClient | None = N
     plain_claim = build_plain(claim_text).text
     shown = build_plain(source_text).text
     truncated = len(shown) > MAX_SOURCE_CHARS
+    window = _select_source_window(shown, plain_claim)
+    anchor = _norm(anchor_text) if anchor_text else ""
+    if len(anchor) < 4:
+        anchor = ""
     res = llm.chat_json(
         model or s.model_verify, SYSTEM_PROMPT + FACTCHECK_ADDENDUM if factcheck else SYSTEM_PROMPT,
         (f"ARTICLE DATE: {article_date.isoformat()}\n" if article_date else "")
         + (f"OCCASION: {occasion}\n" if occasion else "")
         + (f"NAMED VENUE: {venue}\n" if venue else "")
-        + ("\n" if (article_date or occasion or venue) else "")
-        + f"CLAIM:\n{plain_claim}\n\nSOURCE:\n{shown[:MAX_SOURCE_CHARS]}",
+        + (f"LINK ANCHOR: {anchor}\n" if anchor else "")
+        + ("\n" if (article_date or occasion or venue or anchor) else "")
+        + f"CLAIM:\n{plain_claim}\n\nSOURCE:\n{window}",
     )
     d = res.data
     verdict = d.get("verdict") if d.get("verdict") in LLM_VERDICTS else None

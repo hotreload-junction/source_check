@@ -169,3 +169,29 @@ def test_ordinary_pages_that_mention_login_are_not_walls():
     assert not looks_like_wall(article)
     assert not looks_like_wall("Sign in to read more is how many paywalled pages end, but this page has a whole report. " * 40)   # > 2000 chars
     assert looks_like_wall("Log in") and looks_like_wall("Please sign in to view this document.") and not looks_like_wall("")
+
+
+def test_anchor_text_passed_only_when_meaningful():
+    seen = []
+    verify_claim("A long sentence about multiple things.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen),
+                 settings=SETTINGS, anchor_text="expanded coverage")
+    assert "LINK ANCHOR: expanded coverage" in seen[0]["messages"][1]["content"]
+    assert "LINK ANCHOR" in seen[0]["messages"][0]["content"]
+    seen.clear()
+    verify_claim("Short anchor ignored.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen),
+                 settings=SETTINGS, anchor_text="ok")
+    assert "LINK ANCHOR" not in seen[0]["messages"][1]["content"]
+
+
+def test_long_source_window_selects_relevant_tail_paragraph():
+    filler = ("Unrelated procedural paragraph covering municipal zoning archives. " * 20).strip()
+    head = "\n\n".join([filler] * 25)
+    target = "The programme will expand coverage to 40 districts by 2027, officials confirmed."
+    long_src = f"{head}\n\n{target}\n\n" + "\n\n".join([filler] * 35)
+    assert len(long_src) > MAX_SOURCE_CHARS
+    seen = []
+    r = verify_claim("The programme expands coverage to 40 districts by 2027.", long_src,
+                     llm=llm_returning(out("supported", target), seen), settings=SETTINGS)
+    assert r.verdict == "supported" and r.has_evidence
+    assert target in seen[0]["messages"][1]["content"]
+    assert len(seen[0]["messages"][1]["content"]) < MAX_SOURCE_CHARS + 1000

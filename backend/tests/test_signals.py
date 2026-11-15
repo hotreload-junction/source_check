@@ -109,3 +109,40 @@ def test_extract_ids_yandex_metrika():
             "</noscript><script>new Ya.Metrika({id:52150180});</script>")
     assert extract_ids(html).analytics_ids == ["ym-52150180", "ym-97376635"]
     assert extract_ids("<p>ym(123, x) and item.ym(97376635, 1)</p>").analytics_ids == []
+
+
+def test_copy_domains_skip_rdap_and_copy_to_copy_shared_ids():
+    art = '<script>gtag("config","G-ART00001")</script>'
+    c1 = '<script>gtag("config","G-ART00001")</script><script>gtag("config","G-SCRAP002")</script>'
+    c2 = '<script>gtag("config","G-SCRAP002")</script>'
+    c3 = '<script>gtag("config","G-OTHER003")</script>'
+    looked_up = []
+
+    def rdap(dom):
+        looked_up.append(dom)
+        return RdapResult(dom, "2026-10-01T00:00:00Z", 10)
+
+    res = analyze_infrastructure(
+        "guardian.example", art,
+        [SourcePage("mirror.example", c1, is_copy=True),
+         SourcePage("scraper2.example", c2, is_copy=True),
+         SourcePage("young-scraper.example", c3, is_copy=True),
+         SourcePage("mirror.edgeone.app", art, is_copy=True)],
+        rdap=rdap,
+    )
+    by = {d["domain"]: d for d in res.domains}
+    assert looked_up == ["guardian.example"]                     # no RDAP for copy-only or CDN domains
+    assert by["young-scraper.example"]["age_days"] is None
+    assert [s.id for s in res.shared_ids] == ["G-ART00001"]      # copy-to-copy G-SCRAP002 dropped; CDN ignored
+    assert by["edgeone.app"]["analytics_ids"] == []
+
+
+def test_sibling_subdomain_copy_keeps_host_and_shares_id_with_article():
+    html = "<script>ym(97376635, 'init', {});</script>"
+    res = analyze_infrastructure(
+        "canada.news-pravda.com", html,
+        [SourcePage("usa.news-pravda.com", html, is_copy=True)],
+        rdap=None,
+    )
+    assert [d["domain"] for d in res.domains] == ["news-pravda.com", "usa.news-pravda.com"]
+    assert res.shared_id_reasons() == ["news-pravda.com and usa.news-pravda.com share ym-97376635"]
