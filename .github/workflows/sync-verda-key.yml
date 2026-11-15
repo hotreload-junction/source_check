@@ -69,6 +69,7 @@ jobs:
               printf 'VERDA_API_KEY=%s\\n' \"\$key\" >> \"\$tmp\"
               chmod 600 \"\$tmp\"
               mv \"\$tmp\" \"\$env_file\"
+              export ENV_NAME='$TARGET'
               current=\$(readlink -f '$ROOT/$TARGET/current')
               test -d \"\$current\"
               cd \"\$current\"
