@@ -252,6 +252,9 @@
       "fuzzy_threshold": 90,
       "depth": 1,
       "duration_s": 40.0,
+      "cost_usd": 0.412,
+      "llm_calls": 57,
+      "skipped": [],
       "focus_prompt_version": null
     }
   }

@@ -189,3 +189,11 @@ def test_depth_2_checks_use_the_check_model_not_the_verify_model():
                    Settings(**{**SETTINGS.model_dump(), "model_verify": "strong"}))
     assert seen == ["strong"]
     assert Settings(_env_file=None, anthropic_api_key="k", model_verify="claude-sonnet-5-5").check_model == "claude-haiku-5-5"
+
+
+def test_chain_search_does_not_start_after_the_chain_start_limit_and_says_so(monkeypatch):
+    calls = []
+    r = run(monkeypatch, calls=calls, settings=Settings(**{**SETTINGS.model_dump(), "chain_start_limit_s": 1e-9}))
+    assert calls == [] and all(s["depth"] == 1 for s in r["sources"])                      # no naming call, no search
+    assert r["audit"]["skipped"] == ["chain search (time budget)"]
+    assert len(r["claims"]) == 3                                                           # the claim checks are untouched

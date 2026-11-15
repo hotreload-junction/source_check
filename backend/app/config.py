@@ -63,8 +63,8 @@ class Settings(BaseSettings):
     # if so, rewrites it minimally; search and verify use it, the shown claim does not change. A claim that is not checkable is
     # replaced by the next-best candidate. CONTEXTUALIZE_CLAIMS=false = search and verify the sentence as written.
     contextualize_claims: bool = True
-    # 3 = depth 2-3 source chain crawl (no extra LLM calls) + citation-circle signal; 1 switches it off; 5 = theoretical max
-    max_depth: int = Field(default=3, ge=1, le=5)
+    # 2 = what the sources cite (depth 2, display-only checks) + citation-circle signal; 3+ follows further hops (+ time and cost); 1 switches it off; 5 = theoretical max
+    max_depth: int = Field(default=2, ge=1, le=5)
     # Root or relay (pipeline/origin.py): claims without any checkable source are classified by MODEL_VERIFY;
     # root (own statement / first-hand) stays neutral, relay ("doctors claim") becomes unsourced
     origin_check: bool = True
@@ -90,14 +90,14 @@ class Settings(BaseSettings):
     # ~0.025 USD per run at effort "low" (measured: 83% of claims got a verified supporting page, 64% of its URLs verified).
     exa_agent: bool = True
     exa_agent_effort: str = "low"          # minimal | low | medium | high ...
-    exa_agent_timeout_s: float = 80.0      # a run still going after this long is dropped (neutral), never waited for
+    exa_agent_timeout_s: float = 50.0      # a run still going after this long is dropped (neutral), never waited for
     exa_agent_concurrency: int = 8         # runs in flight per process (Exa allows 50)
     # Fact-check agent (pipeline/factcheck.py, exa-py SDK): ONE Exa Agent run per claim the article gives no usable source for
     # (unsourced, or attributed with the original not found) that looks for pages CONFIRMING or REFUTING it. A refuting page
     # needs a verbatim, fuzzy-checked quote like every verdict. Replaces the support-only agent run for unsourced claims.
     factcheck_agent: bool = True
     factcheck_effort: str = "low"          # minimal | low | medium | high ... (low ~0.025 USD, medium ~0.10 USD per run)
-    factcheck_timeout_s: float = 80.0
+    factcheck_timeout_s: float = 50.0
     # Candidate screen (pipeline/assess.py): a page SEARCH found (named / unsourced / fact-check / cross-check) is read first by a
     # cheap model with the SAME verify prompt. "not_mentioned" ends it there (such a page is neutral anyway); anything else goes on
     # to MODEL_VERIFY, which has the last word. Pages the article cites itself are never screened. ~20x cheaper than MODEL_VERIFY
@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     # Display-only checks (a depth >= 2 source against its claim, a page found as the source of a source) use this cheaper model;
     # they never reach verdict.py. Empty: claude-haiku-5-5 with the Anthropic API, MODEL_VERIFY with the router.
     model_check: str = ""
+    # Cheap model for the small helper calls: the search plan (assess), naming the source a passage cites (chainsearch), the check
+    # sentence (statement). Empty: claude-haiku-5-5 with the Anthropic API, MODEL_EXTRACT with the router.
+    model_light: str = ""
     # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
     # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
     search_unsourced: bool = True
@@ -121,8 +124,13 @@ class Settings(BaseSettings):
     # reported", "according to a study by ...") but links nothing -> the name is read from the passage (one cheap LLM call) and
     # the Exa Agent + our searches look for that page (pipeline/chainsearch.py). Costs ~0.025 USD per search at effort "low".
     chain_search: bool = True
-    max_chain_searches: int = 3            # per article, over all hops
-    chain_search_deadline_s: float = 75.0  # wall clock for the searches of ONE hop; an unfinished one is dropped (neutral)
+    max_chain_searches: int = 1            # per article, over all hops (cost + the slowest tail of a run)
+    chain_search_deadline_s: float = 50.0  # wall clock for the searches of ONE hop; an unfinished one is dropped (neutral)
+    # Budgets of ONE analysis (0 = off). When one is used up the expensive extras are skipped, never the claim checks: the result is
+    # shallower, still valid, and `audit.skipped` says what was left out. Cost = LLM calls only (Exa / Context.dev are not metered).
+    time_budget_s: float = 100.0           # no new source-chain hop / chain search starts after this; running hops are cut to what is left
+    chain_start_limit_s: float = 70.0      # a chain search (an Exa Agent run, 20-60 s) only starts before this
+    cost_budget_usd: float = 0.45          # LLM spend after which the source chain (depth >= 2, chain search) is skipped
     # The article cites another article of ITS OWN site: read that page and follow what IT cites ("source of the source")
     follow_self_citations: bool = True
     max_self_citation_links: int = 2       # per claim
@@ -141,6 +149,11 @@ class Settings(BaseSettings):
     # Runtime
     max_concurrent_analyses: int = 2
     public_base_url: str = ""
+
+    @property
+    def light_model(self) -> str:
+        """Cheap model for the small helper calls (search plan, naming a cited source, check sentence). With the router: MODEL_EXTRACT."""
+        return self.model_light or ("claude-haiku-5-5" if self.llm_provider_resolved == "anthropic" else self.model_extract)
 
     @property
     def check_model(self) -> str:

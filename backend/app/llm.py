@@ -14,9 +14,31 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
 
+import threading
+from collections import defaultdict
+
 import httpx
 
 log = logging.getLogger("citetrace.llm")
+
+# USD per million tokens (input, output), Anthropic list prices for prompts up to 100K tokens. Unknown models cost 0 here and
+# are reported as unpriced, never guessed.
+PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0),
+    "claude-sonnet-5": (2.0, 10.0), "claude-opus-5": (5.0, 25.0), "claude-fable-5-2": (8.0, 40.0),
+}
+
+
+@dataclass
+class Usage:
+    """What the LLM calls of ONE analysis used. `usd` counts calls that were really made; replays from the step cache are free.
+    Hedged duplicate requests whose answer was dropped are not counted (a small under-estimate)."""
+    calls: int = 0
+    cached: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    usd: float = 0.0
+    unpriced: tuple[str, ...] = ()
 
 
 class LLMError(RuntimeError):
@@ -73,6 +95,8 @@ class LLMClient:
         self.client = client or httpx.Client(timeout=timeout)
         self.hedge_after = hedge_after
         self.cache = cache          # None = the process-wide default (cache.get_default()), looked up per call
+        self._usage: dict[str, list] = defaultdict(lambda: [0, 0, 0, 0])      # model -> calls, cached, prompt tokens, completion tokens
+        self._usage_lock = threading.Lock()
 
     @classmethod
     def from_settings(cls, settings=None, cache=None) -> "LLMClient":
@@ -108,10 +132,47 @@ class LLMClient:
         key = cachemod.make_key("llm", model, system, user)
         hit = cache.get("llm", key)
         if hit is not None:
-            return LLMResult(**{**hit, "credits": 0.0, "cached": True})
+            result = LLMResult(**{**hit, "credits": 0.0, "cached": True})
+            self._record(model, result)
+            return result
         result = self._chat_json_hedged(model, system, user, max_tokens)
         cache.put("llm", key, {k: v for k, v in asdict(result).items() if k != "cached"})
+        self._record(model, result)
         return result
+
+    # ---- cost meter -------------------------------------------------------------------------------------------
+    def _record(self, model: str, res: LLMResult) -> None:
+        with self._usage_lock:
+            row = self._usage[res.model or model]
+            row[1 if res.cached else 0] += 1
+            if not res.cached:
+                row[2] += res.prompt_tokens
+                row[3] += res.completion_tokens
+
+    def usage_snapshot(self) -> dict[str, list]:
+        with self._usage_lock:
+            return {m: list(v) for m, v in self._usage.items()}
+
+    def usage_since(self, snapshot: dict[str, list] | None = None) -> Usage:
+        """Calls, tokens and USD used since `snapshot` (None = since this client was created)."""
+        now = self.usage_snapshot()
+        u = Usage()
+        unpriced: list[str] = []
+        for model, row in now.items():
+            base = (snapshot or {}).get(model, [0, 0, 0, 0])
+            calls, cached, pt, ct = (row[i] - base[i] for i in range(4))
+            u.calls += calls
+            u.cached += cached
+            u.prompt_tokens += pt
+            u.completion_tokens += ct
+            price = PRICES_PER_MTOK.get(model)
+            if price is None:
+                if calls:
+                    unpriced.append(model)
+                continue
+            u.usd += pt / 1e6 * price[0] + ct / 1e6 * price[1]
+        u.unpriced = tuple(sorted(unpriced))
+        return u
 
     def _chat_json_hedged(self, model: str, system: str, user: str, max_tokens: int) -> LLMResult:
         if not self.hedge_after:

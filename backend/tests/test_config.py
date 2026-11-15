@@ -8,13 +8,15 @@ def test_defaults_match_env_example():
     s = Settings(_env_file=None)
     assert s.fuzzy_threshold == 90
     assert s.max_claims == 6
-    assert s.max_depth == 3
+    assert s.max_depth == 2
     assert s.max_concurrent_analyses == 2
     assert s.prompt_version == "v12"
     assert s.origin_check is True
     assert s.extract_votes == 5
     assert (s.extract_mode, s.summary_votes, s.summary_detail_slots) == ("summary", 3, 2)
     assert s.contextualize_claims is True
+    assert (s.time_budget_s, s.cost_budget_usd, s.chain_start_limit_s, s.max_chain_searches) == (100.0, 0.45, 70.0, 1)
+    assert (s.exa_agent_timeout_s, s.factcheck_timeout_s) == (50.0, 50.0)
 
 
 def test_max_depth_is_bounded_1_to_5(monkeypatch):

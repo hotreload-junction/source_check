@@ -67,7 +67,12 @@ signals:  Signals
 verdict:  {label: ArticleVerdict, summary: str}   # summary = 1-2 plain-English sentences; from CENTRAL claims only
 focus:    Focus | null       # null when no question was sent
 audit:    {model_extract, model_verify, prompt_version, fuzzy_threshold, depth: 1..5, duration_s,
+           cost_usd: float, llm_calls: int, skipped: str[],
            focus_prompt_version: str|null}   # null without a question
+          # additive: cost_usd = what the LLM calls of THIS analysis cost at list prices (calls really made; replays from the step cache are
+          # free; Exa / Context.dev are not metered), llm_calls = how many. skipped = extras left out because the time / cost budget
+          # (TIME_BUDGET_S, COST_BUDGET_USD) was used up, e.g. "source chain (time budget)", "chain search (cost budget)"; [] = nothing cut.
+          # The claim checks themselves are never skipped.
 ```
 ```
 Focus: {question: str,                          # as sent, whitespace collapsed

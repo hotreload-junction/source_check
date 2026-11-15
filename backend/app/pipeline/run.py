@@ -34,6 +34,7 @@ from ..verdict import ClaimInput, decide
 from .assess import ClaimAssessment, SourceAssessment, assess_claims
 from .copies import find_article_copies
 from .depth2 import expand_sources
+from .budget import RunBudget
 from .statement import contextualize
 from .extract import ExtractedClaim, extract_claims
 from .origin import check_origins
@@ -151,6 +152,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     archive = _CachedArchive(archive, sc) if archive is not None else None
     out = emit or (lambda event, data: None)
     t0 = time.monotonic()
+    budget = RunBudget(s, llm, t0)      # the time / cost budget of this analysis (pipeline/budget.py)
 
     def progress(step: str, message: str, pct: int) -> None:
         out("progress", {"step": step, "message": message, "pct": pct})
@@ -271,10 +273,10 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     depth = 1
     d2_edges: list[dict] = []
     circles = []
-    if s.max_depth >= 2 and reg.rows:
+    if s.max_depth >= 2 and reg.rows and budget.allow("source chain"):
         progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
-                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc)
+                            article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc, run_budget=budget)
         depth = s.max_depth
         # what a search-found page cites is not cited by the article either: shown in the graph, but no signal
         searched = _search_ids(reg.rows, d2.citations) | _focus_only_ids(reg.rows, claim_dicts, d2.citations)
@@ -324,6 +326,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         if e["type"] in ("hosted_on", "shares_infra", "cites_back"):
             out("edge", e)
 
+    usage = budget.usage()
     result = {
         "article": {"url": url, "domain": article_host, "title": art.title, "published_at": art.published_at,
                     "text_markdown": text_md},
@@ -338,7 +341,10 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
                   if focus is not None else None),
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
                   "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1),
-                  "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None},
+                  "focus_prompt_version": FOCUS_PROMPT_VERSION if focus is not None else None,
+                  # what this analysis cost: LLM calls that were really made (replays are free), USD at list prices; Exa / Context.dev not metered
+                  "cost_usd": round(usage.usd, 3), "llm_calls": usage.calls,
+                  "skipped": budget.skipped},                        # extras left out because the time / cost budget was used up
     }
     progress("verdict", "Done", 100)
     return AnalysisOutput(result, assessments, reg.rows)

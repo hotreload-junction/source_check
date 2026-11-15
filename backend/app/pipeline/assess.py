@@ -300,7 +300,7 @@ def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm:
     merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)
     `own_searches=False` (AGENT_FIRST): the agent only; the caller runs our searches afterwards if the agent's pages settle nothing."""
     who = claim.attributions[0] if attributed else None
-    plan = plan_search(who, claim.text, claim.context, published_at, llm=llm, model=settings.model_extract)
+    plan = plan_search(who, claim.text, claim.context, published_at, llm=llm, model=settings.light_model)
     agent = AgentResult(status="disabled")
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="discover") as pool:
         agent_future = None

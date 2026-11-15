@@ -81,7 +81,7 @@ def _ask(claim_text: str, paragraph: str, previous: str, title: str, lead: str, 
     user = (f"TITLE: {title or '(none)'}\n\nOPENING: {lead}\n\nSENTENCE: {build_plain(claim_text).text}\n\n"
             f"PARAGRAPH: {build_plain(paragraph).text[:1500]}\n\nPRECEDING PARAGRAPH: {build_plain(previous).text[:1200] or '(none)'}")
     try:
-        data = llm.chat_json(settings.model_extract, PROMPT, user, max_tokens=1500).data
+        data = llm.chat_json(settings.light_model, PROMPT, user, max_tokens=1500).data
     except LLMError as exc:
         log.info("check sentence failed: %s", exc)
         return None

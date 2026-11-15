@@ -144,6 +144,9 @@ export interface Result {
     depth: 1 | 2 | 3;
     duration_s: number;
     focus_prompt_version?: string | null;
+    cost_usd?: number;     // LLM cost of this analysis at list prices (calls really made); Exa / Context.dev not metered
+    llm_calls?: number;
+    skipped?: string[];    // extras left out because the time / cost budget was used up
   };
 }
 
