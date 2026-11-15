@@ -271,10 +271,23 @@ def _is_homepage(url: str) -> bool:
 
 
 # ---------------------------------------------------------------------------------------------- searched sources
+def _agent_first(settings: Settings, legacy: bool) -> bool:
+    """Agent first, our own Exa searches only when the agent's pages settle nothing (AGENT_FIRST). Needs the agent that is in play."""
+    return bool(settings.agent_first and settings.exa_api_key and (settings.exa_agent if legacy else settings.factcheck_agent))
+
+
+def _own_candidates(plan: SearchPlan, claim: ExtractedClaim, article_url: str, *, settings: Settings, exa_client,
+                    published_at: datetime | None, step_cache) -> list[Candidate]:
+    return gather_candidates(plan, claim.text, article_url, published_at, api_key=settings.exa_api_key, exa_client=exa_client,
+                             step_cache=step_cache, limit=settings.max_evidence_candidates, include_secondary=settings.verify_secondary)
+
+
 def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm: LLMClient, settings: Settings, exa_client,
-              published_at: datetime | None, step_cache, legacy_agent: bool = True) -> tuple[SearchPlan, list[Candidate], AgentResult]:
+              published_at: datetime | None, step_cache, legacy_agent: bool = True,
+              own_searches: bool = True) -> tuple[SearchPlan, list[Candidate], AgentResult]:
     """Candidate pages for a claim the article gives no link for: plan, then OUR searches and the Exa Agent side by side,
-    merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)"""
+    merged and ranked. (Measured: equal on originals but different ones; the agent finds far more confirming pages.)
+    `own_searches=False` (AGENT_FIRST): the agent only; the caller runs our searches afterwards if the agent's pages settle nothing."""
     who = claim.attributions[0] if attributed else None
     plan = plan_search(who, claim.text, claim.context, published_at, llm=llm, model=settings.model_extract)
     agent = AgentResult(status="disabled")
@@ -287,9 +300,8 @@ def _discover(claim: ExtractedClaim, article_url: str, *, attributed: bool, llm:
             agent_future = pool.submit(find_sources, body, api_key=settings.exa_api_key, article_url=article_url,
                                        timeout_s=settings.exa_agent_timeout_s, concurrency=settings.exa_agent_concurrency,
                                        client=exa_client, cache=step_cache)
-        ours = gather_candidates(plan, claim.text, article_url, published_at, api_key=settings.exa_api_key, exa_client=exa_client,
-                                 step_cache=step_cache, limit=settings.max_evidence_candidates,
-                                 include_secondary=settings.verify_secondary)
+        ours = _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                               step_cache=step_cache) if own_searches else []
         if agent_future is not None:
             agent = agent_future.result()
     merged = merge_agent_hits(ours, agent.hits, plan, plan.speaker or who, settings.max_evidence_candidates)
@@ -306,10 +318,17 @@ def _verify_all(claim, cands, who, article_url, cache, llm, settings, published_
 
 
 def _assess_attributed(claim, article_url, *, cache, llm, settings, exa_client, published_at, step_cache, article_text) -> ClaimAssessment:
+    staged = _agent_first(settings, legacy=True)
     plan, cands, _agent = _discover(claim, article_url, attributed=True, llm=llm, settings=settings, exa_client=exa_client,
-                                    published_at=published_at, step_cache=step_cache)
+                                    published_at=published_at, step_cache=step_cache, own_searches=not staged)
     who = plan.speaker or claim.attributions[0]
     sources = _verify_all(claim, cands, who, article_url, cache, llm, settings, published_at, plan, article_text)
+    if staged and not any(sa.verdict == "supported" for sa in sources):
+        # the agent's pages settle nothing (no original found, or none at all): now our own searches, minus what was read
+        seen = {c.hit.url for c in cands}
+        more = [c for c in _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                                           step_cache=step_cache) if c.hit.url not in seen]
+        sources += _verify_all(claim, more, who, article_url, cache, llm, settings, published_at, plan, article_text)
     if not sources:   # attributed but nothing located -> neutral, never "unsourced"
         return ClaimAssessment(claim, "not_checkable", None, f"{NOT_VERIFIED} It is attributed to {who}, but no page containing it was found.",
                                plan=plan)
@@ -324,16 +343,23 @@ def _assess_unsourced(claim, article_url, *, cache, llm, settings, exa_client, p
     says the article itself gave no source, and the page is listed in `found_source_ids`, not `source_ids`. Nothing that
     supports it: the claim stays `unsourced`. A page that does not support it is ignored (never held against the article)."""
     use_fc = settings.factcheck_agent and bool(settings.exa_api_key)
+    staged = use_fc and _agent_first(settings, legacy=False)
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="factcheck") as pool:
         # the fact-check agent needs no plan: it runs next to our own searches and replaces the support-only agent run
         fut = pool.submit(_run_factcheck, claim, article_url, settings=settings, published_at=published_at, step_cache=step_cache) if use_fc else None
         plan, cands, _agent = _discover(claim, article_url, attributed=False, llm=llm, settings=settings, exa_client=exa_client,
-                                        published_at=published_at, step_cache=step_cache, legacy_agent=not use_fc)
+                                        published_at=published_at, step_cache=step_cache, legacy_agent=not use_fc,
+                                        own_searches=not staged)
         fact = fut.result() if fut else FactResult(status="disabled")
     fact_urls = {h.url for h in fact.hits}
     cands = [c for c in cands if c.hit.url not in fact_urls]      # a page both found is verified once, in fact-check mode
     sources = _verify_all(claim, cands, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
     sources += _verify_factcheck(claim, fact, article_url, cache, llm, settings, published_at, plan, article_text)
+    if staged and not any(sa.verdict == "supported" or (sa.verdict in _REFUTING and sa.verify and sa.verify.has_evidence) for sa in sources):
+        # the agent confirmed or refuted nothing: now our own searches, minus the pages it already returned
+        more = [c for c in _own_candidates(plan, claim, article_url, settings=settings, exa_client=exa_client, published_at=published_at,
+                                           step_cache=step_cache) if c.hit.url not in fact_urls]
+        sources += _verify_all(claim, more, None, article_url, cache, llm, settings, published_at, plan, article_text, found_unsourced=True)
     return _found_assessment(claim, sources, plan, settings)
 
 

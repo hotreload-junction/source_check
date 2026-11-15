@@ -78,8 +78,10 @@ def find_cited(parent_url: str, parent_domain: str, parent_text: str, sentence: 
     statement = sentence[:MAX_STATEMENT_CHARS]
     claim = ExtractedClaim(id="chain", text=statement, char_start=0, char_end=len(statement), attributions=[who],
                            context=paragraph[:1500])
+    # the pages found here are display only (never a signal, never the label): the cheap model reads them, no second tier
+    cheap = settings.model_copy(update={"model_verify": settings.check_model})
     try:
-        a = _assess_attributed(claim, parent_url, cache=cache, llm=llm, settings=settings, exa_client=exa_client,
+        a = _assess_attributed(claim, parent_url, cache=cache, llm=llm, settings=cheap, exa_client=exa_client,
                                published_at=published_at, step_cache=step_cache, article_text=parent_text)
     except Exception as exc:      # a search problem must never break the analysis: the source is just not found
         log.warning("search for the cited source %r failed: %s", who, type(exc).__name__)

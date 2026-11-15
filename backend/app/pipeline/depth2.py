@@ -433,7 +433,7 @@ def _check_sources(items: list[tuple[dict, str, str]], llm: LLMClient, settings:
         return
     end = time.monotonic() + CHECK_DEADLINE_S
     pool = ThreadPoolExecutor(max_workers=min(len(items), MAX_CHECK_WORKERS), thread_name_prefix="d2check")
-    futures = [(row, pool.submit(verify_claim, claim_text, text, llm=llm, settings=settings, factcheck=True))
+    futures = [(row, pool.submit(verify_claim, claim_text, text, llm=llm, settings=settings, factcheck=True, model=settings.check_model))
                for row, claim_text, text in items]
     for row, fut in futures:
         try:

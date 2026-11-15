@@ -597,3 +597,65 @@ def test_screen_is_off_without_a_cheap_model_or_when_switched_off():
         run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
             exa=exa_client(), settings=st)
         assert calls == ["vm"]
+
+
+# ------------------------------------------------------------------ agent first, own searches only when the agent settles nothing
+AGENT_URL = "https://api.exa.ai/agent/runs"
+FIRST = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT", search_unsourced=False,
+                 exa_agent=True, factcheck_agent=False, agent_first=True)
+SIDE_BY_SIDE = Settings(**{**FIRST.model_dump(), "agent_first": False})
+
+
+def exa_world(agent_urls, search_urls, log):
+    """One mock client for Exa search AND the Agent API; `log` collects 'search' / 'agent' calls."""
+    def handler(request):
+        if str(request.url).startswith(AGENT_URL):
+            if request.method == "POST":
+                log.append("agent")
+                return httpx.Response(200, json={"id": "run1"})
+            return httpx.Response(200, json={"status": "completed", "output": {"structured": {"found": bool(agent_urls),
+                                  "sources": [{"url": u, "kind": "original", "quote": None} for u in agent_urls]}}})
+        log.append("search")
+        return httpx.Response(200, json={"results": [{"url": u, "title": "T"} for u in search_urls]})
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_agent_first_skips_our_searches_when_the_agent_finds_the_original(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+                  exa=exa_world([ORIG], ["https://other.test/x"], log), settings=FIRST)
+    assert a.verdict == "supported" and a.best.url == ORIG
+    assert log == ["agent"]                                    # no search request at all
+
+
+def test_agent_first_falls_back_to_our_searches_when_the_agent_finds_nothing(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    (a,), _ = run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+                  exa=exa_world([], [ORIG], log), settings=FIRST)
+    assert a.verdict == "supported" and a.best.url == ORIG
+    assert log[0] == "agent" and "search" in log               # the agent first, then our own searches
+
+
+def test_agent_first_off_runs_both_side_by_side(monkeypatch):
+    from app.pipeline import exa_agent
+    monkeypatch.setattr(exa_agent, "POLL_INTERVAL_S", 0)
+    log = []
+    run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=make_llm("supported", QUOTE),
+        exa=exa_world([ORIG], [ORIG], log), settings=SIDE_BY_SIDE)
+    assert "agent" in log and "search" in log
+
+
+def test_unsourced_agent_first_searches_only_if_the_factcheck_agent_settles_nothing(monkeypatch):
+    from app.pipeline import assess
+    from app.pipeline.factcheck import FactHit, FactResult
+    st = Settings(**{**SEARCH.model_dump(), "factcheck_agent": True, "agent_first": True, "exa_agent": True})
+    for hits, expect_search in (([FactHit(FOUND)], False), ([], True)):
+        monkeypatch.setattr(assess, "_run_factcheck", lambda *a, _h=hits, **k: FactResult(_h, True, status="completed"))
+        log = []
+        (a,), _ = run([claim(1)], {FOUND: page(FOUND)}, llm=make_llm("supported", QUOTE), exa=exa_world([], [FOUND], log), settings=st)
+        assert ("search" in log) is expect_search, hits
+        assert a.verdict == "supported" and a.best.url == FOUND

@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     # on the pages that do not mention the claim, which is most of them. SCREEN_CANDIDATES=false = every candidate goes to MODEL_VERIFY.
     screen_candidates: bool = True
     model_screen: str = ""                 # empty: claude-haiku-5-5 with the Anthropic API, no screen with the router
+    # Agent first: for a claim without a link the Exa Agent (attributed: original search; unsourced: fact-check agent) runs alone;
+    # OUR own Exa searches (3-5 requests + up to MAX_EVIDENCE_CANDIDATES verifies) only start when the agent's pages settle nothing
+    # (attributed: no `supported` original; unsourced: nothing confirmed or refuted). Same latency when the agent succeeds, one
+    # search round later when it does not. AGENT_FIRST=false = both side by side as before.
+    agent_first: bool = True
+    # Display-only checks (a depth >= 2 source against its claim, a page found as the source of a source) use this cheaper model;
+    # they never reach verdict.py. Empty: claude-haiku-5-5 with the Anthropic API, MODEL_VERIFY with the router.
+    model_check: str = ""
     # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
     # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
     search_unsourced: bool = True
@@ -123,6 +131,11 @@ class Settings(BaseSettings):
     # Runtime
     max_concurrent_analyses: int = 2
     public_base_url: str = ""
+
+    @property
+    def check_model(self) -> str:
+        """Model for display-only checks (depth >= 2, source of a source)."""
+        return self.model_check or ("claude-haiku-5-5" if self.llm_provider_resolved == "anthropic" else self.model_verify)
 
     @property
     def screen_model(self) -> str:
