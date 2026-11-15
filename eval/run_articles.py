@@ -18,7 +18,7 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from common import DATA, RESULTS, RUNS, append_jsonl, client, read_jsonl, settings
+from common import DATA, RESULTS, RUNS, append_jsonl, client, read_jsonl, run_id, settings
 
 LIST_MARK = "is on the published list of the"
 
@@ -42,6 +42,7 @@ def main() -> None:
     ap.add_argument("--llm-concurrency", type=int, default=6)
     args = ap.parse_args()
     s = settings()
+    current_run = run_id(s)
     from app.pipeline.run import AnalysisError, analyze
     from app.verdict import SIGNAL_ORDER
 
@@ -49,7 +50,7 @@ def main() -> None:
     code = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=RUNS.parent).stdout.strip()
     llm = client(concurrency=args.llm_concurrency)
     out = RESULTS / "articles.jsonl"
-    done = {r["id"] for r in read_jsonl(out)}
+    done = {r["id"] for r in read_jsonl(out) if r.get("run_id") == current_run and r.get("status") == "done"}
     with (DATA / "articles.csv").open(encoding="utf-8") as f:
         todo = [r for r in csv.DictReader(f) if r["id"] not in done]
     if args.limit:
@@ -61,7 +62,7 @@ def main() -> None:
         if llm.limit_hit.is_set():
             return None
         t0, cost0 = time.monotonic(), llm.cost_usd
-        base = {"id": a["id"], "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True", "code": code}
+        base = {"id": a["id"], "run_id": current_run, "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True", "code": code}
         try:
             res = analyze(a["url"], settings=s, llm=llm).result
         except AnalysisError as exc:
@@ -86,7 +87,7 @@ def main() -> None:
                 r = f.result()
             except Exception as exc:        # a pipeline crash is recorded, never silently dropped
                 a = futs[f]
-                r = {"id": a["id"], "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True",
+                r = {"id": a["id"], "run_id": current_run, "url": a["url"], "group": a["group"], "outlet": a["outlet"], "hard": a["hard"] == "True",
                      "status": "failed", "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
             if r is None:
                 continue

@@ -10,7 +10,7 @@ import json
 from collections import Counter
 from datetime import datetime, timezone
 
-from common import EFFORT, MODEL_EXTRACT, MODEL_VERIFY, RESULTS, ROOT, read_jsonl, settings
+from common import EFFORT, MODEL_EXTRACT, MODEL_VERIFY, RESULTS, ROOT, read_jsonl, run_id, settings
 
 FLAGGED = {"distorted", "contradicted", "not_mentioned"}      # the verify step says: the source does not support it
 
@@ -29,9 +29,10 @@ def ratio(a: int, b: int) -> float:
 
 def main() -> None:
     s = settings()
+    current_run = run_id(s)
     from app.verdict import thresholds
 
-    pairs = read_jsonl(RESULTS / "pairs.jsonl")
+    pairs = [r for r in read_jsonl(RESULTS / "pairs.jsonl") if r.get("run_id") == current_run and r.get("status") != "failed"]
     pc = confusion(pairs, lambda r: r["not_supported"], lambda r: r["verdict"] in FLAGGED)
     by_ds = {}
     for ds in sorted({r["dataset"] for r in pairs}):
@@ -41,7 +42,7 @@ def main() -> None:
                      "confusion": c, "gold_vs_verdict": {f"{g} -> {v}": n for (g, v), n in
                                                          sorted(Counter((r["gold"], r["verdict"]) for r in rows).items())}}
 
-    arts = read_jsonl(RESULTS / "articles.jsonl")
+    arts = [r for r in read_jsonl(RESULTS / "articles.jsonl") if r.get("run_id") == current_run]
     done = [a for a in arts if a["status"] == "done"]
     net, wire = [a for a in done if a["group"] == "network"], [a for a in done if a["group"] == "wire"]
     is_net = lambda a: a["group"] == "network"
@@ -64,7 +65,8 @@ def main() -> None:
 
     m = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "verify_model": f"{MODEL_VERIFY} (extraction {MODEL_EXTRACT}; effort {EFFORT}; called through the Claude Code CLI)",
+        "verify_model": f"{MODEL_VERIFY} (extraction {MODEL_EXTRACT}; reasoning_effort={EFFORT}; Verda API)",
+        "eval_run_id": current_run,
         "prompt_version": s.prompt_version,
         "pairs": {"n": len(pairs), "n_cross_language": sum(1 for r in pairs if r.get("lang") != "en"),
                   "precision": ratio(pc["tp"], pc["tp"] + pc["fp"]), "recall": ratio(pc["tp"], pc["tp"] + pc["fn"]),

@@ -96,10 +96,18 @@ def test_not_configured_without_key_or_model():
 
 
 def test_from_settings_picks_the_provider():
-    on = Settings(_env_file=None, anthropic_api_key="k", model_extract="a", model_verify="b", ai_router_base_url="https://r/v1", ai_router_api_key="x")
+    on = Settings(_env_file=None, llm_provider="auto", anthropic_api_key="k", model_extract="a", model_verify="b", ai_router_base_url="https://r/v1", ai_router_api_key="x")
     assert on.llm_provider_resolved == "anthropic" and LLMClient.from_settings(on, cache=None).provider == "anthropic"
-    off = Settings(_env_file=None, ai_router_base_url="https://r/v1", ai_router_api_key="x")
+    off = Settings(_env_file=None, llm_provider="router", ai_router_base_url="https://r/v1", ai_router_api_key="x")
     assert off.llm_provider_resolved == "router" and LLMClient.from_settings(off).provider == "router"
     forced = Settings(_env_file=None, llm_provider="router", anthropic_api_key="k")
     assert forced.llm_provider_resolved == "router"
     assert on.llm_missing == [] and "ANTHROPIC_API_KEY" in Settings(_env_file=None, llm_provider="anthropic").llm_missing
+
+
+def test_verda_from_settings_uses_its_openai_compatible_endpoint():
+    s = Settings(_env_file=None, llm_provider="verda", verda_api_key="key")
+    llm = LLMClient.from_settings(s, cache=None)
+    assert llm.provider == "router"
+    assert llm.base_url == "https://inference.verda.com/v1"
+    assert llm.api_key == "key"

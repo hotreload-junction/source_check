@@ -11,14 +11,17 @@ no prompt or threshold was changed on them.
 | article verdicts | `python eval/run_articles.py` | full shipped pipeline on 50 articles (+ label without the VIGINUM list, offline) |
 | metrics | `python eval/metrics.py` | writes `eval/results/metrics.json` + `backend/demo/metrics.json` |
 
-Run with the backend venv and `EVAL_ENV_FILE=<.env with CONTEXT_DEV_API_KEY, EXA_API_KEY>`. Only those two keys are
-read; detection settings stay at the code defaults (as on the VPS).
+Run with the backend venv and `EVAL_ENV_FILE=<.env with VERDA_API_KEY, CONTEXT_DEV_API_KEY, EXA_API_KEY>`. The
+credentials are loaded into the process and never written to results. Evaluation uses the same Verda-backed client as
+the backend and an isolated prompt-response cache under `eval/runs/llm_cache`.
+Set `EVAL_RESULTS_DIR` and `EVAL_RUNS_DIR` to run a scratch comparison without touching the published metrics or
+historical result rows. Result rows carry a run id (provider, models, prompt version, screen status); resume and metrics
+only use rows from the active run, and failed API calls are excluded and retried on the next start.
 
-**Models.** Every model call goes through the Claude Code CLI (`claude -p`) logged in with the operator's own Claude
-subscription (`eval/claude_cli.py`): `claude-sonnet-5-5` for verification, `claude-haiku-5-5` for extraction, effort
-medium, our system prompt replaces the CLI's, no tools. Display-only parts (chain search, depth >= 2 checks) are off;
-they never reach `verdict.py`. All runs resume where they stopped (answers cached in `eval/runs/`, gitignored); an item
-that was running when the subscription limit hit is discarded, never counted half-checked.
+**Models.** One `deepseek-4-1-flash-1017` model handles extraction, helper calls and verification via Verda; candidate
+pre-screening is disabled. Verda's default reasoning mode (`none`) is used. Successful LLM answers are cached by model
+and full prompt so interrupted runs resume without repeating them. Display-only parts (chain search, depth >= 2 checks)
+are off; they never reach `verdict.py`.
 
 **Data licences.** Check-COVID (Wang et al., ACL Findings 2023, MIT), WiCE (Kamoi et al., EMNLP 2023, CC-BY-SA 4.0).
 Article texts are not stored in the repo (`eval/runs/articles/`, gitignored).

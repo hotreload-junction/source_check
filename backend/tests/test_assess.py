@@ -301,7 +301,7 @@ def test_named_candidates_capped_to_bound_cost():
                  llm=make_llm("supported", QUOTE, calls, source_type="secondary"),
                  exa=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"results": [{"url": u} for u in urls]}))),
                  settings=SETTINGS_ALL)
-    assert len(calls) <= 4 and res[0].verdict == "not_checkable"
+    assert len(calls) <= 5 and res[0].verdict == "not_checkable"  # one search-plan call plus bounded candidate checks
 
 
 def test_named_source_not_found_is_neutral_not_unsourced():
@@ -388,7 +388,7 @@ def _planner_llm(verdict="supported"):
 
 
 SEARCH = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
-                  search_unsourced=True, exa_agent=False)
+                  search_unsourced=True, exa_agent=False, factcheck_agent=False)
 FOUND = "https://www.orig.gov.test/interview"
 
 
@@ -428,7 +428,7 @@ def _two_claims_llm(c2_verdict="supported"):
 
 def _exa_only_for_claim_1():
     def handler(request):
-        found = "Claim number 1" in request.content.decode()
+        found = "only-claim-1" in request.content.decode()
         return httpx.Response(200, json={"results": [{"url": FOUND, "title": "T"}] if found else []})
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -536,16 +536,21 @@ def test_cross_check_attributed_reuses_same_speaker_source_across_claims():
 
 
 # ------------------------------------------------------------------ candidate screen (cheap model first)
-SCREEN = Settings(_env_file=None, model_verify="vm", model_screen="cheap", exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
-                  search_unsourced=False, exa_agent=False)
+SCREEN = Settings(_env_file=None, llm_provider="router", model_extract="vm", model_verify="vm", model_screen="cheap",
+                  screen_candidates=True, exa_api_key="exa", fuzzy_threshold=90, prompt_version="vT",
+                  search_unsourced=False, exa_agent=False, factcheck_agent=False)
 ORIG = "https://www.orig.gov.test/interview"
 
 
 def by_model(answers, calls):
     """A fake LLM that answers per MODEL: answers = {"cheap": verdict, "vm": verdict}; `calls` collects the models asked."""
+    from app.pipeline.verify import SYSTEM_PROMPT
+
     def handler(request):
-        model = json.loads(request.content)["model"]
-        calls.append(model)
+        body = json.loads(request.content)
+        model = body["model"]
+        if body["messages"][0]["content"].startswith(SYSTEM_PROMPT):
+            calls.append(model)
         v = answers[model]
         if isinstance(v, Exception):
             return httpx.Response(500, json={})
@@ -587,11 +592,12 @@ def test_pages_the_article_cites_are_never_screened():
 
 
 def test_screen_is_off_without_a_cheap_model_or_when_switched_off():
-    router = Settings(_env_file=None, model_verify="vm", exa_api_key="exa", prompt_version="vT", search_unsourced=False, exa_agent=False)
-    off = Settings(_env_file=None, model_verify="vm", model_screen="cheap", screen_candidates=False, exa_api_key="exa", prompt_version="vT",
-                   search_unsourced=False, exa_agent=False)
+    router = Settings(_env_file=None, llm_provider="router", model_extract="vm", model_verify="vm", exa_api_key="exa",
+                      prompt_version="vT", search_unsourced=False, exa_agent=False, factcheck_agent=False)
+    off = Settings(_env_file=None, model_extract="vm", model_verify="vm", model_screen="cheap", screen_candidates=False, exa_api_key="exa", prompt_version="vT",
+                   search_unsourced=False, exa_agent=False, factcheck_agent=False)
     assert router.screen_model == "" and off.screen_model == ""
-    assert Settings(_env_file=None, anthropic_api_key="k").screen_model == "claude-haiku-5-5"
+    assert Settings(_env_file=None, anthropic_api_key="k").screen_model == ""
     for st in (router, off):
         calls = []
         run([claim(1, attrs=["the Finnish Ministry"])], {ORIG: page(ORIG)}, llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls),
@@ -694,7 +700,8 @@ def test_screen_bypassed_for_venue_phrase_or_factcheck(monkeypatch):
 
     # factcheck_agent also skips _screen on returned pages
     calls.clear()
-    st_fc = Settings(**{**SEARCH.model_dump(), "model_screen": "cheap", "factcheck_agent": True, "agent_first": True})
+    st_fc = Settings(**{**SEARCH.model_dump(), "llm_provider": "router", "model_extract": "vm", "model_screen": "cheap",
+                       "screen_candidates": True, "factcheck_agent": True, "agent_first": True})
     monkeypatch.setattr(assess, "_run_factcheck", lambda *a, **k: FactResult([FactHit(FOUND)], True, status="completed"))
     (b,), _ = run([claim(1)], {FOUND: page(FOUND)},
                   llm=by_model({"cheap": "not_mentioned", "vm": "supported"}, calls), exa=exa_client(None), settings=st_fc)

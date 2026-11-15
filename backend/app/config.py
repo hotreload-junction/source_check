@@ -6,10 +6,11 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+CURRENT_PROMPT_VERSION = "v13"
 
 
 class Settings(BaseSettings):
@@ -17,17 +18,40 @@ class Settings(BaseSettings):
         env_file=str(_REPO_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore"
     )
 
-    # LLM: the Anthropic API (ANTHROPIC_API_KEY; MODEL_EXTRACT / MODEL_VERIFY are Claude model ids) or the Hostinger AI Router
-    # (AI_ROUTER_*). "auto" = Anthropic when a key is set, else the router.
-    llm_provider: str = "auto"             # auto | anthropic | router
+    # LLM: Verda's OpenAI-compatible endpoint is the default. Anthropic and Hostinger Router remain explicit options.
+    llm_provider: str = "verda"            # verda | anthropic | router | auto (legacy)
     anthropic_api_key: str = ""
     anthropic_base_url: str = ""           # empty = https://api.anthropic.com
     llm_effort: str = "medium"             # Anthropic output_config.effort: low | medium | high | xhigh | max
     ai_router_base_url: str = ""
     ai_router_api_key: str = ""
-    model_extract: str = ""
-    model_verify: str = ""
+    verda_base_url: str = "https://inference.verda.com/v1"
+    verda_api_key: str = ""
+    model_extract: str = "deepseek-4-1-flash-1017"
+    model_verify: str = "deepseek-4-1-flash-1017"
     prompt_version: str = "v13"
+
+    @model_validator(mode="after")
+    def one_verda_model(self) -> "Settings":
+        """Replace legacy production model settings and keep the Verda candidate screen disabled."""
+        if self.llm_provider_resolved == "verda":
+            legacy = {"claude-haiku-5-5", "claude-haiku-5.5", "claude-sonnet-5-5", "claude-sonnet-5.5",
+                      "gemini-4-argon"}
+            if not self.model_extract or not self.model_verify or self.model_extract in legacy or self.model_verify in legacy:
+                self.model_extract = self.model_verify = "deepseek-4-1-flash-1017"
+                # Older .env files may carry a stale audit tag while code already runs the v13 prompt.
+                version = self.prompt_version.removeprefix("v")
+                current = CURRENT_PROMPT_VERSION.removeprefix("v")
+                if version.isdigit() and current.isdigit() and int(version) < int(current):
+                    self.prompt_version = CURRENT_PROMPT_VERSION
+            if self.model_light in legacy:
+                self.model_light = ""
+            if self.model_check in legacy:
+                self.model_check = ""
+            if self.model_screen in legacy:
+                self.model_screen = ""
+            self.screen_candidates = False
+        return self
 
     # Scraping / search
     context_dev_api_key: str = ""
@@ -98,22 +122,17 @@ class Settings(BaseSettings):
     factcheck_agent: bool = True
     factcheck_effort: str = "low"          # minimal | low | medium | high ... (low ~0.025 USD, medium ~0.10 USD per run)
     factcheck_timeout_s: float = 50.0
-    # Candidate screen (pipeline/assess.py): a page SEARCH found (named / unsourced / fact-check / cross-check) is read first by a
-    # cheap model with the SAME verify prompt. "not_mentioned" ends it there (such a page is neutral anyway); anything else goes on
-    # to MODEL_VERIFY, which has the last word. Pages the article cites itself are never screened. ~20x cheaper than MODEL_VERIFY
-    # on the pages that do not mention the claim, which is most of them. SCREEN_CANDIDATES=false = every candidate goes to MODEL_VERIFY.
-    screen_candidates: bool = True
-    model_screen: str = ""                 # empty: claude-haiku-5-5 with the Anthropic API, no screen with the router
+    # Optional candidate screen (pipeline/assess.py). Disabled by default: every candidate goes directly to MODEL_VERIFY.
+    screen_candidates: bool = False
+    model_screen: str = ""                 # screening is off by default; use MODEL_VERIFY for every candidate
     # Agent first: for a claim without a link the Exa Agent (attributed: original search; unsourced: fact-check agent) runs alone;
     # OUR own Exa searches (3-5 requests + up to MAX_EVIDENCE_CANDIDATES verifies) only start when the agent's pages settle nothing
     # (attributed: no `supported` original; unsourced: nothing confirmed or refuted). Same latency when the agent succeeds, one
     # search round later when it does not. AGENT_FIRST=false = both side by side as before.
     agent_first: bool = True
-    # Display-only checks (a depth >= 2 source against its claim, a page found as the source of a source) use this cheaper model;
-    # they never reach verdict.py. Empty: claude-haiku-5-5 with the Anthropic API, MODEL_VERIFY with the router.
+    # Display-only checks (a depth >= 2 source against its claim) never reach verdict.py. Empty: use MODEL_VERIFY.
     model_check: str = ""
-    # Cheap model for the small helper calls: the search plan (assess), naming the source a passage cites (chainsearch), the check
-    # sentence (statement). Empty: claude-haiku-5-5 with the Anthropic API, MODEL_EXTRACT with the router.
+    # Optional override for small helpers (search plan, attribution naming, check sentence). Empty: use MODEL_EXTRACT.
     model_light: str = ""
     # Claims the article leaves WITHOUT any source: still look for a page that supports them. One that does (verbatim quote,
     # fuzzy-checked) makes the claim `supported`; it is listed in `found_source_ids`, not `source_ids` (the article cites none)
@@ -153,13 +172,13 @@ class Settings(BaseSettings):
 
     @property
     def light_model(self) -> str:
-        """Cheap model for the small helper calls (search plan, naming a cited source, check sentence). With the router: MODEL_EXTRACT."""
-        return self.model_light or ("claude-haiku-5-5" if self.llm_provider_resolved == "anthropic" else self.model_extract)
+        """Model for small helper calls (search plan, attribution naming, check sentence). Default: the only configured model."""
+        return self.model_light or self.model_extract
 
     @property
     def check_model(self) -> str:
         """Model for display-only checks (depth >= 2, source of a source)."""
-        return self.model_check or ("claude-haiku-5-5" if self.llm_provider_resolved == "anthropic" else self.model_verify)
+        return self.model_check or self.model_verify
 
     @property
     def screen_model(self) -> str:
@@ -170,16 +189,20 @@ class Settings(BaseSettings):
 
     @property
     def llm_provider_resolved(self) -> str:
-        """anthropic | router. "auto" = Anthropic as soon as ANTHROPIC_API_KEY is set."""
-        if self.llm_provider in ("anthropic", "router"):
+        """verda | anthropic | router. "auto" = Anthropic when its key is set, otherwise the router."""
+        if self.llm_provider in ("verda", "anthropic", "router"):
             return self.llm_provider
         return "anthropic" if self.anthropic_api_key else "router"
 
     @property
     def llm_missing(self) -> list[str]:
         """Names of the .env entries the LLM calls still need (empty = configured)."""
-        need = (("ANTHROPIC_API_KEY", self.anthropic_api_key),) if self.llm_provider_resolved == "anthropic" else (
-            ("AI_ROUTER_BASE_URL", self.ai_router_base_url), ("AI_ROUTER_API_KEY", self.ai_router_api_key))
+        if self.llm_provider_resolved == "anthropic":
+            need = (("ANTHROPIC_API_KEY", self.anthropic_api_key),)
+        elif self.llm_provider_resolved == "verda":
+            need = (("VERDA_API_KEY", self.verda_api_key),)
+        else:
+            need = (("AI_ROUTER_BASE_URL", self.ai_router_base_url), ("AI_ROUTER_API_KEY", self.ai_router_api_key))
         return [n for n, v in (*need, ("MODEL_EXTRACT", self.model_extract), ("MODEL_VERIFY", self.model_verify)) if not v]
 
 

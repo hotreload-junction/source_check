@@ -10,7 +10,7 @@ import argparse
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from common import DATA, RESULTS, append_jsonl, client, read_jsonl, settings
+from common import DATA, RESULTS, append_jsonl, client, read_jsonl, run_id, settings
 
 
 def main() -> None:
@@ -19,12 +19,13 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     s = settings()
+    current_run = run_id(s)
     from app.llm import LLMError
     from app.pipeline.verify import verify_claim
 
     llm = client(concurrency=args.workers)
     out = RESULTS / "pairs.jsonl"
-    done = {r["id"] for r in read_jsonl(out)}
+    done = {r["id"] for r in read_jsonl(out) if r.get("run_id") == current_run and r.get("status") != "failed"}
     todo = [p for p in read_jsonl(DATA / "pairs.jsonl") if p["id"] not in done]
     if args.limit:
         todo = todo[:args.limit]
@@ -39,9 +40,9 @@ def main() -> None:
         except LLMError as exc:
             if llm.limit_hit.is_set():
                 return None
-            row = {"verdict": "not_checkable", "llm_verdict": None, "downgraded": True, "fuzzy_score": None,
-                   "explanation": f"LLM error: {str(exc)[:200]}", "model": s.model_verify, "prompt_version": s.prompt_version}
-        return {"id": p["id"], "dataset": p["dataset"], "gold": p["gold"], "not_supported": p["not_supported"],
+            row = {"status": "failed", "error": f"LLM error: {str(exc)[:200]}",
+                   "model": s.model_verify, "prompt_version": s.prompt_version}
+        return {"id": p["id"], "run_id": current_run, "dataset": p["dataset"], "gold": p["gold"], "not_supported": p["not_supported"],
                 "lang": p["lang"], **row, "seconds": round(time.monotonic() - t0, 1)}
 
     n = 0

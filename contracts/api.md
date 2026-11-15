@@ -306,3 +306,10 @@ Quote first: the model must copy the words that show the origin from the claim's
 (`FUZZY_THRESHOLD`), a malformed answer or an LLM error leaves the verdict unchanged. Claims whose cited page was unreachable,
 paywalled, social or self-cited are never re-classified (they stay neutral). The `claim` SSE event is sent again with the new
 verdict.
+
+## LLM provider configuration
+
+The default provider is Verda's OpenAI-compatible endpoint (`VERDA_BASE_URL`, default
+`https://inference.verda.com/v1`; secret `VERDA_API_KEY`). In Verda mode, extraction, helper calls and verification use
+`deepseek-4-1-flash-1017`; candidate pre-screening is disabled and every candidate goes directly to verification.
+Anthropic and Hostinger AI Router remain available only when selected explicitly with `LLM_PROVIDER`.

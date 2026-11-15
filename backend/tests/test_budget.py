@@ -35,7 +35,7 @@ def test_usage_since_a_snapshot_and_unknown_models_are_reported_not_guessed():
     assert u.calls == 1 and u.usd == pytest.approx(0.10) and u.unpriced == ()
     whole = c.usage_since()
     assert whole.calls == 2 and whole.unpriced == ("mystery-model",) and whole.usd == pytest.approx(0.10)
-    assert {"claude-haiku-5-5", "claude-sonnet-5-5"} <= set(PRICES_PER_MTOK)
+    assert {"claude-haiku-5-5", "claude-sonnet-5-5", "deepseek-4-1-flash-1017"} <= set(PRICES_PER_MTOK)
 
 
 # ------------------------------------------------------------------ the budget object
@@ -88,7 +88,7 @@ def test_cost_budget_used_up_never_skips_the_first_hop():
     assert r["audit"]["cost_usd"] >= 2.0 and len(r["claims"]) == 3
 
 
-def test_light_model_is_haiku_with_anthropic_and_the_extract_model_with_the_router():
-    assert Settings(_env_file=None, anthropic_api_key="k", model_extract="claude-sonnet-5-5").light_model == "claude-haiku-5-5"
+def test_helper_models_default_to_the_single_configured_model():
+    assert Settings(_env_file=None, model_extract="deepseek-4-1-flash-1017", model_verify="deepseek-4-1-flash-1017").light_model == "deepseek-4-1-flash-1017"
     assert Settings(_env_file=None, model_extract="router-model").light_model == "router-model"
-    assert Settings(_env_file=None, anthropic_api_key="k", model_light="custom").light_model == "custom"
+    assert Settings(_env_file=None, model_light="custom").light_model == "custom"

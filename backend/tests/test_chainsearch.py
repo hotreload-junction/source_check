@@ -188,7 +188,7 @@ def test_depth_2_checks_use_the_check_model_not_the_verify_model():
     _check_sources([({"url": NYT_URL}, "The ministry will expand coverage.", NYT_QUOTE)], models_seen(seen),
                    Settings(**{**SETTINGS.model_dump(), "model_verify": "strong"}))
     assert seen == ["strong"]
-    assert Settings(_env_file=None, anthropic_api_key="k", model_verify="claude-sonnet-5-5").check_model == "claude-haiku-5-5"
+    assert Settings(_env_file=None, llm_provider="verda", anthropic_api_key="k", model_verify="claude-sonnet-5-5").check_model == "deepseek-4-1-flash-1017"
 
 
 def test_chain_search_does_not_start_after_the_chain_start_limit_and_says_so(monkeypatch):

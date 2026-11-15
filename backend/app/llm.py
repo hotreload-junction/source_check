@@ -1,10 +1,10 @@
-"""LLM client: the Anthropic Messages API (default) or the Hostinger AI Router (OpenAI-compatible /chat/completions).
+"""LLM client: Anthropic Messages API or an OpenAI-compatible /chat/completions provider (Verda / Hostinger Router).
 
 Anthropic: the official SDK, one JSON object per call. No `temperature` (current models reject sampling parameters), no
 assistant prefill (rejected as well): the JSON-only instruction sits in the system prompt and `parse_json_loose` reads the
 answer. `output_config.effort` (LLM_EFFORT) sets how much the model thinks; thinking tokens count against `max_tokens`, so a
 cut-off answer (`stop_reason: max_tokens`) is retried with a bigger budget, like the router's `finish_reason: length`.
-Router: JSON mode, temperature 0 (kept as LLM_PROVIDER=router)."""
+OpenAI-compatible providers: JSON mode, temperature 0. Verda is the production default."""
 from __future__ import annotations
 
 import json
@@ -26,6 +26,7 @@ log = logging.getLogger("citetrace.llm")
 PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5": (2.0, 10.0), "claude-opus-5": (5.0, 25.0), "claude-fable-5-2": (8.0, 40.0),
+    "deepseek-4-1-flash-1017": (0.15, 0.60),
 }
 
 
@@ -106,6 +107,9 @@ class LLMClient:
         if s.llm_provider_resolved == "anthropic":
             return cls.anthropic(s.anthropic_api_key, base_url=s.anthropic_base_url or None, effort=s.llm_effort,
                                  hedge_after=s.llm_hedge_after_s or None, cache=cache)
+        if s.llm_provider_resolved == "verda":
+            return cls(s.verda_base_url, s.verda_api_key,
+                       hedge_after=s.llm_hedge_after_s or None, cache=cache)
         return cls(s.ai_router_base_url, s.ai_router_api_key,
                    hedge_after=s.llm_hedge_after_s or None, cache=cache)
 
@@ -200,7 +204,7 @@ class LLMClient:
         if self.provider == "anthropic":
             return self._chat_json_anthropic(model, system, user, max_tokens)
         if not (self.base_url and self.api_key and model):
-            raise LLMError("AI router not configured (AI_ROUTER_BASE_URL / AI_ROUTER_API_KEY / model)")
+            raise LLMError("OpenAI-compatible LLM provider not configured (base URL / API key / model)")
         MAX_BUDGET = 8000
         body = {
             "model": model, "temperature": 0, "max_tokens": max_tokens,
