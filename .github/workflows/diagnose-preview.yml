@@ -14,6 +14,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Diagnose preview claim-extraction failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
     environment: preview
     env:
       HOST: ${{ vars.DEPLOY_HOST }}
@@ -45,10 +48,21 @@ jobs:
           from app.models import Analysis
 
           settings = get_settings()
-          print(f"runtime provider={settings.llm_provider_resolved} model={settings.model_extract} verda_key_present={bool(settings.verda_api_key)}")
+          print(f"runtime provider={settings.llm_provider_resolved} model={settings.model_extract} verda_key_present={bool(settings.verda_api_key)} base_url={settings.verda_base_url}")
           with session_scope() as session:
               rows = session.scalars(select(Analysis).where(Analysis.status == "failed").order_by(Analysis.created_at.desc()).limit(10)).all()
               print(f"recent failed analyses={len(rows)}")
               for row in rows:
                   print(f"{row.created_at.isoformat()} id={row.id} step={row.step or '-'} error={row.error or '-'}")
           PY
+
+      - name: Compare runtime credential and ping Verda from preview
+        env:
+          VERDA_API_KEY: ${{ secrets.VERDA_API_KEY }}
+        run: |
+          printf '%s\n' "$VERDA_API_KEY" | ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -e
+              export ENV_NAME=preview
+              env_file='$ROOT/preview/.env'
+              cd '$ROOT/preview/current'
+              docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T backend python -c 'import sys, httpx; from app.config import get_settings; s=get_settings(); expected=sys.stdin.readline().strip(); print(\"runtime key matches GitHub secret:\", expected == s.verda_api_key); print(\"runtime Verda base URL:\", s.verda_base_url); r=httpx.post(s.verda_base_url.rstrip(\"/\") + \"/chat/completions\", headers={\"Authorization\": \"Bearer \" + s.verda_api_key}, json={\"model\": s.model_extract, \"messages\": [{\"role\": \"user\", \"content\": \"Reply with JSON: {\\\"ok\\\":true}\"}], \"response_format\": {\"type\": \"json_object\"}, \"max_tokens\": 8, \"temperature\": 0}, timeout=20); print(\"runtime Verda ping status:\", r.status_code)'"
