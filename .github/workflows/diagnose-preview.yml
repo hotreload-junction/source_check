@@ -1,0 +1,54 @@
+name: diagnose-preview
+
+on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/diagnose-preview.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Diagnose preview claim-extraction failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: preview
+    env:
+      HOST: ${{ vars.DEPLOY_HOST }}
+      USER_: ${{ vars.DEPLOY_USER || 'deploy' }}
+      ROOT: ${{ vars.DEPLOY_ROOT || '/opt/source-trace' }}
+    steps:
+      - name: SSH setup
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOSTKEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$HOSTKEY" > ~/.ssh/known_hosts
+
+      - name: Read recent failure details and extraction diagnostics
+        run: |
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$USER_@$HOST" "set -e
+              export ENV_NAME=preview
+              env_file='$ROOT/preview/.env'
+              cd '$ROOT/preview/current'
+              docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T backend python -
+              echo '--- extraction log details (payloads redacted) ---'
+              docker compose -p source-trace-preview -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" logs --since=24h --no-color backend 2>&1 | grep -E 'one (summary|extraction) reading (failed|unusable)' | sed -E 's/no JSON object in model output:.*/no JSON object in model output: [redacted]/; s/router http ([0-9]{3}):.*/router http \1: [redacted]/' | tail -n 60 || true" <<'PY'
+          from sqlalchemy import select
+          from app.config import get_settings
+          from app.db import session_scope
+          from app.models import Analysis
+
+          settings = get_settings()
+          print(f"runtime provider={settings.llm_provider_resolved} model={settings.model_extract} verda_key_present={bool(settings.verda_api_key)}")
+          with session_scope() as session:
+              rows = session.scalars(select(Analysis).where(Analysis.status == "failed").order_by(Analysis.created_at.desc()).limit(10)).all()
+              print(f"recent failed analyses={len(rows)}")
+              for row in rows:
+                  print(f"{row.created_at.isoformat()} id={row.id} step={row.step or '-'} error={row.error or '-'}")
+          PY
