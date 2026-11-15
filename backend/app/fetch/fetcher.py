@@ -47,6 +47,12 @@ WALL_MARKERS = (
     "access denied", "unusual traffic", "before you continue to", "just a moment", "attention required",
 )
 WALL_MAX_CHARS = 2000
+# a login form is mostly links and a few words: judge the VISIBLE text (link targets removed), and recognise the identity
+# providers that sit behind such a form (a PDF on iris.who.int comes back as "Sign in" + a login.microsoftonline.com link)
+WALL_VISIBLE_MAX = 400
+WALL_WORDS = re.compile(r"\b(?:sign[ -]?in|log[ -]?in|login|password|single sign-on|sso)\b", re.I)
+WALL_HOSTS = ("login.microsoftonline.com", "login.live.com", "accounts.google.com", "okta.com/", "auth0.com/", "/saml2", "/oauth2/authorize")
+_MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 # client-rendered tool pages: the server sends a shell and a login prompt, never the figures the article talks about
 JS_ONLY_HOSTS = ("trends.google.", "accounts.google.", "datastudio.google.", "lookerstudio.google.")
 
@@ -56,7 +62,15 @@ def looks_like_wall(text: str | None) -> bool:
     if not text:
         return False
     t = text.strip()
-    return len(t) <= WALL_MAX_CHARS and any(m in t.lower() for m in WALL_MARKERS)
+    if len(t) > WALL_MAX_CHARS:
+        return False
+    visible = _MD_LINK.sub(r"\1", t)
+    low = visible.lower()
+    if any(m in low for m in WALL_MARKERS):
+        return True
+    if len(visible) <= WALL_VISIBLE_MAX and WALL_WORDS.search(visible):
+        return True            # almost nothing but "Sign in" / "Log in" / "Password"
+    return len(visible) <= 800 and any(h in t.lower() for h in WALL_HOSTS)
 
 
 def is_js_only_page(url: str) -> bool:

@@ -147,3 +147,25 @@ def test_a_normal_short_page_still_reaches_the_model():
     seen = []
     r = verify_claim("Searches for male loneliness spiked in 2023.", EN_SOURCE, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
     assert r.verdict == "not_mentioned" and len(seen) == 1
+
+
+SSO = ("Sign in  [Can’t access your account?](https://login.microsoftonline.com/f610c0b7-bd24-4b39-810b-3dc280afb590/saml2?SAMLRequest="
+       + "fZLNbsIwEIRfJfI9sRMSCBZBSuFQJNoikvbQS%2BUYh1hy7NTrlPbtC6Q%2FVKo47" * 6 + "&RelayState=ss%3Amem%3A25f55a946bd8c#)")
+
+
+def test_sso_login_form_that_is_mostly_a_link_is_not_checkable():
+    # live: a WHO PDF behind a Microsoft login came back as "Sign in" + one long SAML link and was judged "not mentioned"
+    from app.fetch.fetcher import looks_like_wall
+    assert looks_like_wall(SSO) and len(SSO) > 200                      # long raw text, almost no visible words
+    seen = []
+    r = verify_claim("The UK government commissioned research on loneliness.", SSO, llm=llm_returning(out("not_mentioned", ""), seen), settings=SETTINGS)
+    assert r.verdict == "not_checkable" and r.downgraded and seen == []
+
+
+def test_ordinary_pages_that_mention_login_are_not_walls():
+    from app.fetch.fetcher import looks_like_wall
+    article = ("The ministry said on Tuesday that the new programme will expand coverage to 40 districts by 2027, according to the "
+               "official report. Critics asked how the new login system for the benefit portal would protect passwords. " * 4)
+    assert not looks_like_wall(article)
+    assert not looks_like_wall("Sign in to read more is how many paywalled pages end, but this page has a whole report. " * 40)   # > 2000 chars
+    assert looks_like_wall("Log in") and looks_like_wall("Please sign in to view this document.") and not looks_like_wall("")

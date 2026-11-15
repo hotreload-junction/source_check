@@ -391,3 +391,10 @@ def test_client_rendered_tool_pages_are_blocked_without_a_request():
                 "https://www.google.com/trends/explore?q=x"):
         r = f.fetch_source(url, ART)
         assert r.status == "blocked", url
+
+
+def test_sso_login_form_from_context_dev_is_blocked_not_ok():
+    from app.fetch.fetcher import _finish
+    sso = ("Sign in  [Can’t access your account?](https://login.microsoftonline.com/f610c0b7/saml2?SAMLRequest=" + "fZLNbsIwEIRfJfI9sRMSCBZB" * 20 + "#)")
+    r = _finish("https://iris.who.int/x.pdf", "link", sso, "context_dev", html=None, title=None, final_url=None)
+    assert r.status == "blocked" and "login" in r.error
