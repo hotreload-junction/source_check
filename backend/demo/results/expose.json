@@ -57,7 +57,8 @@
       },
       "explanation": "The original statement could not be found, and a page that contradicts the claim was found: cdc.gov. This CDC study concludes that mRNA COVID-19 vaccines are highly effective (90% reduction in IMV or death), the opposite of the claim that a CDC study found them harmful and ineffective.",
       "central": true,
-      "focus": false
+      "focus": false,
+      "overview": "The original statement could not be found. The CDC study found by search says mRNA vaccines are highly effective against severe COVID-19, and the gov.uk UKHSA page says vaccination gives significantly greater protection, so both contradict the claim that these studies found the vaccines harmful and ineffective."
     },
     {
       "id": "c2",
@@ -109,7 +110,8 @@
       },
       "explanation": "The original statement could not be found, and a page that conflicts with the claim was found: cdc.gov. The source confirms 469 cases with 346 vaccinated, but 79% of the vaccinated (not 74%) had symptoms; 74% is the share of cases that were vaccinated. The 1.2% hospitalized is correct (4 of 346).",
       "central": true,
-      "focus": false
+      "focus": false,
+      "overview": "The cdc.gov source confirms 469 cases with 346 (74%) vaccinated, and factcheck.org matches this, but the claim that 74% of the vaccinated had symptoms is wrong. The source reports 79% of the vaccinated with symptoms and that 74% is the share of cases who were vaccinated. The 1.2% hospitalization figure is correct, as 4 of 346 were hospitalized."
     },
     {
       "id": "c3",
@@ -147,7 +149,8 @@
       },
       "explanation": "The study found similar Ct values and said this only \"might mean\" similar viral loads, with caveats and no conclusion about infectiousness, so the claim that both groups were equally infectious overstates it.",
       "central": true,
-      "focus": false
+      "focus": false,
+      "overview": "The cited CDC study reports no significant difference in Ct values between breakthrough and other cases. It says this 'might mean' similar viral loads, with the assay not validated for quantitative results. It does not conclude that both groups were equally infectious, so the claim overstates it."
     },
     {
       "id": "c4",
@@ -179,7 +182,8 @@
       "evidence": null,
       "explanation": "The source describes a study of breakthrough infections among healthcare workers in Vietnam but never mentions 900 staff followed or vaccination in March and April 2021 (only 69 positive cases, 62 in the clinical study).",
       "central": true,
-      "focus": false
+      "focus": false,
+      "overview": "The cited SSRN source describes a study of breakthrough infections among healthcare workers in Vietnam. It does not mention 900 staff followed or vaccination in March and April 2021, and reports only 69 positive cases, 62 in the clinical study."
     },
     {
       "id": "c5",
@@ -211,7 +215,8 @@
       "evidence": null,
       "explanation": "The source is only a medRxiv page boilerplate (follow alerts, cookie notice) with no content about a UK Department of Health study or Covid-19 vaccine harm or effectiveness.",
       "central": true,
-      "focus": false
+      "focus": false,
+      "overview": "The cited medRxiv page contains only site boilerplate such as follow alerts and a cookie notice. It has no content about a UK Department of Health study or about vaccines being harmful or ineffective, so the claim is not supported by it."
     }
   ],
   "sources": [
@@ -764,6 +769,13 @@
     "focus_prompt_version": null,
     "cost_usd": 0.437,
     "llm_calls": 39,
-    "skipped": []
+    "skipped": [],
+    "overview_prompt_version": "o1"
+  },
+  "overview": {
+    "text": "Of 5 central claims: 2 overstated or distorted, 1 contradicted by a source, 2 not found in the cited source. The article's central claims do not hold up. The CDC and UK Government sources checked say the opposite of the headline claim that their studies found Covid-19 vaccines harmful and ineffective, and the Massachusetts figures are misread, with the symptom rate and the causes of the vaccinated share confused. The claim about equal infectiousness goes beyond what the cited CDC study says, which only suggests similar viral loads with caveats. The Vietnam study details and the medRxiv claim about the UK Department of Health are not supported by the sources cited, so a reader should not rely on the article for these points. Overall the article is weakly sourced, and its headline framing is not supported by the studies it names.",
+    "source": "ai",
+    "model": "claude-haiku-5-5",
+    "prompt_version": "o1"
   }
 }
