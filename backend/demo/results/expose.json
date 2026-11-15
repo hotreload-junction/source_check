@@ -751,7 +751,7 @@
   },
   "verdict": {
     "label": "weakly_sourced",
-    "summary": "Several central claims are unsupported by their sources or unsourced, but no sign of coordinated infrastructure was found."
+    "summary": "All 5 central claims lack support: 3 are contradicted or distorted by the sources checked, 2 are not backed by any source checked. No sign of coordinated infrastructure was found."
   },
   "focus": null,
   "audit": {
