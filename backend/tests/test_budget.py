@@ -43,13 +43,14 @@ def test_budget_blocks_extras_when_time_or_cost_is_used_up_and_says_what_it_skip
     s = Settings(_env_file=None, time_budget_s=100.0, cost_budget_usd=0.45, chain_start_limit_s=70.0)
     c = client()
     b = RunBudget(s, c, t0=llm_mod.time.monotonic())
-    assert b.over() is None and b.allow("source chain") and b.allow_chain_search() and b.skipped == []
+    assert b.over() is None and b.allow("depth 3") and b.allow_chain_search() and b.skipped == []
     c._record("claude-sonnet-5-5", LLMResult({}, "claude-sonnet-5-5", prompt_tokens=300_000))          # 0.60 USD
-    assert b.over() == "cost" and not b.allow("source chain") and b.skipped == ["source chain (cost budget)"]
+    assert b.over() == "cost" and not b.allow("depth 3") and b.skipped == ["depth 3 (cost budget)"]
+    assert b.allow_first_hop()                                                                          # the first hop is never cut by cost
     late = RunBudget(s, client(), t0=llm_mod.time.monotonic() - 80)                                     # 80 s in: still inside 100 s, past 70 s
     assert late.over() is None and not late.allow_chain_search() and late.skipped == ["chain search (time budget)"]
     over = RunBudget(s, client(), t0=llm_mod.time.monotonic() - 101)
-    assert over.over() == "time" and over.time_left() == 0.0 and not over.allow("depth 3")
+    assert over.over() == "time" and over.time_left() == 0.0 and not over.allow("depth 3") and not over.allow_first_hop()
     off = RunBudget(Settings(_env_file=None, time_budget_s=0, cost_budget_usd=0, chain_start_limit_s=0), client(), t0=llm_mod.time.monotonic() - 10_000)
     assert off.over() is None and off.allow_chain_search() and off.time_left() == float("inf")        # 0 = off
 
@@ -74,7 +75,7 @@ def test_time_budget_used_up_skips_the_source_chain_but_never_the_claim_checks()
     assert len(r["claims"]) == 3 and any(c["verdict"] == "supported" for c in r["claims"])             # the claims were still checked
 
 
-def test_cost_budget_used_up_skips_the_source_chain():
+def test_cost_budget_used_up_never_skips_the_first_hop():
     holder = {}
 
     def expensive_verifier(user):
@@ -83,7 +84,7 @@ def test_cost_budget_used_up_skips_the_source_chain():
     llm = router(EXTRACT, expensive_verifier)
     holder["llm"] = llm
     r = run(Settings(**{**S2.model_dump(), "cost_budget_usd": 0.5}), llm)
-    assert all(s["depth"] == 1 for s in r["sources"]) and r["audit"]["skipped"] == ["source chain (cost budget)"]
+    assert any(s["depth"] == 2 for s in r["sources"]) and r["audit"]["skipped"] == []                   # what the sources cite is still followed
     assert r["audit"]["cost_usd"] >= 2.0 and len(r["claims"]) == 3
 
 

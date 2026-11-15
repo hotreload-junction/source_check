@@ -15,7 +15,7 @@ def test_defaults_match_env_example():
     assert s.extract_votes == 5
     assert (s.extract_mode, s.summary_votes, s.summary_detail_slots) == ("summary", 3, 2)
     assert s.contextualize_claims is True
-    assert (s.time_budget_s, s.cost_budget_usd, s.chain_start_limit_s, s.max_chain_searches) == (100.0, 0.45, 70.0, 1)
+    assert (s.time_budget_s, s.cost_budget_usd, s.chain_start_limit_s, s.max_chain_searches) == (170.0, 1.0, 120.0, 1)
     assert (s.exa_agent_timeout_s, s.factcheck_timeout_s) == (50.0, 50.0)
 
 

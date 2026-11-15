@@ -128,9 +128,10 @@ class Settings(BaseSettings):
     chain_search_deadline_s: float = 50.0  # wall clock for the searches of ONE hop; an unfinished one is dropped (neutral)
     # Budgets of ONE analysis (0 = off). When one is used up the expensive extras are skipped, never the claim checks: the result is
     # shallower, still valid, and `audit.skipped` says what was left out. Cost = LLM calls only (Exa / Context.dev are not metered).
-    time_budget_s: float = 100.0           # no new source-chain hop / chain search starts after this; running hops are cut to what is left
-    chain_start_limit_s: float = 70.0      # a chain search (an Exa Agent run, 20-60 s) only starts before this
-    cost_budget_usd: float = 0.45          # LLM spend after which the source chain (depth >= 2, chain search) is skipped
+    # A longer run is preferred to a skipped source chain: these are safety nets for a run that went wrong, not targets.
+    time_budget_s: float = 170.0           # no new source-chain hop / chain search starts after this; running hops are cut to what is left
+    chain_start_limit_s: float = 120.0     # a chain search (an Exa Agent run, 20-60 s) only starts before this
+    cost_budget_usd: float = 1.0           # LLM spend after which the extras beyond the first hop (chain search, depth >= 3) are skipped
     # The article cites another article of ITS OWN site: read that page and follow what IT cites ("source of the source")
     follow_self_citations: bool = True
     max_self_citation_links: int = 2       # per claim

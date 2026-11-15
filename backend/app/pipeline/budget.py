@@ -3,7 +3,8 @@
 The claim checks (extraction, search, verification of the claims' own sources) are never cut: they are the result. What can
 be skipped is the EXTRA depth: following what the sources cite (depth >= 2) and searching for a source a passage names. When the
 time or the LLM spend is used up, those stages do not start (or, for a running hop, are cut to the time that is left), and
-`audit.skipped` lists what was left out, so a shallower result is never mistaken for a complete one.
+`audit.skipped` lists what was left out, so a shallower result is never mistaken for a complete one. The first hop (depth 2) is
+only ever cut by the time budget; the cost budget stops the extras beyond it (chain search, hops from depth 3).
 
 Cost = what the LLM calls of this analysis cost (llm.Usage). Exa and Context.dev are not metered yet.
 """
@@ -53,6 +54,14 @@ class RunBudget:
         why = self.over()
         if why:
             self.skip(stage, why)
+            return False
+        return True
+
+    def allow_first_hop(self) -> bool:
+        """The first source-chain hop (what the claims' sources cite) is the point of the product: only a time budget that is
+        really used up stops it, never the cost budget."""
+        if self.s.time_budget_s > 0 and self.elapsed() >= self.s.time_budget_s:
+            self.skip("source chain", "time")
             return False
         return True
 

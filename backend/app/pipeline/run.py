@@ -273,7 +273,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     depth = 1
     d2_edges: list[dict] = []
     circles = []
-    if s.max_depth >= 2 and reg.rows and budget.allow("source chain"):
+    if s.max_depth >= 2 and reg.rows and budget.allow_first_hop():
         progress("depth2", "Following the source chain", 88)
         d2 = expand_sources(reg.rows, assessments, claim_dicts, fetcher=fetcher, article_url=url,
                             article_domain=article_domain, max_depth=s.max_depth, emit=out, llm=llm, settings=s, step_cache=sc, run_budget=budget)
