@@ -105,6 +105,13 @@ evidence: {
   fuzzy_score: float          # 0-100, rapidfuzz partial_ratio vs fetched source text
 } | null
 explanation: str              # one sentence: why this verdict
+source_checks: [{source_id: str, verdict: ClaimVerdict, page_verdict: ClaimVerdict|null, quote_original: str|null,
+                 quote_translation: str|null, language: str|null, fuzzy_score: float|null, explanation: str, note: str|null,
+                 model: str|null, prompt_version: str|null}]
+   # additive: how THIS claim's check of EACH cited / found page came out, not only the one the verdict rests on (`evidence`).
+   # `verdict` = what counts (after the neutral mappings: unreadable, paywall, loosely attached link, secondary report ...);
+   # `page_verdict` = what the page itself says (null = the page could not be read). Quote first: the quote is fuzzy-checked
+   # like every verdict. [] = nothing was read for this claim. Absent in older results.
 central: bool                 # additive (F6): true = one of the article's central claims, counts for the verdict
 focus: bool                   # additive (F6): true = matches the reader's question (Result.focus); absent in older results = false
 ```

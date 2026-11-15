@@ -5,7 +5,8 @@ import { Logo } from './Logo';
 import { useCompact } from './responsive';
 import { locate, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
-import type { TNode } from './tree';
+import { pairCheck, type TNode } from './tree';
+import type { ClaimVerdict } from './types';
 
 const box: CSSProperties = { padding: '14px 16px', borderRadius: TH.rad, background: TH.card, border: `1px solid ${TH.line}` };
 
@@ -221,6 +222,19 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
           </div>
         </div>
       )}
+      {(c.source_checks?.length ?? 0) > 1 || (c.source_checks?.length === 1 && !ev) ? (
+        <Section title="Sources checked" right={<span style={{ fontSize: 11.5, color: TH.mut }}>each page against this claim</span>}>
+          {c.source_checks!.map((k) => {
+            const ks = ctx.view.sources.find((x) => x.id === k.source_id);
+            return (
+              <div key={k.source_id} style={{ ...box, marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{ks ? srcName(ks) : k.source_id}</div>
+                <CheckBody k={{ verdict: k.verdict, quote: k.quote_original, translation: k.quote_translation, language: k.language, explanation: k.explanation, note: k.note, model: k.model, version: k.prompt_version }} />
+              </div>
+            );
+          })}
+        </Section>
+      ) : null}
       {ev && (
         <Section title="Evidence" right={<span style={{ fontSize: 11.5, color: TH.mut }}>verbatim from {(evSrc ? srcName(evSrc) : ev.source_id)}</span>}>
           <div style={{ ...box, fontSize: 14, lineHeight: 1.55 }}>
@@ -250,11 +264,23 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
             <Pill c={edgeColor(ctx, e)}>{edgeLabel(ctx, e)}</Pill>
           </div>
           <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45 }}><span style={{ color: TH.mut }}>Claimed in the article:</span> {e.claim!.text}</div>
-          {e.verdict != null
-            ? <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{e.claim!.explanation}</div>
-            : <div style={{ marginTop: 6, fontSize: 13, color: TH.mut }}>Cited by the claim, but its verdict rests on another source.</div>}
+          {(() => {
+            const k = e.claim && !e.evidence ? pairCheck(e.claim, n.id) : null;
+            if (k) return <CheckBody k={{ verdict: k.verdict, quote: k.quote_original, translation: k.quote_translation, language: k.language, explanation: k.explanation, note: k.note, model: k.model, version: k.prompt_version }} />;
+            return e.verdict != null
+              ? <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{e.claim!.explanation}</div>
+              : <div style={{ marginTop: 6, fontSize: 13, color: TH.mut }}>Cited by the claim, but its verdict rests on another source.</div>;
+          })()}
         </div>
       ))}
+
+      {s.check && (
+        <Section title="Check of this source" right={<span style={{ fontSize: 11.5, color: TH.mut }}>against the claim it is cited for · context, not part of the article verdict</span>}>
+          <div style={box}>
+            <CheckBody k={{ verdict: s.check.verdict, quote: s.check.quote_original, translation: null, language: null, explanation: s.check.explanation, note: null, model: s.check.model, version: s.check.prompt_version }} />
+          </div>
+        </Section>
+      )}
 
       <Section title="Source type and reputation" right={<span style={{ fontSize: 11.5, color: TH.mut }}>Context only, never part of a verdict</span>}>
         <ReputationBox ctx={ctx} n={n} />
@@ -344,5 +370,26 @@ function ReputationBox({ ctx, n }: { ctx: Ctx; n: TNode }) {
         <Row k="Reputation">{pending ? 'Pending' : 'Not collected for this domain'}</Row>
       ))}
     </div>
+  );
+}
+
+/** One page's check against a claim: verdict, the page's own sentence (verbatim, quote first) and what produced it. */
+function CheckBody({ k }: { k: { verdict: ClaimVerdict; quote: string | null; translation: string | null; language: string | null; explanation: string; note: string | null; model: string | null; version: string | null } }) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+        <Pill c={CLAIM_V[k.verdict].c}>{CLAIM_V[k.verdict].label}</Pill>
+        {k.verdict === 'not_checkable' && <span style={{ fontSize: 12, color: TH.mut }}>Neutral: never counts against the article.</span>}
+      </div>
+      {k.explanation && <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>{k.explanation}</div>}
+      {k.note && k.note !== k.explanation && <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}>{k.note}</div>}
+      {k.quote && (
+        <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.55 }}>
+          <span style={{ background: CLAIM_V[k.verdict].c + '40', borderBottom: `2px solid ${CLAIM_V[k.verdict].c}`, borderRadius: 3, fontWeight: 600 }}>“{k.quote}”</span>
+          {k.translation && <div style={{ marginTop: 4, fontSize: 12.5, color: TH.mut }}>{(k.language ?? '').toUpperCase()} → EN: “{k.translation}”</div>}
+        </div>
+      )}
+      {k.model && <div style={{ marginTop: 6, fontSize: 11.5, color: TH.mut }}>Checked by {k.model} · prompt {k.version}</div>}
+    </>
   );
 }

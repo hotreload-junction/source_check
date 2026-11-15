@@ -2,7 +2,7 @@
 // Each source appears once (docs/graph-view.md): its first citing claim owns it in the tree, other
 // claims reach it through extra edges. Claims without sources get a "no source" stub.
 
-import type { Claim, ClaimVerdict, Domain, Focus, GraphEdge, GraphNode, Result, Signals, Source } from './types';
+import type { Claim, ClaimSourceCheck, ClaimVerdict, Domain, Focus, GraphEdge, GraphNode, Result, Signals, Source } from './types';
 
 export interface View {
   articleId: string;
@@ -85,10 +85,16 @@ export function fromLive(l: Live, url: string): View {
   };
 }
 
+/** The backend's check of this claim against this one source (every read page has one; older results have none). */
+export function pairCheck(c: Claim, sid: string): ClaimSourceCheck | null {
+  return c.source_checks?.find((k) => k.source_id === sid) ?? null;
+}
+
 export function pairVerdict(c: Claim, sid: string): { verdict: ClaimVerdict | null; evidence: boolean } {
   if (c.evidence && c.evidence.source_id === sid) return { verdict: c.verdict, evidence: true };
   if (!c.evidence && c.source_ids.length === 1 && c.source_ids[0] === sid) return { verdict: c.verdict, evidence: false };
-  return { verdict: null, evidence: false };
+  const k = pairCheck(c, sid); // a page the claim verdict does not rest on: its own verdict
+  return { verdict: k ? k.verdict : null, evidence: false };
 }
 
 // `order` keeps reveal positions stable while data streams in; pass a fresh Map for a new job.
@@ -186,7 +192,7 @@ export function buildTree(v: View, order: Map<string, number>): Tree {
     const c = from.kind === 'claim' ? from.claim! : null;
     const pv = c && to.kind === 'source' ? pairVerdict(c, to.id) : { verdict: null, evidence: false };
     const type: TEdge['type'] = from.kind === 'root' ? 'claim' : to.kind === 'nosrc' ? 'nosrc' : c ? 'cites' : 'sub';
-    return { id: from.id + '->' + to.id, from, to, type, extra: isExtra, claim: c ?? to.claim ?? null, verdict: type === 'nosrc' ? 'unsourced' : pv.verdict, evidence: pv.evidence };
+    return { id: from.id + '->' + to.id, from, to, type, extra: isExtra, claim: c ?? to.claim ?? null, verdict: type === 'nosrc' ? 'unsourced' : type === 'sub' ? (to.source?.check?.verdict ?? null) : pv.verdict, evidence: pv.evidence };
   };
   list.forEach((n) => edges.push(pair(n.parent!, n, false)));
   extra.forEach(([a, b]) => edges.push(pair(by[a], by[b], true)));

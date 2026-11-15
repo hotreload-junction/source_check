@@ -28,6 +28,21 @@
           "s1"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s1",
+            "verdict": "supported",
+            "page_verdict": "supported",
+            "quote_original": "cutting the country off from technology would speed up its push for independence",
+            "quote_translation": null,
+            "language": "en",
+            "fuzzy_score": 100.0,
+            "explanation": "The May interview report quotes the CEO saying exactly this.",
+            "note": null,
+            "model": "claude-sonnet-5-5",
+            "prompt_version": "v10"
+          }
+        ],
         "verdict": "supported",
         "subtype": null,
         "evidence": {
@@ -50,6 +65,21 @@
           "s2"
         ],
         "found_source_ids": [],
+        "source_checks": [
+          {
+            "source_id": "s2",
+            "verdict": "not_checkable",
+            "page_verdict": null,
+            "quote_original": null,
+            "quote_translation": null,
+            "language": null,
+            "fuzzy_score": null,
+            "explanation": "Source could not be read (blocked).",
+            "note": null,
+            "model": null,
+            "prompt_version": null
+          }
+        ],
         "verdict": "not_checkable",
         "subtype": null,
         "evidence": null,

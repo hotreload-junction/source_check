@@ -126,7 +126,11 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   // ---- derived, override-aware helpers ----
   const ctx: Ctx = useMemo(() => {
-    const judgedEdge = (n: TNode): TEdge | undefined => tree.edges.find((e) => e.from === n && e.type === 'cites' && e.verdict != null);
+    // the edge the CLAIM verdict sits on: the evidence page, or the only cited page (other pages carry their own check, not the claim's verdict)
+    const judgedEdge = (n: TNode): TEdge | undefined => {
+      const mine = tree.edges.filter((e) => e.from === n && e.type === 'cites');
+      return mine.find((e) => e.evidence) ?? (mine.length === 1 && mine[0].verdict != null ? mine[0] : undefined);
+    };
     const infra = view.signals?.infrastructure.reasons ?? [];
     return {
       tree, view,

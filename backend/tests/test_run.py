@@ -242,3 +242,23 @@ def test_unresolved_attribution_is_one_stub_source_shared_by_its_claims(pages):
     assert r["sources"][0]["fetch_status"] == "not_fetched" and r["sources"][0]["attribution_text"] == "the ministry"
     assert r["claims"][0]["source_ids"] == r["claims"][1]["source_ids"] == ["s1"]
     assert r["domains"][0]["is_article_domain"] and len(r["domains"]) == 1       # a stub adds no domain node
+
+
+def test_every_cited_source_carries_its_own_check_on_the_claim(pages):
+    r = run(pages).result
+    by_id = {c["id"]: c for c in r["claims"]}
+    (ck,) = by_id["c2"]["source_checks"]
+    s = next(x for x in r["sources"] if x["id"] == ck["source_id"])
+    assert s["domain"] == "ministry.gov.uk" and ck["verdict"] == "supported" and ck["page_verdict"] == "supported"
+    assert ck["quote_original"] and ck["fuzzy_score"] >= 90 and ck["model"] and ck["prompt_version"] == "vT"
+    (bad,) = by_id["c1"]["source_checks"]                     # a source that does NOT back the claim is checked and shown too
+    assert bad["verdict"] == "not_mentioned" and bad["quote_original"] is None and bad["explanation"]
+    assert by_id["c3"]["source_checks"] == []                 # nothing cited, nothing checked
+
+
+def test_unreadable_cited_source_is_a_neutral_check_with_the_reason(pages):
+    pages["https://ministry.gov.uk/report"] = FetchResult("https://ministry.gov.uk/report", "link", "paywall", error="paywall")
+    r = run(pages).result
+    ck = next(c for c in r["claims"] if c["id"] == "c2")["source_checks"][0]
+    assert ck["verdict"] == "not_checkable" and ck["page_verdict"] is None and ck["quote_original"] is None
+    assert "paywall" in ck["explanation"].lower()

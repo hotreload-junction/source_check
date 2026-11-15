@@ -13,6 +13,32 @@ export interface Evidence {
   fuzzy_score: number;
 }
 
+/** How ONE claim's check of ONE cited / found page came out (contract Claim.source_checks). `verdict` is what counts;
+ *  `page_verdict` is what the page itself says (null = it could not be read). */
+export interface ClaimSourceCheck {
+  source_id: string;
+  verdict: ClaimVerdict;
+  page_verdict: ClaimVerdict | null;
+  quote_original: string | null;
+  quote_translation: string | null;
+  language: string | null;
+  fuzzy_score: number | null;
+  explanation: string;
+  note: string | null;
+  model: string | null;
+  prompt_version: string | null;
+}
+
+/** Check of a depth >= 2 source against the claim it is cited for (contract Source.check). Display only. */
+export interface SourceCheck {
+  verdict: ClaimVerdict;
+  quote_original: string | null;
+  fuzzy_score: number | null;
+  explanation: string;
+  model: string;
+  prompt_version: string;
+}
+
 export interface Claim {
   id: string;
   text: string;
@@ -20,6 +46,7 @@ export interface Claim {
   char_end: number | null;
   source_ids: string[];
   found_source_ids?: string[];
+  source_checks?: ClaimSourceCheck[]; // every cited / found page this claim was checked against; absent in older results
   verdict: ClaimVerdict;
   subtype: 'self_citation' | 'social_media' | null;
   evidence: Evidence | null;
@@ -58,6 +85,7 @@ export interface Source {
   fetched_via: 'context_dev' | 'trafilatura' | 'telegram' | null;
   source_type?: SourceType | null; // PLAN Q1; absent in older results = null
   source_type_reason?: string | null;
+  check?: SourceCheck | null; // depth >= 2: the page checked against the claim it is cited for; absent = not checked
 }
 
 export interface Domain {

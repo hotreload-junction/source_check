@@ -424,6 +424,7 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
     source_ids: list[str] = []
     found_ids: list[str] = []        # unsourced claim: pages the search found (the article cites none: source_ids stays empty)
     anchors = {l.url: l.anchor_text for l in c.links}
+    checked: dict[str, SourceAssessment] = {}      # source row id -> how this claim's check of that page came out
 
     def node_event(row: dict) -> None:
         out("node", {"id": row["id"], "type": "source", "label": row["domain"] or row["attribution_text"] or "unknown",
@@ -435,6 +436,8 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
         target = source_ids if into is None else into
         if row["id"] not in target:
             target.append(row["id"])
+        if sa.url and row["id"] not in checked:
+            checked[row["id"]] = sa
         if new:
             node_event(row)
         out("edge", {"id": f"e-{c.id}-{row['id']}", "source": c.id, "target": row["id"], "type": "cites"})
@@ -475,8 +478,20 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
                     "quote_original": ev.quote_original, "quote_translation": ev.quote_translation,
                     "language": ev.language or "und", "fuzzy_score": round(ev.fuzzy_score or 0.0, 1)}
     return {"id": c.id, "text": c.text, "char_start": c.char_start, "char_end": c.char_end, "source_ids": source_ids,
-            "found_source_ids": found_ids,
+            "found_source_ids": found_ids, "source_checks": [_source_check(sid, sa) for sid, sa in checked.items()],
             "verdict": a.verdict, "subtype": a.subtype, "evidence": evidence, "explanation": a.explanation}
+
+
+def _source_check(source_id: str, sa: SourceAssessment) -> dict:
+    """Contract `Claim.source_checks[]`: how THIS claim's check of ONE page came out, for every page that was read (or
+    could not be), not only the one the claim verdict rests on. `verdict` is what counts (after the neutral mappings:
+    unreachable, paywall, a loosely attached link, a secondary report ...); `page_verdict` is what the page itself says."""
+    v = sa.verify
+    return {"source_id": source_id, "verdict": sa.verdict, "page_verdict": v.verdict if v else None,
+            "quote_original": v.quote_original if v else None, "quote_translation": v.quote_translation if v else None,
+            "language": v.language if v else None, "fuzzy_score": round(v.fuzzy_score, 1) if v and v.fuzzy_score is not None else None,
+            "explanation": (v.explanation if v and v.explanation else sa.note) or "", "note": sa.note or None,
+            "model": v.model if v else None, "prompt_version": v.prompt_version if v else None}
 
 
 def _graph(title: str, article_domain: str, claims: list[dict], sources: list[dict], infra, domain_cluster: dict,
