@@ -92,10 +92,10 @@ export function Landing() {
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 48 }}>
-          <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: compact ? 'clamp(32px, 8.6vw, 84px)' : 'clamp(40px, 5.4vw, 80px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
+          <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: compact ? 'clamp(32px, 8.6vw, 84px)' : 'clamp(36px, 4.7vw, 72px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
             Paste something you read.
             <br />
-            See what is{' '}
+            See what is really{' '}
             <span style={{ color: CL.g, backgroundImage: `linear-gradient(90deg, ${CL.r}, ${CL.o} 35%, ${CL.y} 65%, ${CL.g})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               behind it.
             </span>
