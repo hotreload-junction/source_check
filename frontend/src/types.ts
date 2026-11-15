@@ -166,8 +166,18 @@ export interface Methodology {
   generated_at: string;
   verify_model: string;
   prompt_version: string;
-  pairs: { n: number; n_cross_language: number; precision: number; recall: number; confusion: Confusion };
-  articles: { n_network: number; n_wire: number; fpr_wire: number; tpr_network: number; confusion: Confusion };
+  pairs: {
+    n: number; n_cross_language: number; precision: number; recall: number; confusion: Confusion;
+    abstained?: number;
+    by_dataset?: Record<string, { n: number; precision: number; recall: number; confusion: Confusion }>;
+  };
+  articles: {
+    n_network: number; n_wire: number; fpr_wire: number; tpr_network: number; confusion: Confusion;
+    // additive (eval/metrics.py): the same articles decided without the published network list
+    fpr_wire_without_list?: number; tpr_network_without_list?: number; confusion_without_list?: Confusion;
+    n_hard_negatives?: number; fp_hard_negatives?: number; n_failed?: number;
+    labels?: Record<string, Record<string, number>>; labels_without_list?: Record<string, Record<string, number>>;
+  };
   thresholds: Record<string, number>;
   tuned_on: string;
   measured_on: string;

@@ -221,6 +221,13 @@ articles: {n_network, n_wire, fpr_wire, tpr_network,
 thresholds: {name: value}     # e.g. {"min_bad_claims": 2, "young_domain_days": 90, "fuzzy": 90}
 tuned_on: str, measured_on: str
 error_cases: [{kind: "fp"|"fn", url_or_pair_id, expected, got, note}]
+# additive, optional (eval/metrics.py):
+pairs.abstained: int                       # pairs answered not_checkable (counted as "not flagged")
+pairs.by_dataset: {name: {n, precision, recall, confusion}}
+articles.fpr_wire_without_list, articles.tpr_network_without_list: float, articles.confusion_without_list
+                                           # same articles decided without the published network list (VIGINUM)
+articles.n_hard_negatives, articles.fp_hard_negatives, articles.n_failed: int
+articles.labels, articles.labels_without_list: {"network"|"wire": {ArticleVerdict: count}}
 ```
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from './api';
 import { Wordmark } from './Brand';
-import { hasRun, label, pct, total } from './evalstats';
+import { ciText, hasRun, label, pct, total } from './evalstats';
 import { useCompact } from './responsive';
 import { ARTICLE_V, CL, CLAIM_V, MONO, TH } from './theme';
 import type { ArticleVerdict, ClaimVerdict, Confusion, Methodology as M } from './types';
@@ -164,6 +164,11 @@ function limits(): ReactNode[] {
     <><b>The web changes.</b> A finished analysis replays exactly from the cache, but a fresh run days later can find different pages and reach a different label.</>,
   ];
 }
+
+const DATASETS: Record<string, [string, string]> = {
+  'check-covid': ['Check-COVID', 'Claims journalists wrote in news articles, checked by experts against the study the article cites (ACL 2023).'],
+  wice: ['WiCE', 'Wikipedia sentences and the web page they cite, labelled by annotators (EMNLP 2023).'],
+};
 
 const THRESHOLD_NAMES: Record<string, string> = {
   min_bad_claims: 'Bad claims needed for the evidence signal',
@@ -357,7 +362,7 @@ export function Methodology() {
         </Section>
 
         {/* ---- 5. measured ---- */}
-        <Section id="measured" title="Measured" sub="Accuracy comes from a labelled evaluation set that is kept apart from the three demo articles. Repeatability was measured while building.">
+        <Section id="measured" title="Measured" sub="Accuracy comes from labelled evaluation data kept apart from the three demo articles: public expert-labelled claim-source pairs, and articles labelled by where they were published. Intervals are 95 % Wilson intervals; with samples this small they are wide, and we show them so nobody reads more into a percentage than it holds. Repeatability was measured while building.">
           {!m && !err && <div style={{ color: TH.mut }}>Loading …</div>}
           {m && !run && (
             <div style={{ ...card, borderColor: CL.y, ...body }}>
@@ -370,9 +375,9 @@ export function Methodology() {
               <h3 style={{ fontSize: 17, margin: '22px 0 4px' }}>Claim check: does the source support the claim?</h3>
               <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>{m.pairs.n} labelled claim-source pairs, {m.pairs.n_cross_language} of them across languages. The positive class is “not supported” (distorted, contradicted, not mentioned), because that is what we must catch.</p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Metric name="Precision" value={pct(m.pairs.precision, m.pairs.confusion)} note="Of the claims we flag as not supported, how many truly are." />
-                <Metric name="Recall" value={pct(m.pairs.recall, m.pairs.confusion)} note="Of the claims that truly are not supported, how many we catch." />
-                <Metric name="Pairs" value={String(m.pairs.n)} note={`${m.pairs.n_cross_language} cross-language`} />
+                <Metric name="Precision" value={pct(m.pairs.precision, m.pairs.confusion)} note={`Of the claims we flag as not supported, how many truly are. ${ciText(m.pairs.confusion.tp, m.pairs.confusion.tp + m.pairs.confusion.fp)}`} />
+                <Metric name="Recall" value={pct(m.pairs.recall, m.pairs.confusion)} note={`Of the claims that truly are not supported, how many we catch. ${ciText(m.pairs.confusion.tp, m.pairs.confusion.tp + m.pairs.confusion.fn)}`} />
+                <Metric name="Pairs" value={String(m.pairs.n)} note={`${m.pairs.n_cross_language} cross-language${m.pairs.abstained != null ? `, ${m.pairs.abstained} answered “not checkable”` : ''}`} />
               </div>
               {hasRun(m.pairs.confusion) && (
                 <div style={{ ...card, marginTop: 12 }}>
@@ -380,13 +385,56 @@ export function Methodology() {
                   <Matrix c={m.pairs.confusion} positive="not supported" negative="supported" />
                 </div>
               )}
+              {m.pairs.by_dataset && hasRun(m.pairs.confusion) && (
+                <div style={{ ...card, marginTop: 12, ...body }}>
+                  <div style={{ ...cap, marginBottom: 6 }}>By dataset</div>
+                  {Object.entries(m.pairs.by_dataset).map(([k, d], i) => (
+                    <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '140px 1fr', gap: compact ? 2 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none' }}>
+                      <b>{DATASETS[k]?.[0] ?? k}</b>
+                      <span style={{ color: TH.mut }}>{d.n} pairs · precision {pct(d.precision, d.confusion)} · recall {pct(d.recall, d.confusion)}. {DATASETS[k]?.[1]}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <h3 style={{ fontSize: 17, margin: '28px 0 4px' }}>Article verdict: propaganda pattern or not?</h3>
-              <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>{m.articles.n_network} articles from known propaganda networks and {m.articles.n_wire} wire-service articles. The number to look at is the false-positive rate on wire articles: how often we wrongly accuse honest reporting.</p>
+              <p style={{ ...body, color: TH.mut, margin: '0 0 12px', maxWidth: 700 }}>{m.articles.n_network} articles from a documented propaganda network and {m.articles.n_wire} mainstream news articles, labelled by where they were published. The number to look at is the false-positive rate on wire articles: how often we wrongly accuse honest reporting.</p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Metric strong name="False-positive rate (wire)" value={pct(m.articles.fpr_wire, m.articles.confusion)} note={`${m.articles.n_wire} wire articles`} />
-                <Metric name="True-positive rate (network)" value={pct(m.articles.tpr_network, m.articles.confusion)} note={`${m.articles.n_network} network articles`} />
+                <Metric strong name="False-positive rate (wire)" value={pct(m.articles.fpr_wire, m.articles.confusion)} note={`${m.articles.n_wire} mainstream articles. ${ciText(m.articles.confusion.fp, m.articles.n_wire)}`} />
+                <Metric name="True-positive rate (network)" value={pct(m.articles.tpr_network, m.articles.confusion)} note={`${m.articles.n_network} network articles. ${ciText(m.articles.confusion.tp, m.articles.n_network)}`} />
               </div>
+              {m.articles.confusion_without_list && hasRun(m.articles.confusion) && (
+                <>
+                  <p style={{ ...body, color: TH.mut, margin: '14px 0 10px', maxWidth: 700 }}>
+                    The network articles are on the published VIGINUM list by construction, so the list alone fires the infrastructure signal for them. The same articles decided <b style={{ color: TH.ink }}>without the list</b> show what the other signals find on their own:
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <Metric name="False-positive rate, without list" value={pct(m.articles.fpr_wire_without_list ?? 0, m.articles.confusion)} note={ciText(m.articles.confusion_without_list.fp, m.articles.n_wire)} />
+                    <Metric name="True-positive rate, without list" value={pct(m.articles.tpr_network_without_list ?? 0, m.articles.confusion)} note={ciText(m.articles.confusion_without_list.tp, m.articles.n_network)} />
+                  </div>
+                </>
+              )}
+              {m.articles.labels && hasRun(m.articles.confusion) && (
+                <div style={{ ...card, marginTop: 12, ...body }}>
+                  <div style={{ ...cap, marginBottom: 6 }}>All article labels</div>
+                  {(['wire', 'network'] as const).map((g, i) => (
+                    <div key={g} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '140px 1fr', gap: compact ? 4 : 12, padding: '8px 0', borderTop: i ? `1px solid ${TH.line}` : 'none', alignItems: 'center' }}>
+                      <b>{g === 'wire' ? 'Mainstream' : 'Network'}</b>
+                      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {(Object.keys(ARTICLE_V) as ArticleVerdict[]).filter((v) => m.articles.labels?.[g]?.[v]).map((v) => (
+                          <span key={v} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><ArticlePill v={v} /><span style={{ fontFamily: MONO, fontWeight: 700 }}>× {m.articles.labels![g][v]}</span></span>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                  {m.articles.n_hard_negatives ? (
+                    <div style={{ color: TH.mut, marginTop: 8 }}>
+                      Hard cases among the mainstream articles: {m.articles.n_hard_negatives} from outlets that often cite officials’ Telegram channels (Kyiv Independent, Ukrainska Pravda, Meduza); {m.articles.fp_hard_negatives ?? 0} of them flagged as a propaganda pattern.
+                    </div>
+                  ) : null}
+                  {m.articles.n_failed ? <div style={{ color: TH.mut, marginTop: 4 }}>{m.articles.n_failed} article(s) could not be fetched and are not counted.</div> : null}
+                </div>
+              )}
               {hasRun(m.articles.confusion) && (
                 <div style={{ ...card, marginTop: 12 }}>
                   <div style={{ ...cap, marginBottom: 10 }}>Confusion matrix · {total(m.articles.confusion)} articles</div>

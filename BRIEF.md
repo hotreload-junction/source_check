@@ -24,7 +24,30 @@ check whether the cited source actually supports the claim, with the verbatim ev
 fingerprint the infrastructure behind each source (analytics/AdSense IDs, domain age) -> article verdict
 by the two-signal rule (AGENTS.md section 7, DECISIONS.md).
 
-<!-- verbatim Hostinger challenge text here -->
+### Verbatim challenge text (Hostinger, "Decode the Noise")
+
+> Build an AI-powered tool that detects propaganda, bots and bad actors online – and deploy it live on Hostinger's infrastructure.
+>
+> Build a tool that analyses text, social content or web-traffic patterns to detect signs of coordinated propaganda,
+> bot-driven amplification or bad-actor behaviour online. Solutions can take many forms: an API, a dashboard, a classifier
+> with an explainable verdict, or a monitoring service for site owners.
+>
+> Whatever you build, it must be deployed and running live on Hostinger's infrastructure by the end of the hackathon, with
+> a public URL the judges can open. We care more about the strength and honesty of your detection logic – including how
+> you handle false positives – than a polished front end.
+>
+> Directions (pick one, or combine them): **Spot the swarm** (coordinated inauthentic behaviour from posting timing,
+> account similarity, text reuse, amplification patterns); **Name the technique** (classify manipulation techniques in
+> text and explain the verdict in plain language); **Clean the traffic** (bots/scrapers/credential stuffing in server
+> logs); **Trust the source** (score the provenance of a page or account: domain age, cloned content, AI-generated text,
+> link networks).
+>
+> We're especially interested in approaches that are transparent and measurable – show your precision and false-positive
+> rate, not just a demo that works on the happy path.
+>
+> Resources: Hostinger VPS (KVM 2), Hostinger AI Router credits (150+ models, OpenAI- and Anthropic-SDK compatible),
+> Hostinger AI Builder, Hostinger Connector/API/CLI (MCP). Mentors: Minijus Savickas (VPS Product), Emilis Strimaitis
+> (Innovations, AI agents).
 
 ## Judging criteria (optimise for these)
 
