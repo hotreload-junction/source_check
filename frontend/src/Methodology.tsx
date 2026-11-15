@@ -35,7 +35,18 @@ function Icon({ name, size = 20, color = 'currentColor' }: { name: IconName; siz
 }
 
 const SECTIONS: [string, string][] = [
-  ['how', 'How it works'], ['output', 'What you get'], ['guards', 'Safeguards'], ['measured', 'Results'], ['scope', 'Scope & audit'],
+  ['how', 'How it works'], ['output', 'What you get'], ['guards', 'Safeguards'], ['measured', 'Results'], ['scope', 'Scope & audit'], ['stack', 'Tech stack'],
+];
+
+// Restates backend/pyproject.toml, frontend/package.json and deploy/docker-compose.yml.
+const STACK: [string, string][] = [
+  ['Frontend', 'React 18, TypeScript and Vite. The source graph is drawn by our own SVG renderer.'],
+  ['Backend', 'Python with FastAPI. One background thread per analysis, progress streamed live (SSE).'],
+  ['Language models', 'Claude models through the Anthropic API: a strong model verifies, a cheap one picks claims. The Hostinger AI Router is a selectable alternative.'],
+  ['Quote matching', 'rapidfuzz finds the model’s quote in the fetched page; trafilatura extracts the article body.'],
+  ['Web data', 'Context.dev fetches pages, Exa finds missing sources, RDAP gives domain age, the Wayback Machine the first capture.'],
+  ['Storage', 'MariaDB holds results and the audit trail; every step is cached by a hash of its input.'],
+  ['Deploy', 'Docker Compose on a Hostinger VPS: MariaDB, the backend and Caddy, which serves the app and handles HTTPS.'],
 ];
 
 function Section({ id, title, sub, children }: { id: string; title: string; sub?: ReactNode; children: ReactNode }) {
@@ -580,6 +591,18 @@ export function Methodology() {
               <div style={{ color: TH.mut, marginTop: 8 }}>Labels help the reader judge a source; they never change a verdict.</div>
             </div>
           </More>
+        </Section>
+
+        {/* ---- 6. tech stack ---- */}
+        <Section id="stack" title="Tech stack" sub="Language models read and quote; everything that decides is plain code.">
+          <div style={{ ...card, padding: '6px 20px' }}>
+            {STACK.map(([k, v], i) => (
+              <div key={k} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '150px 1fr', gap: compact ? 3 : 12, padding: '10px 0', borderTop: i ? `1px solid ${TH.line}` : 'none', ...body }}>
+                <b>{k}</b>
+                <span style={{ color: TH.mut }}>{v}</span>
+              </div>
+            ))}
+          </div>
         </Section>
       </div>
     </div>
