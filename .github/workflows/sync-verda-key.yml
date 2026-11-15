@@ -74,5 +74,13 @@ jobs:
               test -d \"\$current\"
               cd \"\$current\"
               docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" up -d
-              health=\$(docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T web wget -qO- http://localhost/api/health)
-              printf '%s' \"\$health\" | grep -F '\"ok\":true'"
+              for i in \$(seq 1 30); do
+                health=\$(docker compose -p 'source-trace-$TARGET' -f deploy/docker-compose.yml -f deploy/docker-compose.vps.yml --env-file \"\$env_file\" exec -T web wget -qO- http://localhost/api/health 2>/dev/null || true)
+                if printf '%s' \"\$health\" | grep -F '\"ok\":true' >/dev/null; then
+                  printf '%s\\n' \"\$health\"
+                  exit 0
+                fi
+                sleep 4
+              done
+              echo 'health check failed after 120 seconds' >&2
+              exit 1"
