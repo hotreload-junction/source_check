@@ -66,7 +66,17 @@ need_repo() { [ -n "$REPO" ] || die "cannot determine repo; set BOARD_REPO=owner
 # ---------- fetching ----------
 b64d() { base64 -d 2>/dev/null || base64 -D; }
 # Row format: id<TAB>login<TAB>created_at<TAB>base64(body)
-JQ_ROW='.[] | "\(.id)\t\(.user.login)\t\(.created_at)\t\(.body | @base64)"'
+# Only comments by people with write access (OWNER/MEMBER/COLLABORATOR) and explicitly allowed logins (the CI bot) reach
+# the agents. The repo/issue may be public: without this filter ANY GitHub user could post "[leo] BREAKING -> all: ..."
+# (the header is not tied to the login) and a headless agent under tools/autopilot would act on it as an instruction.
+# BOARD_ALLOW_LOGINS: extra space-separated logins; BOARD_TRUST_ALL=1 switches the filter off (private repos only).
+BOARD_ALLOW_LOGINS="${BOARD_ALLOW_LOGINS:-github-actions[bot]}"
+jq_str_array() { local out="" x; for x in "$@"; do out="$out${out:+,}\"$x\""; done; printf '[%s]' "$out"; }
+read -r -a _allow <<< "$BOARD_ALLOW_LOGINS"     # no glob expansion of "github-actions[bot]"
+if [ "${BOARD_TRUST_ALL:-0}" = 1 ]; then JQ_TRUST='true'
+else JQ_TRUST="((.author_association // \"\") as \$a | [\"OWNER\",\"MEMBER\",\"COLLABORATOR\"] | index(\$a)) != null or ((.user.login // \"\") as \$l | $(jq_str_array ${_allow[@]+"${_allow[@]}"}) | index(\$l)) != null"
+fi
+JQ_ROW=".[] | select($JQ_TRUST) | \"\\(.id)\\t\\(.user.login)\\t\\(.created_at)\\t\\(.body | @base64)\""
 
 fetch_since() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100&since=$1" --jq "$JQ_ROW" 2>/dev/null; }
 fetch_last() {

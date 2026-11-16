@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locate, plain, segments } from './text';
+import { locate, plain, safeHref, segments } from './text';
 
 describe('locate', () => {
   it('converts code-point offsets to UTF-16 when text has astral characters', () => {
@@ -27,5 +27,19 @@ describe('segments', () => {
 
   it('drops heading markers', () => {
     expect(plain('# Title\n\nBody')).toBe('Title\n\nBody');
+  });
+});
+
+describe('safeHref', () => {
+  it('keeps http(s) links', () => {
+    expect(safeHref('https://example.org/a?b=1')).toBe('https://example.org/a?b=1');
+    expect(safeHref('http://example.org/')).toBe('http://example.org/');
+  });
+  it('drops script, data and malformed URLs', () => {
+    expect(safeHref('javascript:alert(1)')).toBeUndefined();
+    expect(safeHref(' JavaScript:alert(1)')).toBeUndefined();
+    expect(safeHref('data:text/html,<script>alert(1)</script>')).toBeUndefined();
+    expect(safeHref('not a url')).toBeUndefined();
+    expect(safeHref(null)).toBeUndefined();
   });
 });

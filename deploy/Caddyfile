@@ -1,7 +1,24 @@
 # SITE_ADDRESS=:80 -> plain HTTP (local). SITE_ADDRESS=example.com -> Caddy gets a certificate automatically.
 {$SITE_ADDRESS::80} {
+	# Browser hardening for every response. The UI renders text scraped from arbitrary pages, so a strict CSP is the
+	# second line of defence behind React's escaping: scripts only from this origin, no framing, no plugins.
+	# style-src needs 'unsafe-inline' for React style props set as attributes; fonts come from Google Fonts, source
+	# favicons from google.com/s2/favicons (which redirects to *.gstatic.com).
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.google.com https://*.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
 	# API first: no compression and no buffering, so the SSE stream (/api/analyses/*/events) arrives live.
 	handle /api/* {
+		# the API only takes a URL and a short question: anything bigger is not a real request
+		request_body {
+			max_size 64KB
+		}
 		reverse_proxy backend:8000 {
 			flush_interval -1
 		}

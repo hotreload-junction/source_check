@@ -3,7 +3,7 @@ import { cap, edgeColor, edgeLabel, TONE, type Ctx } from './Canvas';
 import { archiveText, cardLabels, reregisteredYears, rspLines, typeWord } from './labels';
 import { Logo } from './Logo';
 import { useCompact } from './responsive';
-import { locate, segments, type Mark } from './text';
+import { locate, safeHref, segments, type Mark } from './text';
 import { ARTICLE_V, CL, CLAIM_V, FETCH, GLY, KIND, MONO, SUBTYPE, TH, fmtDate, pal, srcName } from './theme';
 import { pairCheck, type TNode } from './tree';
 import type { ClaimVerdict, Source } from './types';
@@ -201,7 +201,7 @@ function RootSections({ ctx }: { ctx: Ctx }) {
       {/* 3. Source (link; the text preview follows in "Source text") */}
       <Section title="Source">
         <div style={box}>
-          <a href={view.article.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{view.article.domain} ↗</a>
+          <a href={safeHref(view.article.url)} target="_blank" rel="noopener noreferrer" style={linkStyle}>{view.article.domain} ↗</a>
           <div style={{ marginTop: 4, fontSize: 12.5, color: TH.mut, overflowWrap: 'anywhere' }}>{view.article.url}</div>
         </div>
       </Section>
@@ -213,7 +213,8 @@ const linkStyle: CSSProperties = { color: TH.ink, fontWeight: 700, fontSize: 13,
 
 function SrcLink({ s, fallback }: { s?: Source | null; fallback: string }) {
   const name = s ? srcName(s) : fallback;
-  return s?.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{name} ↗</a> : <span style={linkStyle}>{name}</span>;
+  const href = safeHref(s?.url);
+  return href ? <a href={href} target="_blank" rel="noopener noreferrer" style={linkStyle}>{name} ↗</a> : <span style={linkStyle}>{name}</span>;
 }
 
 function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
@@ -351,9 +352,9 @@ function SourceSections({ ctx, n, pick }: { ctx: Ctx; n: TNode; pick: (n: TNode)
             <Row k="Domain data">{ctx.view.done ? 'Not collected for this domain' : 'Pending'}</Row>
           )}
           {reasons.map((r) => <Row key={r} k="Signal" warn>{r}</Row>)}
-          {s.url && (
+          {safeHref(s.url) && (
             <div style={{ marginTop: 10 }}>
-              <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" style={{ fontSize: 13, fontWeight: 600 }}>Open original ↗</a>
+              <a href={safeHref(s.url)} target="_blank" rel="noopener noreferrer nofollow" style={{ fontSize: 13, fontWeight: 600 }}>Open original ↗</a>
             </div>
           )}
         </div>

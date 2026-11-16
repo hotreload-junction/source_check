@@ -176,7 +176,9 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     try:
         ex = extract_claims(text_md, url, llm=llm, settings=s, body_filter=article_body_filter(art.html))
     except LLMError as exc:
-        raise AnalysisError(f"Claim extraction failed: {exc}") from exc
+        # the provider's raw error text (status line, response body) goes to the log, not to every visitor
+        log.warning("claim extraction failed for %s: %s", url, exc)
+        raise AnalysisError("Claim extraction failed: the language model did not answer. Please try again in a minute.") from exc
     ex = contextualize(ex, text_md, art.title or "", llm=llm, settings=s, article_url=url)   # self-contained check sentence, not-checkable refill
     claims = ex.claims
 
@@ -484,8 +486,10 @@ def _claim_dict(a: ClaimAssessment, reg: _Registry, out: Emit, max_links: int = 
 
     ev = a.evidence
     evidence = None
-    if ev is not None and a.best is not None and a.best.url:
-        evidence = {"source_id": (evidence_row or next(r for r in reg.rows if r["url"] == a.best.url))["id"],
+    if evidence_row is None and ev is not None and a.best is not None and a.best.url:
+        evidence_row = next((r for r in reg.rows if r["url"] == a.best.url), None)
+    if ev is not None and evidence_row is not None:
+        evidence = {"source_id": evidence_row["id"],
                     "quote_original": ev.quote_original, "quote_translation": ev.quote_translation,
                     "language": ev.language or "und", "fuzzy_score": round(ev.fuzzy_score or 0.0, 1)}
     return {"id": c.id, "text": c.text, "char_start": c.char_start, "char_end": c.char_end, "source_ids": source_ids,

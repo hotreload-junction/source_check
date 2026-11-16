@@ -23,7 +23,7 @@ question (case-insensitive); demo buttons never send one.
 - `202` `{"job_id": "a1b2c3", "status": "queued", "cached": false}`
 - `200` `{"job_id": "...", "status": "done", "cached": true}` when the normalised URL is cached and `force` is false
 - `429` `{"error": "busy", "detail": "2 analyses running, try again in a minute"}` when `MAX_CONCURRENT_ANALYSES` is reached
-- `422` invalid URL (`invalid_url`) or question longer than 500 characters (`invalid_question`)
+- `422` invalid URL (`invalid_url`: not http(s), longer than 2048 characters, or not a public address such as `localhost`, a private IP or a single-label host) or question longer than 500 characters (`invalid_question`)
 
 URL normalisation for the cache: lowercase host, strip `www.`, fragment, `utm_*`/`fbclid`/`gclid`, trailing slash.
 

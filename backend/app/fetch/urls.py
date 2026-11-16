@@ -36,8 +36,14 @@ def normalize_url(url: str) -> str:
         if not k.lower().startswith("utm_") and k.lower() not in _TRACKING_PARAMS
     ]
     host = _host(url)
-    if parts.port and parts.port not in (80, 443):
-        host = f"{host}:{parts.port}"
+    if ":" in host:                       # IPv6 literal: keep the brackets, or "http://::1" is no longer a URL
+        host = f"[{host}]"
+    try:
+        port = parts.port
+    except ValueError as exc:             # "http://host:99999/" or "http://host:abc/"
+        raise InvalidURL(f"invalid port in {url!r}") from exc
+    if port and port not in (80, 443):
+        host = f"{host}:{port}"
     path = parts.path.rstrip("/")
     return urlunsplit((parts.scheme, host, path, urlencode(query), ""))
 

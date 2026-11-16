@@ -247,11 +247,11 @@ class LLMClient:
             if not content.strip():   # observed live: sporadic empty completions -> retry
                 last, failures = "empty completion", failures + 1
                 continue
-            usage = payload.get("usage") or {}
+            usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
             return LLMResult(
                 data=parse_json_loose(content), model=payload.get("model", model),
-                prompt_tokens=usage.get("prompt_tokens", 0), completion_tokens=usage.get("completion_tokens", 0),
-                credits=usage.get("credits_charged", 0.0),
+                prompt_tokens=usage.get("prompt_tokens") or 0, completion_tokens=usage.get("completion_tokens") or 0,
+                credits=usage.get("credits_charged") or 0.0,
             )
         raise LLMError(f"router unavailable after retries ({last})")
 

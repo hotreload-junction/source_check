@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Iterator
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -11,12 +12,15 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import demo
+from .fetch.netguard import is_public_hostname
 from .fetch.urls import InvalidURL, normalize_url
 from .jobs import Busy, JobManager
 from .methodology import load_methodology
 from .pipeline.focus import clean_question
 
 router = APIRouter(prefix="/api")
+MAX_URL_CHARS = 2048            # longer is no article link; keeps the request and the stored row small
+KEY_CHARS = 512                 # analyses.normalized_url is VARCHAR(512)
 
 
 class StartBody(BaseModel):
@@ -28,9 +32,11 @@ class StartBody(BaseModel):
 def cache_key(norm: str, question: str | None) -> str:
     """Analysis cache key: the normalised URL, plus a hash of the question when there is one (same article + same
     question = same cached result; a different question is a different analysis, its central part replays from the step cache)."""
+    if len(norm) > KEY_CHARS - 26:        # MariaDB refuses longer values: keep a readable prefix + a hash of the whole URL
+        norm = f"{norm[:KEY_CHARS - 26 - 18]}#h={hashlib.sha256(norm.encode()).hexdigest()[:16]}"
     if not question:
         return norm
-    return f"{norm[:490]}#q={hashlib.sha256(question.casefold().encode()).hexdigest()[:16]}"   # column is 512 chars
+    return f"{norm}#q={hashlib.sha256(question.casefold().encode()).hexdigest()[:16]}"   # column is 512 chars
 
 
 def _jobs(request: Request) -> JobManager:
@@ -64,10 +70,14 @@ def methodology(request: Request) -> JSONResponse:
 
 @router.post("/analyses")
 def start_analysis(body: StartBody, request: Request) -> JSONResponse:
+    if len(body.url) > MAX_URL_CHARS:
+        return JSONResponse(status_code=422, content={"error": "invalid_url", "detail": f"URL is longer than {MAX_URL_CHARS} characters"})
     try:
         norm = normalize_url(body.url)
     except InvalidURL as exc:
         return JSONResponse(status_code=422, content={"error": "invalid_url", "detail": str(exc)})
+    if not is_public_hostname(urlsplit(body.url.strip()).hostname):     # SSRF: no localhost, LAN or docker hosts
+        return JSONResponse(status_code=422, content={"error": "invalid_url", "detail": "Only public web addresses can be analysed."})
     try:
         question = clean_question(body.question)
     except ValueError as exc:

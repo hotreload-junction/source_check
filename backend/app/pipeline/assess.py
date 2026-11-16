@@ -165,6 +165,12 @@ def assess_claims(claims: list[ExtractedClaim], article_url: str, *, fetcher: Fe
             fut.cancel()
             results.append(restore(ClaimAssessment(claim, "not_checkable", None,
                                                    "Checking the sources took too long, so this claim was left unverified."), i))
+        except Exception:
+            # One claim's check crashed (unexpected API answer, bug): that claim is neutral, the other claims and the
+            # article result still stand. Before, the exception ended the whole analysis.
+            log.exception("checking claim %s crashed, marking not_checkable", claim.id)
+            results.append(restore(ClaimAssessment(claim, "not_checkable", None,
+                                                   "The sources of this claim could not be checked because of an internal error."), i))
         if s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "unsourced" and _is_unsourced_type(claim):
             held.append(i)
         elif (s.cross_check_found and s.search_unsourced and s.exa_api_key and results[-1].verdict == "not_checkable"

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from .meta import parse_published
+from .netguard import guard_request
 from .urls import InvalidURL, classify_url, normalize_url
 
 log = logging.getLogger("citetrace.fetch")
@@ -29,6 +30,9 @@ log = logging.getLogger("citetrace.fetch")
 FETCH_CACHE_VERSION = 2          # 2: invisible characters are stripped from page text
 CONTEXT_DEV_URL = "https://api.context.dev/v1/web/scrape"
 MAX_TEXT_CHARS = 200_000
+# Direct GETs stream at most this much: a link to a multi-GB file (or an endless stream) must not exhaust the backend's
+# memory. Real article pages are well below 5 MB of HTML.
+MAX_DOWNLOAD_BYTES = 5_000_000
 MIN_TEXT_CHARS = 200
 USER_AGENT = "Mozilla/5.0 (compatible; CiteTraceBot/0.1; +research)"
 PAYWALL_MARKERS = (
@@ -169,8 +173,11 @@ class Fetcher:
         self.article_wait_s = article_wait_s
         self.cache = cache          # None = process-wide default step cache
         self.source_timeout_s = source_timeout_s or timeout
+        # The default client refuses private / internal targets before every request, redirects included (netguard.py).
+        # Tests inject their own client (mock transports) and bring their own hosts.
         self.client = client or httpx.Client(
-            timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+            timeout=timeout, follow_redirects=True, max_redirects=10, headers={"User-Agent": USER_AGENT},
+            event_hooks={"request": [guard_request]},
         )
 
     @classmethod
@@ -356,19 +363,40 @@ class Fetcher:
                       final_url=meta.get("finalUrl"))
         return res
 
+    def _get_limited(self, url: str, *, text_only: bool = False) -> tuple[httpx.Response, str | None]:
+        """GET that reads at most MAX_DOWNLOAD_BYTES. Returns (response, text); text is None for an error status, a
+        non-text content type (`text_only`) or a body over the limit. Raises httpx.HTTPError like `client.get`."""
+        with self.client.stream("GET", url) as r:
+            if r.status_code >= 400:
+                return r, None
+            ctype = r.headers.get("content-type", "")
+            if text_only and ctype and "html" not in ctype and "xml" not in ctype and "text" not in ctype:
+                return r, None
+            declared = r.headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > MAX_DOWNLOAD_BYTES:
+                return r, None
+            buf = bytearray()
+            for chunk in r.iter_bytes():
+                buf += chunk
+                if len(buf) > MAX_DOWNLOAD_BYTES:
+                    log.info("download of %s stopped: larger than %d bytes", url, MAX_DOWNLOAD_BYTES)
+                    return r, None
+            return r, bytes(buf).decode(r.encoding or "utf-8", errors="replace")
+
     def _trafilatura(self, url: str, kind: str) -> FetchResult:
         try:
-            r = self.client.get(url)
+            r, raw = self._get_limited(url, text_only=True)
         except httpx.HTTPError as exc:
             return FetchResult(url, kind, "unreachable", error=f"{type(exc).__name__}")
         if r.status_code >= 400:
             return FetchResult(url, kind, _status_for_http(r.status_code), error=f"http {r.status_code}")
-        ctype = r.headers.get("content-type", "")
-        if ctype and "html" not in ctype and "xml" not in ctype and "text" not in ctype:
-            return FetchResult(url, kind, "blocked", error=f"unsupported content-type {ctype}")
+        if raw is None:
+            ctype = r.headers.get("content-type", "")
+            if ctype and "html" not in ctype and "xml" not in ctype and "text" not in ctype:
+                return FetchResult(url, kind, "blocked", error=f"unsupported content-type {ctype}")
+            return FetchResult(url, kind, "blocked", error=f"page larger than {MAX_DOWNLOAD_BYTES} bytes")
         import trafilatura
 
-        raw = r.text
         text = trafilatura.extract(
             raw, output_format="markdown", include_links=True, include_comments=False,
             include_tables=False, favor_recall=True, url=str(r.url),
@@ -395,8 +423,7 @@ class Fetcher:
 
     def _raw_html(self, url: str) -> str | None:
         try:
-            r = self.client.get(url)
-            return r.text if r.status_code < 400 else None
+            return self._get_limited(url)[1]
         except httpx.HTTPError:
             return None
 

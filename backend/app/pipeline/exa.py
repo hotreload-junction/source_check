@@ -106,6 +106,15 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
     return hits[:limit]
 
 
+def _retry_after(r, attempt: int) -> float:
+    """Pause before the next try: the server's Retry-After seconds (an HTTP-date is ignored), capped at 6 s."""
+    try:
+        server = float(r.headers.get("retry-after", 0) or 0)
+    except ValueError:
+        server = 0.0
+    return min(server or 1.5 * (attempt + 1), 6.0)
+
+
 def _post_with_backoff(body: dict, api_key: str, client, timeout: float):
     """-> list of results | "failed" (a definite error answer) | None (still rate limited / unreachable: transient)."""
     for attempt in range(EXA_RETRIES):
@@ -116,7 +125,7 @@ def _post_with_backoff(body: dict, api_key: str, client, timeout: float):
             log.warning("exa failed: %s", type(exc).__name__)
             return None
         if r.status_code == 429:
-            pause = min(float(r.headers.get("retry-after", 0) or 0) or 1.5 * (attempt + 1), 6.0)
+            pause = _retry_after(r, attempt)
             log.info("exa rate limited, retry in %.1fs", pause)
             time.sleep(pause)
             continue
@@ -124,8 +133,9 @@ def _post_with_backoff(body: dict, api_key: str, client, timeout: float):
             log.warning("exa http %s", r.status_code)
             return "failed"
         try:
-            return [{k: it.get(k) for k in ("url", "title", "publishedDate")} for it in (r.json().get("results") or [])]
-        except ValueError:
+            return [{k: it.get(k) for k in ("url", "title", "publishedDate")} for it in (r.json().get("results") or [])
+                    if isinstance(it, dict)]
+        except (ValueError, AttributeError):
             return "failed"
     log.warning("exa still rate limited after %d tries", EXA_RETRIES)
     return None
@@ -169,14 +179,14 @@ def find_copies(url: str, *, api_key: str, client: httpx.Client | None = None, t
             log.warning("exa findSimilar failed: %s", type(exc).__name__)
             return []
         if r.status_code == 429:
-            time.sleep(min(float(r.headers.get("retry-after", 0) or 0) or 1.5 * (attempt + 1), 6.0))
+            time.sleep(_retry_after(r, attempt))
             continue
         out: list[dict] = []
         if r.status_code == 200:
             try:
                 out = [{"url": it["url"], "text": it.get("text") or ""} for it in (r.json().get("results") or [])
                        if isinstance(it, dict) and it.get("url")]
-            except ValueError:
+            except (ValueError, AttributeError):
                 out = []
         step_cache.put("exa_copies", ckey, out, None if out else cachemod.FAILURE_TTL_S // 12)
         return out

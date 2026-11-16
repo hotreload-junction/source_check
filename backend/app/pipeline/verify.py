@@ -92,6 +92,10 @@ def fuzzy_score(quote: str, source_text: str) -> float:
     if not plain:
         return 0.0
     nq = _norm(quote)
+    if len(nq) > len(plain):
+        # partial_ratio aligns the SHORTER string inside the longer one: a "quote" that contains the whole (short) source
+        # plus invented sentences would score 100. A quote longer than its source must match the source as a whole.
+        return float(fuzz.ratio(nq, plain))
     score = float(fuzz.partial_ratio(nq, plain))
     if ("..." in nq or "…" in nq) and score < 90.0:
         parts = [p.strip() for p in re.split(r"(?:\.\.\.|…)+", nq) if p.strip()]

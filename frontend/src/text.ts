@@ -35,3 +35,15 @@ export function plain(md: string): string {
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/\*\*|__/g, '');
 }
+
+// Only http(s) links become clickable. Source URLs come from scraped pages and search/agent results; a `javascript:` or
+// `data:` URL in an <a href> would run in our origin when clicked. Anything else is shown as text, not linked.
+export function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}

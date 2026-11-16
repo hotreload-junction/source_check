@@ -9,7 +9,7 @@ import logging
 import threading
 import uuid
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from sqlalchemy import func, select
@@ -22,6 +22,14 @@ from .pipeline.run import AnalysisError, AnalysisOutput, analyze
 
 log = logging.getLogger("citetrace.jobs")
 ACTIVE = ("queued", "running")
+# An analysis is cut off by its own budgets after a few minutes (CLAIM_DEADLINE_S, TIME_BUDGET_S). A row still "active" long
+# after that lost its final status write (database hiccup at the end of the job): it must neither hold one of the
+# MAX_CONCURRENT_ANALYSES slots forever (every new request would get 429 until a restart) nor be joined by new requests.
+ACTIVE_MAX_AGE = timedelta(minutes=30)
+
+
+def _live(stmt):
+    return stmt.where(Analysis.status.in_(ACTIVE), Analysis.created_at > utcnow() - ACTIVE_MAX_AGE)
 
 
 class Busy(Exception):
@@ -88,7 +96,7 @@ class JobManager:
     # ---------------------------------------------------------------- queries
     def running_count(self) -> int:
         with db.session_scope() as s:
-            return s.scalar(select(func.count()).select_from(Analysis).where(Analysis.status.in_(ACTIVE))) or 0
+            return s.scalar(_live(select(func.count()).select_from(Analysis))) or 0
 
     def find_cached(self, normalized_url: str) -> str | None:
         with db.session_scope() as s:
@@ -97,7 +105,7 @@ class JobManager:
 
     def find_active(self, normalized_url: str) -> str | None:
         with db.session_scope() as s:
-            return s.scalar(select(Analysis.id).where(Analysis.normalized_url == normalized_url, Analysis.status.in_(ACTIVE))
+            return s.scalar(_live(select(Analysis.id)).where(Analysis.normalized_url == normalized_url)
                             .order_by(Analysis.created_at.desc()).limit(1))
 
     def get(self, job_id: str) -> dict | None:

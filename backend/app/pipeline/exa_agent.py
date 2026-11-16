@@ -104,7 +104,23 @@ def find_sources(body: dict, *, api_key: str, article_url: str, timeout_s: float
     if hit is not None:
         return AgentResult([AgentHit(**h) for h in hit["hits"]], hit.get("found"), 0.0, 0.0, hit.get("status", "completed"), cached=True)
     headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+    own_client = client is None              # a client made here is closed here (one per claim used to leak sockets)
     http = client or httpx.Client(timeout=30)
+    try:
+        return _run(http, body, headers, api_key=api_key, article_url=article_url, timeout_s=timeout_s,
+                    concurrency=concurrency, step_cache=step_cache, ckey=ckey)
+    except Exception as exc:                 # "never raises": an unexpected answer shape is a neutral, empty result
+        log.warning("exa agent run failed: %s", type(exc).__name__)
+        return AgentResult(status="unavailable")
+    finally:
+        if own_client:
+            http.close()
+
+
+def _run(http: httpx.Client, body: dict, headers: dict, *, api_key: str, article_url: str, timeout_s: float,
+         concurrency: int, step_cache, ckey: str) -> AgentResult:
+    from .. import cache as cachemod
+
     t0 = time.monotonic()
     with _slot(concurrency):
         run_id = _create(http, body, headers)
@@ -117,7 +133,7 @@ def find_sources(body: dict, *, api_key: str, article_url: str, timeout_s: float
                 run = http.get(f"{AGENT_URL}/{run_id}", headers=headers, timeout=20).json()
             except (httpx.HTTPError, ValueError):
                 continue
-            if run.get("status") in ("completed", "failed", "cancelled"):
+            if isinstance(run, dict) and run.get("status") in ("completed", "failed", "cancelled"):
                 break
             run = None
     secs = time.monotonic() - t0
@@ -129,18 +145,18 @@ def find_sources(body: dict, *, api_key: str, article_url: str, timeout_s: float
         res = AgentResult(status=run.get("status", "failed"), cost=cost, secs=secs)
         step_cache.put("agent", ckey, {"hits": [], "found": None, "status": res.status}, cachemod.FAILURE_TTL_S // 12)
         return res
-    out = run.get("output") or {}
-    structured = out.get("structured") or {}
+    out = run.get("output") if isinstance(run.get("output"), dict) else {}
+    structured = out.get("structured") if isinstance(out.get("structured"), dict) else {}
     hits: dict[str, AgentHit] = {}
     for src in structured.get("sources") or []:
         url = src.get("url") if isinstance(src, dict) else None
-        if url and _usable(url, article_url) and url not in hits:
+        if isinstance(url, str) and _usable(url, article_url) and url not in hits:
             hits[url] = AgentHit(url, src.get("kind") if src.get("kind") in ("original", "corroborating") else "corroborating",
                                  src.get("quote") if isinstance(src.get("quote"), str) else None)
     for grounding in out.get("grounding") or []:           # cited pages the agent did not list itself
-        for c in grounding.get("citations", []):
-            url = c.get("url")
-            if url and _usable(url, article_url) and url not in hits:
+        for c in (grounding.get("citations") or [] if isinstance(grounding, dict) else []):
+            url = c.get("url") if isinstance(c, dict) else None
+            if isinstance(url, str) and _usable(url, article_url) and url not in hits:
                 hits[url] = AgentHit(url)
     res = AgentResult(list(hits.values()), structured.get("found"), cost, secs, "completed")
     step_cache.put("agent", ckey, {"hits": [h.__dict__ for h in res.hits], "found": res.found, "status": "completed"})
