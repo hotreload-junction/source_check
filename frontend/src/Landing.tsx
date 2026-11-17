@@ -141,6 +141,14 @@ export function Landing() {
             </div>
           )}
         </div>
+
+        <footer style={{ paddingTop: compact ? 20 : 12, fontSize: 13, color: TH.mut, lineHeight: 1.6 }}>
+          Built with <span aria-label="love" role="img">♥️</span> by{' '}
+          <a href="https://www.linkedin.com/in/louis-immanuel-dengler-3abb6a446" target="_blank" rel="noopener noreferrer" style={{ color: TH.ink, fontWeight: 600 }}>Louis</a>
+          {' & '}
+          <a href="https://www.linkedin.com/in/leo-de" target="_blank" rel="noopener noreferrer" style={{ color: TH.ink, fontWeight: 600 }}>Leonard</a>
+          {' @ Junction 2026'}
+        </footer>
       </div>
     </div>
   );
