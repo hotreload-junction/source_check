@@ -15,7 +15,7 @@ export interface Api {
   mock: boolean;
   demo(): Promise<DemoCase[]>;
   start(url: string, force?: boolean, question?: string): Promise<StartResponse>;
-  startPdf(file: File): Promise<StartResponse>; // F9: the file itself is the request body
+  startPdf(file: File, onProgress?: (pct: number) => void): Promise<StartResponse>; // F9: the file itself is the request body
   get(jobId: string): Promise<Analysis>;
   methodology(): Promise<Methodology>;
   events(jobId: string, h: Handlers): () => void; // returns close()
@@ -38,21 +38,24 @@ const realApi: Api = {
   demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
   start: (url, force = false, question) =>
     fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
-  startPdf: async (file) => {
-    let r: Response;
-    try {
-      r = await fetch(`/api/analyses/pdf?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
-    } catch {
-      throw new Error('Could not reach the server. Is the backend running?');
-    }
-    try {
-      return await json<StartResponse>(r);
-    } catch (e) {
-      const m = String((e as Error).message || '');
-      if (m && m !== r.statusText) throw e;        // the backend explained itself
-      throw new Error(`Upload failed (HTTP ${r.status}).${r.status === 404 || r.status === 405 ? ' The backend is probably outdated: restart it.' : ''}`);
-    }
-  },
+  // XMLHttpRequest, not fetch: only XHR reports upload progress
+  startPdf: (file, onProgress) =>
+    new Promise<StartResponse>((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', `/api/analyses/pdf?name=${encodeURIComponent(file.name)}`);
+      x.setRequestHeader('Content-Type', 'application/pdf');
+      x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((100 * e.loaded) / e.total)); };
+      x.onerror = () => reject(new Error('Could not reach the server. Is the backend running?'));
+      x.onload = () => {
+        let body: { detail?: unknown; error?: unknown } | null = null;
+        try { body = JSON.parse(x.responseText); } catch { /* not JSON */ }
+        if (x.status >= 200 && x.status < 300 && body) return resolve(body as unknown as StartResponse);
+        const detail = body?.detail ?? body?.error;     // the backend explained itself
+        if (typeof detail === 'string' && detail) return reject(new Error(x.status === 429 ? `Busy: ${detail}` : detail));
+        reject(new Error(`Upload failed (HTTP ${x.status}).${x.status === 404 || x.status === 405 ? ' The backend is probably outdated: restart it.' : ''}`));
+      };
+      x.send(file);
+    }),
   get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r))),
   methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {

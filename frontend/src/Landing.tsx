@@ -27,6 +27,18 @@ function absorb(raw: string, current: string | null) {
   return { url, rest, extra };
 }
 
+const LINK = 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1';
+const DOC = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4';
+
+// Dark rounded tile with a white line icon: the same look as the link chip's globe.
+function Tile({ d }: { d: string }) {
+  return (
+    <span aria-hidden style={{ flex: 'none', width: 36, height: 36, borderRadius: 10, background: TH.ink, display: 'grid', placeItems: 'center' }}>
+      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19, fill: 'none', stroke: '#fff', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }}><path d={d} /></svg>
+    </span>
+  );
+}
+
 // Square article chip: dark globe icon + text. Used for the pasted link and in the examples.
 function Chip({ label, title, onRemove }: { label: string; title?: string; onRemove?: () => void }) {
   return (
@@ -85,12 +97,14 @@ export function Landing() {
   // F9: an uploaded PDF is analysed like an article; the result opens by its job id
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [fname, setFname] = useState('');
   const picker = useRef<HTMLInputElement>(null);
   const sendPdf = (file: File | undefined) => {
     if (!file || uploading) return;
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { setNote('This file is not a PDF.'); return; }
-    setUploading(true); setNote('');
-    api.startPdf(file).then(
+    setUploading(true); setNote(''); setPct(0); setFname(file.name);
+    api.startPdf(file, setPct).then(
       (r) => { location.hash = `#/trace?job=${encodeURIComponent(r.job_id)}`; },
       (e) => { setUploading(false); setNote(String((e as Error).message || e)); },
     );
@@ -122,45 +136,68 @@ export function Landing() {
             </span>
           </h1>
 
-          <form onSubmit={go} style={{ maxWidth: 740 }}>
-            <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: 8, padding: compact ? 6 : 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: compact ? 20 : 22 }}>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: compact ? 6 : 8 }}>
-                {url && <Chip label={hostOf(url)} title={url} onRemove={() => { setUrl(null); setNote(''); }} />}
-                <input
-                  autoFocus={!touch} // on a phone the keyboard would cover the page at once
-                  inputMode="url"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onPaste={onPaste}
-                  onKeyDown={onKeyDown}
-                  maxLength={500}
-                  placeholder={url ? 'Add a question or the quote you want checked (optional)' : 'Paste an article link'}
-                  aria-label={url ? 'Optional question or quote about the article' : 'Article link'}
-                  style={{ flex: '1 1 200px', minWidth: 0, padding: compact ? '12px 6px' : '12px 6px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: compact ? 17 : 20 }}
-                />
+          <form onSubmit={go} style={{ maxWidth: compact ? 740 : 1060 }}>
+            <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'stretch', gap: compact ? 10 : 16 }}>
+              {/* option 1: article link */}
+              <div style={{ flex: compact ? 'none' : '3 1 0', minWidth: 0, display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: 8, padding: compact ? 6 : 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: compact ? 20 : 22 }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: compact ? 6 : 8 }}>
+                  {url ? <Chip label={hostOf(url)} title={url} onRemove={() => { setUrl(null); setNote(''); }} /> : <Tile d={LINK} />}
+                  <input
+                    autoFocus={!touch} // on a phone the keyboard would cover the page at once
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onPaste={onPaste}
+                    onKeyDown={onKeyDown}
+                    maxLength={500}
+                    placeholder={url ? 'Add a question or the quote you want checked (optional)' : 'Paste an article link'}
+                    aria-label={url ? 'Optional question or quote about the article' : 'Article link'}
+                    style={{ flex: '1 1 160px', minWidth: 0, padding: '12px 6px', border: 'none', outline: 'none', background: 'transparent', font: 'inherit', fontSize: compact ? 17 : 20 }}
+                  />
+                </div>
+                <button type="submit" disabled={!ready} style={{ cursor: ready ? 'pointer' : 'not-allowed', alignSelf: compact ? 'stretch' : 'flex-end', padding: compact ? '14px 20px' : '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: compact ? 17 : 18, background: ready ? TH.ink : '#d8d8dc', color: ready ? '#fff' : '#9a9aa2' }}>
+                  Check
+                </button>
               </div>
-              <button type="submit" disabled={!ready} style={{ cursor: ready ? 'pointer' : 'not-allowed', alignSelf: compact ? 'stretch' : 'flex-end', padding: compact ? '14px 20px' : '16px 26px', border: 'none', borderRadius: 14, font: 'inherit', fontWeight: 600, fontSize: compact ? 17 : 18, background: ready ? TH.ink : '#d8d8dc', color: ready ? '#fff' : '#9a9aa2' }}>
-                Check
-              </button>
+
+              <div aria-hidden style={{ flex: 'none', alignSelf: 'center', color: TH.mut, fontSize: 15, fontWeight: 600 }}>or</div>
+
+              {/* option 2: PDF file (click or drag and drop) */}
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload a PDF"
+                onClick={() => !uploading && picker.current?.click()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!uploading) picker.current?.click(); } }}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={drop}
+                style={{ flex: compact ? 'none' : '2 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: compact ? '14px 14px' : '14px 18px', cursor: uploading ? 'progress' : 'pointer', borderRadius: compact ? 20 : 22, border: `1.5px dashed ${dragging ? TH.ink : '#c4c4cc'}`, background: dragging ? '#f1f1f0' : 'transparent' }}
+              >
+                <input ref={picker} type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} onClick={(e) => e.stopPropagation()} style={{ display: 'none' }} />
+                <Tile d={DOC} />
+                {uploading ? (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 14, color: TH.mut }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: TH.ink, fontWeight: 600 }}>{fname}</span>
+                      <span style={{ flex: 'none' }}>{pct >= 100 ? 'Reading…' : `${pct}%`}</span>
+                    </div>
+                    <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} style={{ marginTop: 8, height: 6, borderRadius: 3, background: '#e4e4e8', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: TH.ink, transition: 'width .15s linear' }} />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ minWidth: 0, lineHeight: 1.35 }}>
+                    <div style={{ fontWeight: 600, fontSize: compact ? 16 : 17, color: TH.ink }}>Drop a PDF here</div>
+                    <div style={{ fontSize: 14, color: TH.mut }}>or <span style={{ textDecoration: 'underline' }}>click to upload</span></div>
+                  </div>
+                )}
+              </div>
             </div>
             {note && <div role="status" style={{ marginTop: 8, fontSize: 13, color: CL.o }}>{note}</div>}
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Upload a PDF"
-              onClick={() => picker.current?.click()}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.current?.click(); } }}
-              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={drop}
-              style={{ marginTop: 12, padding: compact ? '16px 14px' : '18px 20px', textAlign: 'center', fontSize: compact ? 15 : 16, color: TH.mut, cursor: uploading ? 'wait' : 'pointer', borderRadius: compact ? 20 : 22, border: `1.5px dashed ${dragging ? TH.ink : '#c4c4cc'}`, background: dragging ? '#f1f1f0' : 'transparent' }}
-            >
-              <input ref={picker} type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} onClick={(e) => e.stopPropagation()} style={{ display: 'none' }} />
-              {uploading ? 'Uploading PDF…' : <>Or drop a PDF here, or <span style={{ textDecoration: 'underline', fontWeight: 600, color: TH.ink }}>click to upload</span></>}
-            </div>
           </form>
 
           {demos.length > 0 && (
