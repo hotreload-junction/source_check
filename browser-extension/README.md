@@ -60,7 +60,8 @@ selection is located by code, then checked as a focus claim).
   Await nothing before them.
 - MV3 service workers sleep: listeners are registered at top level, and state lives in `chrome.storage.session`,
   not in variables.
-- The side panel is narrow, so the shared web app renders in its compact (phone) layout. Changes to `frontend/src`
+- The side panel is narrow, so the shared web app renders its phone layout: the graph as a vertical outline
+  (`frontend/src/vlayout.ts`, docs/graph-view.md "Narrow screens"). Changes to `frontend/src`
   show up here on the next build. `npm run typecheck` checks the shared files against this package's React types.
 
 ## Checks

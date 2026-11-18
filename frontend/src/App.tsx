@@ -3,7 +3,7 @@ import { api } from './api';
 import { Wordmark } from './Brand';
 import { Canvas, graphSize, type CanvasHandle, type Ctx } from './Canvas';
 import { Panel } from './Panel';
-import { useCompact, useViewport } from './responsive';
+import { useCompact, useNarrow, useViewport } from './responsive';
 import { TrustBar } from './TrustPanel';
 import { ARTICLE_V, CL, CLAIM_V, TH, srcName } from './theme';
 import { buildTree, emptyLive, fromLive, fromResult, type Live, type TEdge, type TNode } from './tree';
@@ -21,6 +21,16 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
 
 export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string; job?: string } }) {
   const compact = useCompact();
+  const narrow = useNarrow();
+  const top = useRef<HTMLDivElement>(null);
+  const [topH, setTopH] = useState(0);
+  useEffect(() => {   // narrow: the canvas takes the screen height left under header + trust bar
+    const el = top.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setTopH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [vw, vh] = useViewport();
   const [url, setUrl] = useState('');
   const [question, setQuestion] = useState('');        // F6: the question of the analysis on screen
@@ -206,7 +216,9 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   const px = compact ? 14 : 18;
   // phones: the canvas is only as tall as the graph needs at the width-fitting zoom (a wide, flat tree leaves no dead space), at most 66 % of the screen
   const [gW, gH] = graphSize(tree);
-  const canvasH = Math.round(Math.min(vh * 0.66, Math.max(340, gH * Math.min(1.3, Math.max(0.18, (vw - 36) / gW)) + 96)));
+  // narrow (vertical outline, vlayout.ts): the graph grows downwards, so the canvas fills the rest of the screen above the legend bar
+  const canvasH = narrow ? Math.max(360, vh - topH - 49)
+    : Math.round(Math.min(vh * 0.66, Math.max(340, gH * Math.min(1.3, Math.max(0.18, (vw - 36) / gW)) + 96)));
   const header = (
     <div style={{
       display: 'grid', gridTemplateColumns: compact ? 'auto 1fr' : '1fr auto 1fr', alignItems: 'center', justifyItems: 'start', gap: compact ? 8 : 14, flex: 'none',
@@ -227,9 +239,10 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', ...(compact ? { minHeight: '100dvh' } : { height: '100dvh' }), background: TH.bg, color: TH.ink, fontFamily: TH.font, fontSize: 14 }}>
-      {header}
-
-      <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
+      <div ref={top} style={{ flex: 'none', display: 'flow-root' }}>
+        {header}
+        <TrustBar ctx={ctx} ready={done} onToggle={() => fitSoon(80)} />
+      </div>
 
       <div style={{ display: 'flex', borderTop: `1px solid ${TH.line}`, ...(compact ? { flex: 'none', height: canvasH } : { flex: 1, minHeight: 480 }) }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

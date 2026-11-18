@@ -50,3 +50,13 @@ judges the honesty of the detection logic. The only real per-edge number is `evi
 
 With 6 claims and 10-15 sources this stays readable. If a demo article has more than ~20 sources,
 group not-checkable sources into one grey "+N not checkable" node.
+
+## Narrow screens (phones, browser-extension side panel)
+
+Up to 640 px wide (`NARROW_Q` in `frontend/src/responsive.ts`) the same tree is drawn as a vertical outline
+(`frontend/src/vlayout.ts`): document on top, claims stacked below, each claim's sources indented under it, joined by
+a neutral trunk and one elbow per edge (verdict colour, thick = evidence). The verdict pill sits on the top edge of the
+card it leads to; a shared source or citation circle curves round the right-hand side. The graph is fitted to the
+width (~95 % zoom instead of ~20 % for the wide tree) and scrolls vertically; scrolling stops at the graph's edges.
+The canvas fills the screen height under the header and the trust bar. Same cards, colours, verdicts and detail
+sheets as on desktop; 641-900 px (tablets) keeps the wide tree.

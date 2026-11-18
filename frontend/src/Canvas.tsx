@@ -1,11 +1,13 @@
 import { createPortal } from 'react-dom';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type MouseEvent as RME, type PointerEvent as RPE, type ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type MouseEvent as RME, type PointerEvent as RPE, type ReactNode } from 'react';
 import { Logo } from './Logo';
 import { cardLabels, typeWord, type Tone } from './labels';
-import { useCompact } from './responsive';
+import { useCompact, useNarrow } from './responsive';
 import { CL, CLAIM_ORDER, CLAIM_V, GLY, MONO, TH, pal, srcName } from './theme';
+import { plain } from './text';
 import { pairCheck, type TEdge, type TNode, type Tree, type View } from './tree';
 import type { ClaimVerdict } from './types';
+import { type Box, VL, trunkX, verticalLayout } from './vlayout';
 
 // Shared, override-aware view helpers (built in App).
 export interface Ctx {
@@ -92,16 +94,41 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
   const pan = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const moved = useRef(false);
 
-  const [gw, gh] = graphSize(tree);
-  const pos = (n: TNode): [number, number] => [n.s * gw, W0 + n.d * CW];
+  // narrow screens: vertical outline layout (vlayout.ts); otherwise the wide tree. Both give every node a box.
+  const narrow = useNarrow();
+  const domOf = (n: TNode) => ctx.view.domains.find((d) => d.domain === n.source?.domain);
+  const vl = useMemo(() => (narrow ? verticalLayout(tree, {
+    labels: (n) => n.kind === 'source' && !!n.source?.domain && cardLabels(ctx.view.domains.find((d) => d.domain === n.source!.domain)).length > 0,
+    question: !!ctx.question,
+  }) : null), [narrow, tree, ctx.view.domains, ctx.question]);
+  const [gw, gh] = vl ? [vl.w, vl.h] : graphSize(tree);
+  const boxOf = (n: TNode): Box => {
+    if (vl) return vl.box.get(n.id) ?? [0, 0, 0, 0];
+    const x = n.s * gw, y = W0 + n.d * CW;
+    return [x - wd(n) / 2, y - hh(n), x + wd(n) / 2, y + hh(n)];
+  };
+  const pos = (n: TNode): [number, number] => { const b = boxOf(n); return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]; };
   const inF = (n: TNode) => !focus || n.kind === 'root' || n.id === focus || n.fcs.has(focus);
   const dims = useRef<[number, number]>([gw, gh]);
   dims.current = [gw, gh];
+  const vlRef = useRef(vl);
+  vlRef.current = vl;
   const treeRef = useRef(tree);
   treeRef.current = tree;
 
   const apply = useCallback(() => {
     const z = zoomRef.current;
+    const el0 = gEl.current;
+    if (vlRef.current && el0) {   // narrow outline: scrolling stops at the graph's edges (a long list must not scroll into nothing)
+      const range = (view: number, size: number, m: number): [number, number] => {
+        const a = view - size - m;
+        return [Math.min(m, a), Math.max(m, a)];
+      };
+      const [y0, y1] = range(el0.clientHeight, dims.current[1] * z, 8);
+      const [x0, x1] = range(el0.clientWidth, dims.current[0] * z, 0);
+      ty.current = Math.min(y1, Math.max(y0, ty.current));
+      tx.current = Math.min(x1, Math.max(x0, tx.current));
+    }
     if (cEl.current) cEl.current.style.transform = `translate(${tx.current}px,${ty.current}px) scale(${z})`;
     if (gEl.current) {
       gEl.current.style.backgroundPosition = `${tx.current}px ${ty.current}px`;
@@ -136,7 +163,21 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     setZ(nz);
   }, [setZ]);
 
-  const fit = useCallback(() => fitBox(0, 0, dims.current[0], dims.current[1]), [fitBox]);
+  // vertical layout: as wide as the screen, top first; the reader scrolls down (drag / wheel)
+  const fitWidth = useCallback((yTop: number) => {
+    const el = gEl.current;
+    if (!el) return;
+    const nz = Math.max(0.45, Math.min(1.15, (el.clientWidth - 12) / dims.current[0]));
+    tx.current = (el.clientWidth - dims.current[0] * nz) / 2;
+    ty.current = 8 - yTop * nz;
+    if (cEl.current) {
+      cEl.current.style.transition = 'transform .6s cubic-bezier(.2,.7,.2,1)';
+      setTimeout(() => { if (cEl.current) cEl.current.style.transition = ''; }, 700);
+    }
+    setZ(nz);
+  }, [setZ]);
+
+  const fit = useCallback(() => (vlRef.current ? fitWidth(0) : fitBox(0, 0, dims.current[0], dims.current[1])), [fitBox, fitWidth]);
 
   useImperativeHandle(ref, () => ({
     fit,
@@ -144,10 +185,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       const w = dims.current[0];
       const ns = treeRef.current.nodes.filter((n) => n.id === id || n.fcs.has(id));
       if (!ns.length) return;
+      const v = vlRef.current;
+      if (v) { fitWidth(Math.min(...ns.map((n) => v.box.get(n.id)?.[1] ?? 0)) - 22); return; }
       const box = ns.map((n) => { const y = W0 + n.d * CW, x = n.s * w; return [x - wd(n) / 2, y - hh(n), x + wd(n) / 2, y + hh(n)]; });
       fitBox(Math.min(...box.map((b) => b[0])), Math.min(...box.map((b) => b[1])), Math.max(...box.map((b) => b[2])), Math.max(...box.map((b) => b[3])));
     },
-  }), [fit, fitBox]);
+  }), [fit, fitBox, fitWidth]);
 
   useEffect(() => { const t = setTimeout(fit, 150); return () => clearTimeout(t); }, [fit]);
 
@@ -241,7 +284,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
   const capClick = (e: RME) => { if (moved.current) { e.stopPropagation(); e.preventDefault(); } };
 
   const nodes = tree.nodes.map((n) => {
-    const [x, y] = pos(n);
+    const bx = boxOf(n);
     const vs = ctx.vis(n), sh = vs, fd = !inF(n), cl = ctx.cld(n);
     const root = n.kind === 'root', cm = n.kind === 'claim', stub = n.kind === 'nosrc', src = n.kind === 'source';
     const c = !cl ? CL.p : root ? ctx.articleColor : cm ? CLAIM_V[ctx.claimVerdict(n)].c : sourceColor(ctx, n);
@@ -252,26 +295,27 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : '';
     }
-    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? (ctx.view.focus?.kind === 'selection' ? ' · your selection' : ' · your question') : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : sourceMeta(n.source!);
+    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? (ctx.view.focus?.kind === 'selection' ? ' · your selection' : ' · your question') : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? (narrow ? '' : `Claim ${tree.by[n.fc!].claimIdx}`) : sourceMeta(n.source!);
     const labels = src && n.source!.domain ? cardLabels(ctx.view.domains.find((d) => d.domain === n.source!.domain)) : [];
-    const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
+    const ti = root ? ctx.view.article.title : cm ? plain(n.claim!.text) : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
     const glyph = root ? GLY.article : cm ? GLY.claim : stub ? GLY.none : GLY[n.source!.kind] ?? GLY.link;
     const lcol = root ? TH.bg : cm ? TH.ink : stub ? CL.r : pal(srcName(n.source!));
-    const ls = root ? 56 : cm ? 40 : stub ? 28 : labels.length ? 40 : 64; // labels need the room
+    const ls = narrow ? (root ? 44 : cm ? 36 : stub ? 26 : 36) : root ? 56 : cm ? 40 : stub ? 28 : labels.length ? 40 : 64; // labels need the room
     const pfg = root ? TH.bg : src && cl ? (c === CL.y || c === CL.p ? '#10141a' : '#ffffff') : TH.ink;
     const tint = cl ? (src ? c : c + '3a') : root ? TH.bg + '33' : TH.line;
-    const col = src; // sources: centred column layout as in the design
+    const col = src && !narrow; // sources: centred column layout as in the design (one row in the narrow outline)
     return (
       <div
         key={n.id}
         onClick={() => pick(n)}
         style={{
-          position: 'absolute', left: f1(x) + 'px', top: f1(y) + 'px', width: wd(n), height: hh(n) * 2, boxSizing: 'border-box',
-          transform: `translate(-50%,-50%) scale(${vs ? 1 : 0.85})`, opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none',
+          position: 'absolute', left: f1(bx[0]) + 'px', top: f1(bx[1]) + 'px', width: bx[2] - bx[0], height: bx[3] - bx[1], boxSizing: 'border-box',
+          transform: `scale(${vs ? 1 : 0.85})`, opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none',
           cursor: 'pointer', background: root ? TH.ink : TH.card, color: root ? TH.bg : TH.ink,
           border: `${TH.bw}px ${load || stub || (cm && !cl) ? 'dashed' : 'solid'} ${c}`, borderRadius: TH.rad,
-          padding: col ? (labels.length ? '12px 10px 10px' : '16px 12px 12px') : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
+          // narrow outline: the verdict label sits on the top edge of source / stub cards, so their text starts lower
+          padding: col ? (labels.length ? '12px 10px 10px' : '16px 12px 12px') : narrow && (src || stub) ? '17px 12px 7px 10px' : stub ? '8px 12px' : '10px 12px 10px 10px', justifyContent: col || stub ? 'center' : 'flex-start',
           display: 'flex', flexDirection: col ? 'column' : 'row', gap: col ? 8 : 12, alignItems: 'center', textAlign: col ? 'center' : 'left',
           boxShadow: isSel ? `0 0 0 4px ${c}66, 0 6px 18px #0002` : TH.sh,
           outline: cm && n.claim!.focus ? `2.5px dashed ${TH.ink}` : undefined, outlineOffset: 6, // F6: matches the reader's question
@@ -283,13 +327,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
           <>
             <Logo domain={logoDomain} glyph={glyph} color={lcol} size={ls} />
             <div style={{ flex: col ? 'none' : 1, minWidth: 0, width: col ? '100%' : undefined }}>
-              <div style={{ fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
-              <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? (ctx.question ? 4 : 8) : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
+              {meta && <div style={{ fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>}
+              <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? (narrow ? 3 : ctx.question ? 4 : 8) : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
               {root && ctx.question && (
                 <div title={ctx.questionNote ?? undefined} style={{ fontSize: 11.5, lineHeight: 1.3, marginTop: 6, paddingTop: 5, borderTop: `1px dashed ${TH.bg}66`, opacity: 0.85, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ctx.view.focus?.kind === 'selection' ? 'Selected' : 'Your question'}: “{ctx.question}”</div>
               )}
               {labels.length > 0 && ( // PLAN Q2 reputation labels; hover for the list entry
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: col ? 'center' : 'flex-start', gap: 4, marginTop: 6 }}>
                   {labels.map((l) => (
                     <span key={l.key} title={l.title} style={{ fontSize: 10.5, fontWeight: 700, lineHeight: '18px', padding: '0 8px', borderRadius: 99, background: TONE[l.tone], color: '#fff', whiteSpace: 'nowrap' }}>{l.text}</span>
                   ))}
@@ -311,8 +355,8 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
             {!stub && <div style={{ flex: 'none', position: col ? 'absolute' : 'static', top: -14, right: -14, width: 38, height: 38, borderRadius: '50%', ...shimmer }} />}
           </>
         )}
-        {!root && <Dot c={c} side="top" />}
-        {n.kids.length > 0 && <Dot c={c} side="bottom" />}
+        {!root && !narrow && <Dot c={c} side="top" />}
+        {n.kids.length > 0 && !narrow && <Dot c={c} side="bottom" />}
       </div>
     );
   });
@@ -330,12 +374,29 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const mx = (y1 + y2) / 2;
     const w = cm ? 3 : e.type === 'back' ? 6 : e.evidence ? 8 : 3;
     const dashed = e.type === 'nosrc' || (e.extra && e.type !== 'back');
+    // label position (lx, ly) + anchor; wide tree: centred on the curve. Narrow outline: a tree edge is an elbow from the
+    // parent's trunk into the card, its label sits on the card's top edge; a shared source / citation circle curves
+    // round the right-hand side of the cards.
+    let d = `M${f1(a[0])} ${f1(y1)} C${f1(a[0])} ${f1(mx)}, ${f1(b[0])} ${f1(mx)}, ${f1(b[0])} ${f1(y2)}`;
+    let lx = (a[0] + b[0]) / 2, ly = mx, anchor = 'translate(-50%,-50%)';
+    if (narrow) {
+      const fb = boxOf(e.from), tb = boxOf(e.to);
+      if (e.extra || e.type === 'back') {
+        const fy = (fb[1] + fb[3]) / 2, ty2 = (tb[1] + tb[3]) / 2, xr = Math.max(fb[2], tb[2]) + VL.MR_EXTRA - 14;
+        d = `M${f1(fb[2])} ${f1(fy)} C${f1(xr)} ${f1(fy)}, ${f1(xr)} ${f1(ty2)}, ${f1(tb[2])} ${f1(ty2)}`;
+        lx = Math.max(fb[2], tb[2]) + (VL.MR_EXTRA - 14) * 0.75; ly = (fy + ty2) / 2;
+      } else {
+        const x = trunkX(fb), cy = tb[1] + Math.min(28, (tb[3] - tb[1]) / 2), r = 9;
+        d = `M${f1(x)} ${f1(cy - r - 4)} L${f1(x)} ${f1(cy - r)} Q${f1(x)} ${f1(cy)} ${f1(x + r)} ${f1(cy)} L${f1(tb[0])} ${f1(cy)}`;
+        lx = tb[0] + 14; ly = tb[1]; anchor = 'translate(0,-50%)';
+      }
+    }
     return {
-      e, c, cm, cl, sh, fd, mx, open: dd === e.id, up: mx > gh * 0.55, lx: (a[0] + b[0]) / 2,
+      e, c, cm, cl, sh, fd, mx: ly, open: dd === e.id, up: ly > gh * 0.55, lx, anchor,
       path: (
         <path
           key={e.id}
-          d={`M${f1(a[0])} ${f1(y1)} C${f1(a[0])} ${f1(mx)}, ${f1(b[0])} ${f1(mx)}, ${f1(b[0])} ${f1(y2)}`}
+          d={d}
           pathLength={1}
           style={{
             fill: 'none', stroke: c, strokeWidth: w, strokeLinejoin: 'round', strokeLinecap: dashed ? 'round' : undefined,
@@ -348,8 +409,17 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     };
   });
 
+  // narrow outline: one neutral trunk per parent, from its card down to its last visible child; the elbows branch off it
+  const trunks = narrow ? tree.nodes.filter((n) => n.kids.length > 0).flatMap((p) => {
+    const kids = p.kids.filter((k) => ctx.vis(k));
+    if (!kids.length || !ctx.vis(p)) return [];
+    const pb = boxOf(p), last = boxOf(kids[kids.length - 1]);
+    const x = trunkX(pb), y2 = last[1] + Math.min(28, (last[3] - last[1]) / 2) - 13;
+    const fd = !(inF(p) && kids.some(inF));
+    return [<path key={'trunk-' + p.id} d={`M${f1(x)} ${f1(pb[3])} L${f1(x)} ${f1(y2)}`} style={{ fill: 'none', stroke: CL.p, strokeWidth: 3, strokeLinecap: 'round', strokeOpacity: 0.85 * (fd ? 0.5 : 1), transition: 'stroke-opacity .5s' }} />];
+  }) : [];
+
   // Operator clusters (docs/graph-view.md): sources whose domains share an analytics/AdSense ID sit in a dashed box.
-  const domOf = (n: TNode) => ctx.view.domains.find((d) => d.domain === n.source?.domain);
   const clusterIds = [...new Set(tree.nodes.map((n) => domOf(n)?.cluster_id).filter((k): k is string => !!k))];
   const boxes = clusterIds.flatMap((k) => {
     const ns = tree.nodes.filter((n) => domOf(n)?.cluster_id === k && ctx.vis(n) && inF(n));
@@ -358,10 +428,13 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
     const counts = new Map<string, number>();
     members.forEach((d) => [...d.analytics_ids, ...d.adsense_ids].forEach((i) => counts.set(i, (counts.get(i) ?? 0) + 1)));
     const shared = [...counts].filter(([, c]) => c > 1).map(([i]) => i);
+    const text = `same operator${members.some((d) => d.is_article_domain) ? ' as the article' : ''}${shared.length ? ' · ' + shared.join(', ') : ''}`;
+    if (narrow) {   // the outline does not keep cluster members together: one box per card, the label on the first
+      return ns.map((n, i) => { const b = boxOf(n), P = 7; return { k: `${k}-${n.id}`, x0: b[0] - P, y0: b[1] - P, w: b[2] - b[0] + 2 * P, h: b[3] - b[1] + 2 * P, text: i === 0 ? text : '' }; });
+    }
     const P = 18;
     const x0 = Math.min(...ns.map((n) => pos(n)[0] - wd(n) / 2)) - P, x1 = Math.max(...ns.map((n) => pos(n)[0] + wd(n) / 2)) + P;
     const y0 = Math.min(...ns.map((n) => pos(n)[1] - hh(n))) - P, y1 = Math.max(...ns.map((n) => pos(n)[1] + hh(n))) + P;
-    const text = `same operator${members.some((d) => d.is_article_domain) ? ' as the article' : ''}${shared.length ? ' · ' + shared.join(', ') : ''}`;
     return [{ k, x0, y0, w: x1 - x0, h: y1 - y0, text }];
   });
 
@@ -381,12 +454,12 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
         <div ref={cEl} style={{ position: 'absolute', left: 0, top: 0, width: gw, height: gh, transform: `translate(${tx.current}px,${ty.current}px) scale(${zoom})`, transformOrigin: '0 0', willChange: 'transform' }}>
           {boxes.map((b) => (
             <div key={b.k} style={{ position: 'absolute', left: f1(b.x0) + 'px', top: f1(b.y0) + 'px', width: b.w, height: b.h, border: `2px dashed ${CL.o}`, borderRadius: TH.rad + 8, background: CL.o + '12', pointerEvents: 'none', zIndex: 1 }}>
-              <span style={{ position: 'absolute', left: 14, bottom: -11, padding: '1px 9px', borderRadius: 99, background: TH.bg, border: `1.5px solid ${CL.o}`, fontFamily: MONO, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{b.text}</span>
+              {b.text && <span style={{ position: 'absolute', left: 14, bottom: -11, padding: '1px 9px', borderRadius: 99, background: TH.bg, border: `1.5px solid ${CL.o}`, fontFamily: MONO, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', zIndex: 5 }}>{b.text}</span>}
             </div>
           ))}
-          <svg width={gw} height={gh} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>{edges.map((x) => x.path)}</svg>
-          {edges.filter((x) => !x.cm).map(({ e, c, cl, sh, fd, open, up, mx, lx }) => (
-            <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: 'translate(-50%,-50%)', opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : 2 }}>
+          <svg width={gw} height={gh} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>{trunks}{edges.map((x) => x.path)}</svg>
+          {edges.filter((x) => !x.cm).map(({ e, c, cl, sh, fd, open, up, mx, lx, anchor }) => (
+            <div key={e.id} style={{ position: 'absolute', left: f1(lx) + 'px', top: f1(mx) + 'px', transform: anchor, opacity: sh ? (fd ? 0.5 : 1) : 0, pointerEvents: sh && cl ? 'auto' : 'none', transition: 'opacity .5s .5s', zIndex: open ? 20 : narrow ? 4 : 2 }}>
               <div
                 onClick={(ev) => { stop(ev); setDd(open ? null : e.id); }}
                 style={{
@@ -409,7 +482,11 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       {compact && focus && (
         <button type="button" onClick={clearFocus} style={{ cursor: 'pointer', position: 'absolute', left: 10, top: 10, zIndex: 30, height: 40, padding: '0 14px', border: 'none', borderRadius: 10, background: TH.ink, color: TH.bg, font: 'inherit', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>← Show all claims</button>
       )}
-      <div style={{ position: 'absolute', right: compact ? 10 : 14, bottom: compact ? 10 : 14, display: 'flex', alignItems: 'center', gap: compact ? 8 : 6, zIndex: 30 }}>
+      <div style={{
+        position: 'absolute', right: compact ? 10 : 14, bottom: compact ? 10 : 14, display: 'flex', alignItems: 'center', gap: compact ? 8 : 6, zIndex: 30,
+        // narrow: the outline scrolls under the controls, so they sit on their own card
+        ...(narrow ? { padding: 5, borderRadius: 14, background: TH.card + 'f2', border: `1px solid ${TH.line}`, boxShadow: TH.sh, gap: 6 } : {}),
+      }}>
         {!compact && <span style={{ fontSize: 11.5, color: TH.mut, marginRight: 8 }}>Drag to move · Ctrl + scroll to zoom</span>}
         <Btn onClick={() => zoomBy(1 / 1.2)} label="Zoom out" big={compact}>−</Btn>
         <div style={{ minWidth: compact ? 44 : 46, textAlign: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{Math.round(zoom * 100)} %</div>

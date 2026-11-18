@@ -35,3 +35,8 @@ export function useViewport(): [number, number] {
   return v;
 }
 export const isTouch = () => list(TOUCH_Q)?.matches ?? false;
+
+// "narrow" = phones in portrait and the browser extension's side panel: the graph switches to the vertical outline
+// layout (vlayout.ts), because the wide desktop tree would have to shrink to ~20 % to fit.
+export const NARROW_Q = '(max-width: 640px)';
+export const useNarrow = () => useMedia(NARROW_Q);
