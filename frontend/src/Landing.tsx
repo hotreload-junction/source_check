@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, typ
 import { api } from './api';
 import { Wordmark } from './Brand';
 import { useCompact, useTouch } from './responsive';
-import { CL, TH } from './theme';
+import { CL, MONO, TH } from './theme';
 import type { DemoCase } from './types';
 
-const BAR = `linear-gradient(to bottom, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
+const GRAD = `linear-gradient(90deg, ${CL.r}, ${CL.o}, ${CL.y}, ${CL.g})`;
+// Gradient outline on a white card: the padding box paints the fill, the border box the gradient behind the transparent border.
+const gradBorder = (fill: string) => ({ border: '1.5px solid transparent', background: `linear-gradient(${fill}, ${fill}) padding-box, ${GRAD} border-box` });
 const URL_RE = /(?:https?:\/\/|www\.)[^\s]+/gi;
 const GLOBE = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18';
 
@@ -28,13 +30,13 @@ function absorb(raw: string, current: string | null) {
 }
 
 const LINK = 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1';
-const DOC = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4';
+const UPLOAD = 'M12 15V4M8 8l4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4';
 
 // Dark rounded tile with a white line icon: the same look as the link chip's globe.
 function Tile({ d }: { d: string }) {
   return (
-    <span aria-hidden style={{ flex: 'none', width: 36, height: 36, borderRadius: 10, background: TH.ink, display: 'grid', placeItems: 'center' }}>
-      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19, fill: 'none', stroke: '#fff', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }}><path d={d} /></svg>
+    <span aria-hidden style={{ flex: 'none', width: 40, height: 40, borderRadius: 12, background: TH.ink, display: 'grid', placeItems: 'center' }}>
+      <svg viewBox="0 0 24 24" style={{ width: 21, height: 21, fill: 'none', stroke: '#fff', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }}><path d={d} /></svg>
     </span>
   );
 }
@@ -118,16 +120,15 @@ export function Landing() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
-      <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: compact ? 6 : 14, background: BAR }} />
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) 24px' : '28px 32px 36px 56px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: compact ? 'max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))' : '36px 56px 36px', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
           <Wordmark />
           <a href="#/about" style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, letterSpacing: 0, color: TH.mut, textDecoration: 'none', padding: compact ? '10px 4px' : '6px 4px' }}>About us</a>
-          <a href="#/methodology" style={{ marginLeft: 24, fontSize: 14, fontWeight: 600, letterSpacing: 0, color: TH.mut, textDecoration: 'none', padding: compact ? '10px 4px' : '6px 4px' }}>How it works</a>
+          <a href="#/methodology" style={{ marginLeft: compact ? 16 : 32, fontSize: 14, fontWeight: 600, letterSpacing: 0, color: TH.mut, textDecoration: 'none', padding: compact ? '10px 4px' : '6px 4px' }}>How it works</a>
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: compact ? 0 : '6vh', paddingTop: compact ? 24 : 48 }}>
-          <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: compact ? 'clamp(32px, 8.6vw, 84px)' : 'clamp(36px, 4.7vw, 72px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em' }}>
+          <h1 style={{ margin: compact ? '0 0 28px' : '0 0 44px', fontSize: compact ? 'clamp(32px, 8.6vw, 84px)' : 'clamp(36px, 4.7vw, 72px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-.045em', textAlign: 'center' }}>
             Paste something you read.
             <br />
             See what is really{' '}
@@ -136,10 +137,10 @@ export function Landing() {
             </span>
           </h1>
 
-          <form onSubmit={go} style={{ maxWidth: compact ? 740 : 1060 }}>
-            <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'stretch', gap: compact ? 10 : 16 }}>
+          <form onSubmit={go}>
+            <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'stretch', gap: compact ? 8 : 0 }}>
               {/* option 1: article link */}
-              <div style={{ flex: compact ? 'none' : '3 1 0', minWidth: 0, display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: 8, padding: compact ? 6 : 8, background: TH.card, border: `1.5px solid ${TH.ink}`, borderRadius: compact ? 20 : 22 }}>
+              <div style={{ flex: compact ? 'none' : '1 1 0', minWidth: 0, display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: 8, padding: compact ? 6 : 12, ...gradBorder(TH.card), borderRadius: compact ? 20 : 26 }}>
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: compact ? 6 : 8 }}>
                   {url ? <Chip label={hostOf(url)} title={url} onRemove={() => { setUrl(null); setNote(''); }} /> : <Tile d={LINK} />}
                   <input
@@ -163,7 +164,7 @@ export function Landing() {
                 </button>
               </div>
 
-              <div aria-hidden style={{ flex: 'none', alignSelf: 'center', color: TH.mut, fontSize: 15, fontWeight: 600 }}>or</div>
+              <div aria-hidden style={{ flex: 'none', alignSelf: 'center', width: compact ? 'auto' : 72, textAlign: 'center', color: TH.mut, fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '.14em' }}>OR</div>
 
               {/* option 2: PDF file (click or drag and drop) */}
               <div
@@ -175,10 +176,10 @@ export function Landing() {
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={drop}
-                style={{ flex: compact ? 'none' : '2 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: compact ? '14px 14px' : '14px 18px', cursor: uploading ? 'progress' : 'pointer', borderRadius: compact ? 20 : 22, border: `1.5px dashed ${dragging ? TH.ink : '#c4c4cc'}`, background: dragging ? '#f1f1f0' : 'transparent' }}
+                style={{ flex: compact ? 'none' : '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, padding: compact ? '14px 14px' : '12px 20px', cursor: uploading ? 'progress' : 'pointer', ...gradBorder(dragging ? '#f1f1f0' : TH.card), borderRadius: compact ? 20 : 26 }}
               >
                 <input ref={picker} type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} onClick={(e) => e.stopPropagation()} style={{ display: 'none' }} />
-                <Tile d={DOC} />
+                <Tile d={UPLOAD} />
                 {uploading ? (
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 14, color: TH.mut }}>
@@ -190,9 +191,9 @@ export function Landing() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ minWidth: 0, lineHeight: 1.35 }}>
-                    <div style={{ fontWeight: 600, fontSize: compact ? 16 : 17, color: TH.ink }}>Drop a PDF here</div>
-                    <div style={{ fontSize: 14, color: TH.mut }}>or <span style={{ textDecoration: 'underline' }}>click to upload</span></div>
+                  <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 14px' }}>
+                    <span style={{ fontWeight: 700, fontSize: compact ? 18 : 20, color: TH.ink }}>Upload a PDF</span>
+                    <span style={{ fontSize: compact ? 15 : 17, color: TH.mut }}>or drop it here</span>
                   </div>
                 )}
               </div>
@@ -201,12 +202,12 @@ export function Landing() {
           </form>
 
           {demos.length > 0 && (
-            <div style={{ marginTop: compact ? 26 : 30 }}>
-              <div style={{ fontSize: 15, color: TH.mut, marginBottom: 10 }}>Try asking</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: compact ? 'stretch' : 'flex-start', gap: 10 }}>
+            <div style={{ marginTop: compact ? 30 : 56, textAlign: 'center' }}>
+              <div style={{ fontSize: 15, color: TH.mut, marginBottom: 14 }}>Try asking</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: compact ? 'stretch' : 'center', gap: 12 }}>
                 {demos.map((d) => (
                   <a key={d.key} href={`#/trace?demo=${encodeURIComponent(d.key)}`} title={d.url} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 10px', maxWidth: '100%', textDecoration: 'none', color: TH.ink, padding: compact ? '12px 16px' : '14px 22px', borderRadius: compact ? 18 : 22, fontSize: compact ? 16 : 18, lineHeight: 1.4, border: `1px solid ${TH.line}`, background: TH.card }}>
-                    {d.question ? <Chip label={`Is it true that ${d.question}?`} /> : <>Is it true what<Chip label={d.label} />says?</>}
+                    {d.question ? `Is it true that ${d.question}?` : <>Is it true what<Chip label={d.label} />says?</>}
                   </a>
                 ))}
               </div>
