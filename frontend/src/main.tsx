@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { About } from './About';
 import { Landing } from './Landing';
 import { Methodology } from './Methodology';
 import './styles.css';
@@ -14,6 +15,7 @@ function Root() {
     return () => window.removeEventListener('hashchange', on);
   }, []);
   if (hash.startsWith('#/methodology')) return <Methodology />;
+  if (hash.startsWith('#/about')) return <About />;
   if (!hash.startsWith('#/trace')) return <Landing />;
   const q = new URLSearchParams(hash.split('?')[1] ?? '');
   return <App key={hash} initial={{ url: q.get('url') ?? undefined, demo: q.get('demo') ?? undefined, question: q.get('q') ?? undefined, job: q.get('job') ?? undefined }} />;
