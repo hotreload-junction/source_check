@@ -19,7 +19,7 @@ const upsert = <T extends { id: string }>(list: T[], x: T) => {
   return next;
 };
 
-export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string } }) {
+export default function App({ initial }: { initial: { url?: string; demo?: string; question?: string; job?: string } }) {
   const compact = useCompact();
   const [vw, vh] = useViewport();
   const [url, setUrl] = useState('');
@@ -113,13 +113,14 @@ export default function App({ initial }: { initial: { url?: string; demo?: strin
   useEffect(() => {
     api.demo().then(
       (ds) => {
-        if (initial.url) return;
+        if (initial.url || initial.job) return;
         const d = ds.find((x) => x.key === initial.demo) ?? ds[0];
         if (d) pickDemo(d);
       },
-      (e) => { if (!initial.url) setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`); },
+      (e) => { if (!initial.url && !initial.job) setError(`Backend unreachable (${e.message || e}). Run npm run dev:mock for mock data.`); },
     );
     if (initial.url) { startUrl(initial.url, false, (initial.question ?? '').trim()); }
+    else if (initial.job) { const tk = reset(); load(initial.job, tk).catch(fail(tk)); }   // F9: an uploaded PDF's analysis
     return () => closeEvents.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

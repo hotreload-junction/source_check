@@ -28,6 +28,7 @@ export const mockApi: Api = {
     if (question) return wait({ job_id: 'example-job-focus', status: 'done' as const, cached: true });
     return wait(!force ? { job_id: d.job_id, status: 'done', cached: true } : { job_id: LIVE, status: 'queued', cached: false });
   },
+  startPdf: () => Promise.reject(new Error('Mock mode (no backend): PDF upload needs the backend on :8000.')),
   get: (id) => wait(JOBS[id] ?? JOBS['example-job-1']),
   methodology: () => wait(methodology as Methodology),
   events(_id, h) {

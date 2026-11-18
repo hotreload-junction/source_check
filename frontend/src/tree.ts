@@ -55,7 +55,7 @@ export function fromResult(r: Result): View {
   const art = r.graph.nodes.find((n) => n.type === 'article');
   return {
     articleId: art ? art.id : 'a',
-    article: { title: r.article.title, url: r.article.url, domain: r.article.domain, text: r.article.text_markdown, published_at: r.article.published_at },
+    article: { title: r.article.title, url: r.article.url, domain: r.article.domain || 'uploaded PDF', text: r.article.text_markdown, published_at: r.article.published_at },
     claims: r.claims, sources: r.sources, domains: r.domains, edges: r.graph.edges,
     signals: r.signals, verdict: r.verdict, overview: r.overview ?? null, audit: r.audit, focus: r.focus ?? null, done: true,
   };

@@ -15,6 +15,7 @@ export interface Api {
   mock: boolean;
   demo(): Promise<DemoCase[]>;
   start(url: string, force?: boolean, question?: string): Promise<StartResponse>;
+  startPdf(file: File): Promise<StartResponse>; // F9: the file itself is the request body
   get(jobId: string): Promise<Analysis>;
   methodology(): Promise<Methodology>;
   events(jobId: string, h: Handlers): () => void; // returns close()
@@ -37,6 +38,8 @@ const realApi: Api = {
   demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
   start: (url, force = false, question) =>
     fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
+  startPdf: (file) =>
+    fetch(`/api/analyses/pdf?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file }).then((r) => json<StartResponse>(r)),
   get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r))),
   methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {

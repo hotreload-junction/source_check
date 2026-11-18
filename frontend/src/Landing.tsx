@@ -1,4 +1,4 @@
-import { useEffect, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api } from './api';
 import { Wordmark } from './Brand';
 import { useCompact, useTouch } from './responsive';
@@ -82,6 +82,19 @@ export function Landing() {
     if (r.url) location.hash = `#/trace?url=${encodeURIComponent(r.url)}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   };
 
+  // F9: an uploaded PDF is analysed like an article; the result opens by its job id
+  const [uploading, setUploading] = useState(false);
+  const upload = (ev: ChangeEvent<HTMLInputElement>) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    setUploading(true); setNote('');
+    api.startPdf(file).then(
+      (r) => { location.hash = `#/trace?job=${encodeURIComponent(r.job_id)}`; },
+      (e) => { setUploading(false); setNote(String((e as Error).message || e)); },
+    );
+  };
+
   return (
     <div style={{ minHeight: '100dvh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
       <div aria-hidden style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: compact ? 6 : 14, background: BAR }} />
@@ -126,6 +139,10 @@ export function Landing() {
               </button>
             </div>
             {note && <div role="status" style={{ marginTop: 8, fontSize: 13, color: CL.o }}>{note}</div>}
+            <label style={{ display: 'inline-block', marginTop: 12, fontSize: 15, color: TH.mut, cursor: uploading ? 'wait' : 'pointer' }}>
+              <input type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} style={{ display: 'none' }} />
+              {uploading ? 'Uploading PDF…' : <>or <span style={{ textDecoration: 'underline', fontWeight: 600 }}>upload a PDF</span></>}
+            </label>
           </form>
 
           {demos.length > 0 && (
