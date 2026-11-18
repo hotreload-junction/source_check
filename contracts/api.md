@@ -27,6 +27,14 @@ question (case-insensitive); demo buttons never send one.
 
 URL normalisation for the cache: lowercase host, strip `www.`, fragment, `utm_*`/`fbclid`/`gclid`, trailing slash.
 
+### POST /api/analyses/pdf?name=<file name>
+F9: analyse an uploaded PDF. The request body is the PDF file itself (`Content-Type: application/pdf`, max 20 MB).
+The text (first 80 pages) is read with pypdf; printed URLs and clickable links become the article's links, so claims
+and sources work as for a web article. Cached by SHA-256 of the file. Same responses as `POST /api/analyses`, plus
+`413 too_large` and `422 invalid_pdf` (not a PDF, unreadable, or no text layer). In the `Result`, `article.url` is
+`pdf:<hash>` (no web address) and `article.domain` is `""`: there is no own-domain row in `domains` and no
+`hosted_on` edge for the article.
+
 ### SSE events (`text/event-stream`)
 Each event has `event:` = type and `data:` = JSON. Events are additive: the frontend can build the
 graph from them, and the final `done` carries the full `Analysis` anyway.
