@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from .. import cache as cachemod
 from ..config import Settings, get_settings
 from ..fetch import Fetcher
+from ..fetch.fetcher import FetchResult
 from ..fetch.urls import registrable_domain
 from ..llm import LLMClient, LLMError
 from ..signals import RdapClient, SourcePage, analyze_infrastructure
@@ -140,8 +141,9 @@ class _Registry:
 
 def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None = None, settings: Settings | None = None,
             rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None, archive=None,
-            refresh: bool = False, question: str | None = None) -> AnalysisOutput:
-    """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results."""
+            refresh: bool = False, question: str | None = None, article: FetchResult | None = None) -> AnalysisOutput:
+    """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results.
+    `article`: the article already read (F9 uploaded PDF, `url` is then a pseudo address without a host): not fetched."""
     s = settings or get_settings()
     sc = cachemod.for_run(refresh)
     fetcher = fetcher or Fetcher.from_settings(s, cache=sc)
@@ -160,7 +162,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
 
     # 1. scrape ---------------------------------------------------------------------------------------------
     progress("scrape_article", "Fetching article", 5)
-    art = fetcher.fetch_article(url)
+    art = article or fetcher.fetch_article(url)
     if art.status != "ok" or not art.text:
         why = {"paywall": "is behind a paywall", "blocked": "blocks automated access",
                "unreachable": "could not be reached"}.get(art.status, f"could not be read ({art.status})")
@@ -195,7 +197,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         out("edge", {"id": f"e-a-{c.id}", "source": "a", "target": c.id, "type": "makes_claim"})
 
     # RDAP does not depend on the verification: look the link domains up now, analyze_infrastructure hits the cache
-    link_domains = sorted({registrable_domain(l.url) for c in claims for l in c.links} | {article_domain})
+    link_domains = sorted(({registrable_domain(l.url) for c in claims for l in c.links} | {article_domain}) - {""})
     rdap_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rdap")
     for d in link_domains:
         rdap_pool.submit(rdap.lookup, d)
@@ -205,7 +207,7 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     # mirrors of the article on other domains: searched while claims are verified, joined before infrastructure step
     copies_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copies")
     copies_future = copies_pool.submit(find_article_copies, url, text_md, api_key=s.exa_api_key, fetcher=fetcher,
-                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key) else None
+                                       exa_client=exa_client, step_cache=sc) if (s.find_copies and s.exa_api_key and article_host) else None
 
     # 3. sources + verify ------------------------------------------------------------------------------------
     progress("fetch_sources", f"Checking the sources of {len(claims)} claims", 25)

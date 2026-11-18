@@ -17,6 +17,7 @@ dependencies = [
   "rapidfuzz>=3.6",
   "trafilatura>=1.9",
   "lxml_html_clean>=0.1",
+  "pypdf>=5.0",
 ]
 
 [project.optional-dependencies]

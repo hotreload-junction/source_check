@@ -7,12 +7,14 @@ from typing import Iterator
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import demo
 from .fetch.netguard import is_public_hostname
+from .fetch.pdf import MAX_PDF_BYTES, pdf_to_article
 from .fetch.urls import InvalidURL, normalize_url
 from .jobs import Busy, JobManager
 from .methodology import load_methodology
@@ -96,6 +98,42 @@ def start_analysis(body: StartBody, request: Request) -> JSONResponse:
             if active:
                 return JSONResponse(status_code=202, content={"job_id": active, "status": "running", "cached": False})
         job_id = jobs.submit(body.url.strip(), norm, refresh=body.force, question=question)   # force = recompute every step, not a replay
+    except Busy as exc:
+        return JSONResponse(status_code=429, content={
+            "error": "busy", "detail": f"{exc.running} analyses running, try again in a minute"})
+    except SQLAlchemyError:
+        return _db_down()
+    return JSONResponse(status_code=202, content={"job_id": job_id, "status": "queued", "cached": False})
+
+
+@router.post("/analyses/pdf")
+async def start_pdf_analysis(request: Request, name: str = "document.pdf") -> JSONResponse:
+    """F9: the request body is the PDF file itself. Cached by the file's SHA-256: the same file twice = one analysis."""
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > MAX_PDF_BYTES:
+            return JSONResponse(status_code=413, content={"error": "too_large",
+                                                          "detail": f"The PDF is larger than {MAX_PDF_BYTES // 2**20} MB."})
+    if not bytes(data[:1024]).lstrip().startswith(b"%PDF"):
+        return JSONResponse(status_code=422, content={"error": "invalid_pdf", "detail": "This file is not a PDF."})
+    return await run_in_threadpool(_start_pdf, bytes(data), name[:200], _jobs(request))
+
+
+def _start_pdf(data: bytes, name: str, jobs: JobManager) -> JSONResponse:
+    key = f"pdf:{hashlib.sha256(data).hexdigest()[:32]}"
+    try:
+        cached = jobs.find_cached(key)
+        if cached:
+            return JSONResponse(status_code=200, content={"job_id": cached, "status": "done", "cached": True})
+        active = jobs.find_active(key)
+        if active:
+            return JSONResponse(status_code=202, content={"job_id": active, "status": "running", "cached": False})
+        art = pdf_to_article(data, key, name)
+        if art.status != "ok":
+            return JSONResponse(status_code=422, content={"error": "invalid_pdf",
+                                                          "detail": f"Nothing to analyse: {art.error or art.status}."})
+        job_id = jobs.submit(key, key, article=art)
     except Busy as exc:
         return JSONResponse(status_code=429, content={
             "error": "busy", "detail": f"{exc.running} analyses running, try again in a minute"})

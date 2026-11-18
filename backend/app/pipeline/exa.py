@@ -94,7 +94,7 @@ def find_candidates(attribution: str, claim_text: str, *, api_key: str, client: 
             step_cache.put("exa", ckey, [], cachemod.FAILURE_TTL_S // 12)   # 30 min: replay a real failure, retry soon
             return []
         step_cache.put("exa", ckey, results)
-    own = normalize_url(exclude_url) if exclude_url else None
+    own = _safe_norm(exclude_url) if exclude_url else None      # an uploaded PDF (F9) has no http address
     hits: list[NamedSourceHit] = []
     for item in results:
         url = item.get("url")

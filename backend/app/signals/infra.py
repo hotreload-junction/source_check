@@ -80,9 +80,9 @@ def analyze_infrastructure(
     """Build `Domain[]`, clusters and `shares_infra` edges. `rdap=None` disables age lookups (age stays null)."""
     art = registrable_domain(article_domain)
     art_host = article_domain.lower().removeprefix("www.")
-    pages: dict[str, str | None] = {art: article_html}
+    pages: dict[str, str | None] = {art: article_html} if art else {}     # no host: uploaded PDF (F9), no own domain
     copy_domains: set[str] = set()
-    non_copy_domains: set[str] = {art}
+    non_copy_domains: set[str] = {art} if art else set()
     for s in sources:
         s_host = s.domain.lower().removeprefix("www.")
         reg = registrable_domain(s_host)
