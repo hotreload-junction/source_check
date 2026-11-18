@@ -129,6 +129,9 @@ def _start_pdf(data: bytes, name: str, jobs: JobManager) -> JSONResponse:
         active = jobs.find_active(key)
         if active:
             return JSONResponse(status_code=202, content={"job_id": active, "status": "running", "cached": False})
+        running = jobs.running_count()      # parsing a 20 MB PDF costs CPU and memory: refuse BEFORE it when no slot is free
+        if running >= jobs.settings.max_concurrent_analyses:
+            raise Busy(running)
         art = pdf_to_article(data, key, name)
         if art.status != "ok":
             return JSONResponse(status_code=422, content={"error": "invalid_pdf",

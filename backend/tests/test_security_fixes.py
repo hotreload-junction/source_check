@@ -223,3 +223,15 @@ def test_extraction_failure_does_not_leak_provider_error_text():
     with pytest.raises(AnalysisError) as err:
         analyze(tr.ARTICLE_URL, fetcher=tr.FakeFetcher(tr.art(), {}), llm=llm, settings=tr.SETTINGS, rdap=tr.FakeRdap({}))
     assert "sk-live" not in str(err.value) and "401" not in str(err.value)
+
+
+def test_pdf_upload_is_refused_before_parsing_when_busy(client, monkeypatch):
+    """No free analysis slot: the 20 MB PDF must not be parsed at all (anonymous CPU/memory DoS otherwise)."""
+    from app import api
+
+    def must_not_parse(*a, **k):
+        raise AssertionError("the PDF was parsed although the server is busy")
+    monkeypatch.setattr(api, "pdf_to_article", must_not_parse)
+    monkeypatch.setattr(client.app.state.jobs, "running_count", lambda: 99)
+    r = client.post("/api/analyses/pdf", content=b"%PDF-1.4\n" + b"0" * 100)
+    assert r.status_code == 429 and r.json()["error"] == "busy"
