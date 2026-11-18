@@ -25,6 +25,17 @@
 		}
 	}
 
+	# F10 browser extension: the body carries the page's rendered HTML. Limit matches backend MAX_PAGE_HTML_CHARS (6 MB).
+	@page path /api/analyses/page
+	handle @page {
+		request_body {
+			max_size 8MB
+		}
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
 	handle /api/* {
 		# the API only takes a URL and a short question: anything bigger is not a real request
 		request_body {

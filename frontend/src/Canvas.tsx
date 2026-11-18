@@ -252,7 +252,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
       if (cm) badge = CLAIM_V[ctx.claimVerdict(n)].sym;
       else if (n.source) badge = ctx.flagged.has(n.id) ? '!' : n.source.fetch_status !== 'ok' ? '–' : '';
     }
-    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? ' · your question' : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : sourceMeta(n.source!);
+    const meta = root ? `Document · ${ctx.view.article.domain}` : cm ? `Claim ${n.claimIdx}${n.claim!.focus ? (ctx.view.focus?.kind === 'selection' ? ' · your selection' : ' · your question') : ''}${n.claim!.central === false ? ' · not central' : ''}${ctx.reviewed(n) ? ' · reviewed' : ''}` : stub ? `Claim ${tree.by[n.fc!].claimIdx}` : sourceMeta(n.source!);
     const labels = src && n.source!.domain ? cardLabels(ctx.view.domains.find((d) => d.domain === n.source!.domain)) : [];
     const ti = root ? ctx.view.article.title : cm ? n.claim!.text : stub ? 'No source given' : srcName(n.source!);
     const logoDomain = root ? ctx.view.article.domain : n.source ? n.source.domain : null;
@@ -286,7 +286,7 @@ export const Canvas = forwardRef<CanvasHandle, Props>(function Canvas({ ctx, sel
               <div style={{ fontSize: 11, opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
               <div style={{ fontSize: col ? 16 : stub ? 14 : cm ? 15 : 13, fontWeight: 600, lineHeight: 1.25, marginTop: 2, display: '-webkit-box', WebkitLineClamp: root ? (ctx.question ? 4 : 8) : cm ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ti}</div>
               {root && ctx.question && (
-                <div title={ctx.questionNote ?? undefined} style={{ fontSize: 11.5, lineHeight: 1.3, marginTop: 6, paddingTop: 5, borderTop: `1px dashed ${TH.bg}66`, opacity: 0.85, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>Your question: “{ctx.question}”</div>
+                <div title={ctx.questionNote ?? undefined} style={{ fontSize: 11.5, lineHeight: 1.3, marginTop: 6, paddingTop: 5, borderTop: `1px dashed ${TH.bg}66`, opacity: 0.85, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{ctx.view.focus?.kind === 'selection' ? 'Selected' : 'Your question'}: “{ctx.question}”</div>
               )}
               {labels.length > 0 && ( // PLAN Q2 reputation labels; hover for the list entry
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: 6 }}>

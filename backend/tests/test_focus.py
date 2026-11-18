@@ -92,7 +92,8 @@ def test_focus_only_claim_is_checked_but_never_changes_the_label(pages):
 def test_question_not_in_the_article_says_so_honestly(pages):
     r = go(pages, question="Did the president resign?", focus_answer=lambda u: [])
     assert r["focus"] == {"question": "Did the president resign?", "status": "not_in_article", "claim_ids": [],
-                          "note": "The article does not contain a statement that matches your question, so there is nothing in it to check."}
+                          "note": "The article does not contain a statement that matches your question, so there is nothing in it to check.",
+                          "kind": "question"}
     assert not any(c["focus"] for c in r["claims"])
 
 

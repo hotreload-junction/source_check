@@ -257,11 +257,11 @@ function ClaimSections({ ctx, n }: { ctx: Ctx; n: TNode }) {
       </Section>
       {c.focus && (
         <div style={{ ...box, marginTop: 12, border: `2px dashed ${TH.ink}` }}>
-          <div style={cap}>Your question</div>
+          <div style={cap}>{ctx.view.focus?.kind === 'selection' ? 'Your selected passage' : 'Your question'}</div>
           {ctx.view.focus && <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, overflowWrap: 'anywhere' }}>“{ctx.view.focus.question}”</div>}
           <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.45, color: TH.mut }}>
             {c.central === false
-              ? 'This sentence was checked because of your question. It is not one of the article\'s central claims, so it does not change the article verdict.'
+              ? `This sentence was checked because ${ctx.view.focus?.kind === 'selection' ? 'you selected it' : 'of your question'}. It is not one of the article\'s central claims, so it does not change the article verdict.`
               : 'This is one of the article\'s central claims, so it already counts for the article verdict.'}
           </div>
         </div>

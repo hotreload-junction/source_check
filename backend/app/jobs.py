@@ -119,7 +119,7 @@ class JobManager:
 
     # ---------------------------------------------------------------- start
     def submit(self, url: str, normalized_url: str, refresh: bool = False, question: str | None = None,
-               article=None) -> str:
+               article=None, selection: str | None = None) -> str:
         """Create the job row and start its thread. Raises Busy when the concurrency limit is reached."""
         with self._lock:
             running = self.running_count()
@@ -133,7 +133,7 @@ class JobManager:
             self._events[job_id] = ev
             while len(self._events) > self._keep:
                 self._events.popitem(last=False)
-        threading.Thread(target=self._run, args=(job_id, url, ev, refresh, question, article), name=f"job-{job_id}", daemon=True).start()
+        threading.Thread(target=self._run, args=(job_id, url, ev, refresh, question, article, selection), name=f"job-{job_id}", daemon=True).start()
         return job_id
 
     # ---------------------------------------------------------------- the job
@@ -151,11 +151,13 @@ class JobManager:
         return emit
 
     def _run(self, job_id: str, url: str, ev: JobEvents, refresh: bool = False, question: str | None = None,
-             article=None) -> None:
+             article=None, selection: str | None = None) -> None:
         try:
             extra = {"question": question} if question else {}        # older analyze_fn stand-ins take no question
             if article is not None:                                     # F9 uploaded PDF: already read, not fetched
                 extra["article"] = article
+            if selection:                                               # F10 browser extension: selected passage
+                extra["selection"] = selection
             out = self.analyze_fn(url, settings=self.settings, emit=self._emit(job_id, ev), refresh=refresh, **extra)
             self._store_success(job_id, out)
             with db.session_scope() as s:

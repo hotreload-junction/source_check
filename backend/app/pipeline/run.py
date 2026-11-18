@@ -28,7 +28,7 @@ from ..signals.laundering import channel_sourced_claims, declared_reposts
 from ..signals.networks import NetworkMatch, match_network
 from ..signals.rdap import RdapResult
 from ..signals.infra import PLATFORM_DOMAINS
-from .focus import FOCUS_PROMPT_VERSION, focus_claims, focus_note, locate_focus
+from .focus import FOCUS_PROMPT_VERSION, focus_claims, focus_note, locate_focus, locate_selection
 from ..signals.reputation import ArchiveResult, WaybackClient, add_reputation
 from ..signals.source_type import classify_source_type
 from ..verdict import ClaimInput, decide
@@ -141,7 +141,8 @@ class _Registry:
 
 def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None = None, settings: Settings | None = None,
             rdap: RdapClient | None = None, emit: Emit | None = None, exa_client=None, archive=None,
-            refresh: bool = False, question: str | None = None, article: FetchResult | None = None) -> AnalysisOutput:
+            refresh: bool = False, question: str | None = None, article: FetchResult | None = None,
+            selection: str | None = None) -> AnalysisOutput:
     """`refresh`: ignore the step cache (re-fetch, re-ask every model, re-search) and store the new results.
     `article`: the article already read (F9 uploaded PDF, `url` is then a pseudo address without a host): not fetched."""
     s = settings or get_settings()
@@ -188,7 +189,11 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
     focus = None
     focus_marked: set[str] = set()
     extra: list = []
-    if question:
+    if selection:      # F10: the passage the reader selected in the browser; located by code, same rules as a question
+        progress("focus", "Finding the passage you selected", 20)
+        focus = locate_selection(selection, ex.units, url, llm=llm, settings=s)
+        focus_marked, extra = focus_claims(focus, ex.units, claims, text_md, url)
+    elif question:
         progress("focus", "Finding the passage your question is about", 20)
         focus = locate_focus(question, ex.units, url, llm=llm, settings=s)
         focus_marked, extra = focus_claims(focus, ex.units, claims, text_md, url)
@@ -343,7 +348,8 @@ def analyze(url: str, *, fetcher: Fetcher | None = None, llm: LLMClient | None =
         "verdict": decision["verdict"],
         "overview": overview.article,
         "focus":({"question": focus.question, "status": focus.status,
-                   "claim_ids": [c["id"] for c in claim_dicts if c["focus"]], "note": focus_note(focus, claim_dicts)}
+                   "claim_ids": [c["id"] for c in claim_dicts if c["focus"]], "note": focus_note(focus, claim_dicts),
+                   "kind": focus.kind}
                   if focus is not None else None),
         "audit": {"model_extract": s.model_extract, "model_verify": s.model_verify, "prompt_version": s.prompt_version,
                   "fuzzy_threshold": s.fuzzy_threshold, "depth": depth, "duration_s": round(time.monotonic() - t0, 1),
