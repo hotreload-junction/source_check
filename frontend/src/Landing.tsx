@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api } from './api';
 import { Wordmark } from './Brand';
 import { useCompact, useTouch } from './responsive';
@@ -84,16 +84,23 @@ export function Landing() {
 
   // F9: an uploaded PDF is analysed like an article; the result opens by its job id
   const [uploading, setUploading] = useState(false);
-  const upload = (ev: ChangeEvent<HTMLInputElement>) => {
-    const file = ev.target.files?.[0];
-    ev.target.value = '';
-    if (!file) return;
+  const [dragging, setDragging] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const sendPdf = (file: File | undefined) => {
+    if (!file || uploading) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { setNote('This file is not a PDF.'); return; }
     setUploading(true); setNote('');
     api.startPdf(file).then(
       (r) => { location.hash = `#/trace?job=${encodeURIComponent(r.job_id)}`; },
       (e) => { setUploading(false); setNote(String((e as Error).message || e)); },
     );
   };
+  const upload = (ev: ChangeEvent<HTMLInputElement>) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    sendPdf(file);
+  };
+  const drop = (ev: DragEvent) => { ev.preventDefault(); setDragging(false); sendPdf(ev.dataTransfer.files?.[0]); };
 
   return (
     <div style={{ minHeight: '100dvh', background: '#fafaf9', color: TH.ink, fontFamily: TH.font }}>
@@ -140,10 +147,20 @@ export function Landing() {
               </button>
             </div>
             {note && <div role="status" style={{ marginTop: 8, fontSize: 13, color: CL.o }}>{note}</div>}
-            <label style={{ display: 'inline-block', marginTop: 12, fontSize: 15, color: TH.mut, cursor: uploading ? 'wait' : 'pointer' }}>
-              <input type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} style={{ display: 'none' }} />
-              {uploading ? 'Uploading PDF…' : <>or <span style={{ textDecoration: 'underline', fontWeight: 600 }}>upload a PDF</span></>}
-            </label>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Upload a PDF"
+              onClick={() => picker.current?.click()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.current?.click(); } }}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={drop}
+              style={{ marginTop: 12, padding: compact ? '16px 14px' : '18px 20px', textAlign: 'center', fontSize: compact ? 15 : 16, color: TH.mut, cursor: uploading ? 'wait' : 'pointer', borderRadius: compact ? 20 : 22, border: `1.5px dashed ${dragging ? TH.ink : '#c4c4cc'}`, background: dragging ? '#f1f1f0' : 'transparent' }}
+            >
+              <input ref={picker} type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} onClick={(e) => e.stopPropagation()} style={{ display: 'none' }} />
+              {uploading ? 'Uploading PDF…' : <>Or drop a PDF here, or <span style={{ textDecoration: 'underline', fontWeight: 600, color: TH.ink }}>click to upload</span></>}
+            </div>
           </form>
 
           {demos.length > 0 && (

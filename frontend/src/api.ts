@@ -38,8 +38,21 @@ const realApi: Api = {
   demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
   start: (url, force = false, question) =>
     fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
-  startPdf: (file) =>
-    fetch(`/api/analyses/pdf?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file }).then((r) => json<StartResponse>(r)),
+  startPdf: async (file) => {
+    let r: Response;
+    try {
+      r = await fetch(`/api/analyses/pdf?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+    } catch {
+      throw new Error('Could not reach the server. Is the backend running?');
+    }
+    try {
+      return await json<StartResponse>(r);
+    } catch (e) {
+      const m = String((e as Error).message || '');
+      if (m && m !== r.statusText) throw e;        // the backend explained itself
+      throw new Error(`Upload failed (HTTP ${r.status}).${r.status === 404 || r.status === 405 ? ' The backend is probably outdated: restart it.' : ''}`);
+    }
+  },
   get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r))),
   methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
   events(id, h) {
