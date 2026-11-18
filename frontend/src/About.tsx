@@ -17,22 +17,22 @@ const LI = {
 };
 
 const STEPS: { n: string; c: string; title: string; text: string }[] = [
-  { n: '1', c: CL.r, title: 'Find the claims', text: 'Source Check reads the article and picks the central claims, the handful of statements the whole piece rests on. Every claim is tied to the exact sentence it comes from.' },
-  { n: '2', c: CL.y, title: 'Follow the sources', text: 'It follows each link and attribution to the page behind it. If the article names a source but gives no link, Source Check searches for the original statement. It also follows what the sources themselves cite.' },
-  { n: '3', c: CL.g, title: 'Show the proof', text: 'For every claim the AI must quote the passage that backs it up, word for word. Code then looks that quote up in the real page. If it is not there, it does not count.' },
+  { n: '1', c: CL.r, title: 'Find the claims', text: 'It picks the central claims of the article and ties each one to its exact sentence.' },
+  { n: '2', c: CL.y, title: 'Follow the sources', text: 'It follows every link and attribution to the page behind it, and on to what that page cites.' },
+  { n: '3', c: CL.g, title: 'Show the proof', text: 'The AI must quote the backing passage word for word. Code looks the quote up in the real page.' },
 ];
 
 const PRINCIPLES: { title: string; text: string }[] = [
-  { title: 'Quote first, verdict second', text: 'An AI can sound sure and still be wrong. So no verdict stands on the AI’s word. It has to hand over the evidence sentence, and our code checks it against the fetched source.' },
-  { title: 'Not knowing is not guilt', text: 'Dead links, paywalls, social-media posts and links to the article’s own site are treated as neutral. They never count against an article, because we simply could not read them.' },
-  { title: 'Two signs, never one', text: 'An article is only flagged as a propaganda pattern when two separate warning signs agree, for example shared site infrastructure and a citation circle. One weak claim is never enough.' },
-  { title: 'Everything is auditable', text: 'Each verdict keeps its quote, its match score, the model and the prompt version. The methodology page shows how often we are right and wrong on labelled test cases, including the false positives.' },
+  { title: 'Quote first, verdict second', text: 'No verdict stands on the AI’s word alone. Our code checks its evidence sentence against the source.' },
+  { title: 'Not knowing is not guilt', text: 'Dead links, paywalls and social posts are neutral. They never count against an article.' },
+  { title: 'Two signs, never one', text: 'An article is only flagged as a propaganda pattern when two separate warning signs agree.' },
+  { title: 'Everything is auditable', text: 'Every verdict keeps its quote, score, model and prompt version. The methodology page shows our error rates.' },
 ];
 
 const SIGNALS: { t: string; d: string }[] = [
-  { t: 'Who runs the sites?', d: 'Shared analytics and ad IDs, very young domains and published lists of known networks show when “independent” sources have the same owner.' },
-  { t: 'Do they only cite each other?', d: 'Source Check follows citations a step further. A source that leads back to the article, or to its own network, forms a circle.' },
-  { t: 'Where does it really come from?', d: 'Articles that repackage Telegram or social-media posts as reporting are marked, so the original post is visible.' },
+  { t: 'Who runs the sites?', d: 'Shared analytics IDs, very young domains and known network lists show when “independent” sources share an owner.' },
+  { t: 'Do they only cite each other?', d: 'Sources that lead back to the article or its own network form a citation circle.' },
+  { t: 'Where does it really come from?', d: 'Articles that repackage Telegram or social posts as reporting are marked.' },
 ];
 
 const STACK = ['Exa', 'Context.dev', 'Verda', 'MariaDB', 'Hostinger'];
@@ -94,6 +94,10 @@ export function About() {
             <a href="#/" style={{ padding: '14px 22px', borderRadius: 14, background: TH.ink, color: '#fff', fontWeight: 600, fontSize: 16, textDecoration: 'none' }}>Check an article</a>
             <a href="#/methodology" style={{ padding: '14px 22px', borderRadius: 14, color: TH.ink, fontWeight: 600, fontSize: 16, textDecoration: 'none', ...gradBorder(TH.card) }}>See the methodology</a>
           </div>
+          <div style={{ marginTop: 28, display: 'inline-flex', alignItems: 'center', gap: 10, padding: '10px 18px', borderRadius: 999, background: TH.card, border: `1px solid ${TH.line}`, boxShadow: TH.sh, fontSize: compact ? 14 : 15, fontWeight: 600 }}>
+            <span aria-hidden style={{ fontSize: 18 }}>🏆</span>
+            1st prize of the Hostinger challenge at Junction 2026
+          </div>
         </header>
 
         {/* why */}
@@ -102,17 +106,11 @@ export function About() {
             <Eyebrow>Why we built it</Eyebrow>
             <h2 style={{ margin: 0, fontSize: compact ? 28 : 36, fontWeight: 700, lineHeight: 1.12, letterSpacing: '-.035em' }}>A link is not the same as proof.</h2>
           </div>
-          <div style={{ fontSize: 18, lineHeight: 1.65, color: '#2a2a31' }}>
-            <p style={{ margin: '0 0 18px' }}>
-              Most readers see a footnote or a link and assume the claim has been checked. Nobody has time to open every source and read it.
-              That gap is exactly what disinformation uses: an article cites a source that says something different, a page that only cites the
-              article back, or a channel that is run by the same people.
-            </p>
-            <p style={{ margin: 0 }}>
-              Source Check does that reading for you. It follows the chain from a statement to its source and, where it can, on to the source of the source.
-              It shows what it found and how sure it is, in the open, so you can judge for yourself.
-            </p>
-          </div>
+          <p style={{ margin: 0, fontSize: 18, lineHeight: 1.65, color: '#2a2a31' }}>
+            Most readers see a footnote and assume the claim has been checked. Nobody opens every source. Disinformation lives in that gap:
+            a source that says something else, a page that only cites the article back, a channel run by the same people.
+            Source Check does the reading for you and shows what it found, in the open.
+          </p>
         </section>
 
         {/* how */}
@@ -133,10 +131,9 @@ export function About() {
         {/* beyond the claim */}
         <section style={{ ...section, ...gradBorder('#fff'), borderRadius: 28, padding: compact ? 24 : 44 }}>
           <Eyebrow>Beyond a single claim</Eyebrow>
-          <Heading compact={compact}>It also looks at who is behind the sources.</Heading>
+          <Heading compact={compact}>It also looks at who is behind them.</Heading>
           <p style={{ margin: '0 0 28px', maxWidth: 680, fontSize: 18, lineHeight: 1.6, color: TH.mut }}>
-            One distorted claim can be a mistake. A whole set of sources that share an owner, cite each other and repeat the same channel is a pattern.
-            That is why Source Check also looks at the websites behind the sources.
+            One distorted claim can be a mistake. Sources that share an owner and cite each other are a pattern.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 24 }}>
             {SIGNALS.map((s, i) => (
@@ -151,7 +148,7 @@ export function About() {
         {/* principles */}
         <section style={section}>
           <Eyebrow>What we stand for</Eyebrow>
-          <Heading compact={compact}>Honest about what we can and cannot prove.</Heading>
+          <Heading compact={compact}>Honest about what we can prove.</Heading>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 16 }}>
             {PRINCIPLES.map((p) => (
               <div key={p.title} style={{ ...CARD, borderRadius: 22, padding: 24, display: 'flex', gap: 16 }}>
@@ -170,8 +167,7 @@ export function About() {
           <Eyebrow>The team</Eyebrow>
           <Heading compact={compact}>Built at Junction 2026.</Heading>
           <p style={{ margin: '0 0 28px', maxWidth: 680, fontSize: 18, lineHeight: 1.6, color: TH.mut }}>
-            Source Check was the winning project of Junction 2026. Louis and Leonard built it during the hackathon for the Hostinger challenge,
-            with a few AI coding agents helping on the side. It runs live on Hostinger.
+            Louis and Leonard built Source Check during the hackathon for the Hostinger challenge and won first prize. It runs live on Hostinger.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)', gap: 16 }}>
             <Person name="Louis" role="Frontend, deployment and evaluation" initial="L" href={LI.louis} c={CL.r} />
