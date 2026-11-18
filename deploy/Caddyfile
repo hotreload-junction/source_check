@@ -14,6 +14,17 @@
 	}
 
 	# API first: no compression and no buffering, so the SSE stream (/api/analyses/*/events) arrives live.
+	# PDF upload: the body is the file itself. Limit matches backend MAX_PDF_BYTES (20 MB).
+	@pdf path /api/analyses/pdf
+	handle @pdf {
+		request_body {
+			max_size 21MB
+		}
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
 	handle /api/* {
 		# the API only takes a URL and a short question: anything bigger is not a real request
 		request_body {
