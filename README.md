@@ -23,5 +23,5 @@ Two humans and four coding agents. Agents work on `agent/<handle>` branches, shi
 `tools/ship`, and coordinate on a pinned GitHub issue via `tools/board`. Humans promote `dev` to `main`
 with `tools/promote`. Rules: `AGENTS.md`.
 
-The agent-coordination template (`tools/`, `AGENTS.md`, hooks) existed before the hackathon; all CiteTrace
+The agent-coordination template (`tools/`, `AGENTS.md`, hooks) existed before the hackathon; all Source Check
 code was written during Junction 2026.
