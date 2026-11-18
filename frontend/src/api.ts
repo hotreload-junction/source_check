@@ -21,6 +21,11 @@ export interface Api {
   events(jobId: string, h: Handlers): () => void; // returns close()
 }
 
+// Base address of the backend. '' = same origin (the web app). The browser extension sets the full backend URL.
+let BASE = '';
+export const setApiBase = (base: string) => { BASE = base.replace(/\/+$/, ''); };
+export const apiUrl = (path: string) => `${BASE}${path}`;
+
 async function json<T>(res: Response): Promise<T> {
   if (res.ok) return res.json() as Promise<T>;
   let detail = res.statusText;
@@ -35,14 +40,14 @@ async function json<T>(res: Response): Promise<T> {
 const realApi: Api = {
   mock: false,
   // The three demo cases ship inside the bundle (precomputed, no backend needed). Once the backend lists its own cases they win.
-  demo: () => fetch('/api/demo').then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
+  demo: () => fetch(apiUrl('/api/demo')).then((r) => json<DemoCase[]>(r)).then((ds) => (ds.length ? ds : mockApi.demo()), () => mockApi.demo()),
   start: (url, force = false, question) =>
-    fetch('/api/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
+    fetch(apiUrl('/api/analyses'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(question ? { url, force, question } : { url, force }) }).then((r) => json<StartResponse>(r)),
   // XMLHttpRequest, not fetch: only XHR reports upload progress
   startPdf: (file, onProgress) =>
     new Promise<StartResponse>((resolve, reject) => {
       const x = new XMLHttpRequest();
-      x.open('POST', `/api/analyses/pdf?name=${encodeURIComponent(file.name)}`);
+      x.open('POST', apiUrl(`/api/analyses/pdf?name=${encodeURIComponent(file.name)}`));
       x.setRequestHeader('Content-Type', 'application/pdf');
       x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((100 * e.loaded) / e.total)); };
       x.onerror = () => reject(new Error('Could not reach the server. Is the backend running?'));
@@ -56,12 +61,12 @@ const realApi: Api = {
       };
       x.send(file);
     }),
-  get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(`/api/analyses/${encodeURIComponent(id)}`).then((r) => json<Analysis>(r))),
-  methodology: () => fetch('/api/methodology').then((r) => json<Methodology>(r)),
+  get: (id) => (id.startsWith('example-job') ? mockApi.get(id) : fetch(apiUrl(`/api/analyses/${encodeURIComponent(id)}`)).then((r) => json<Analysis>(r))),
+  methodology: () => fetch(apiUrl('/api/methodology')).then((r) => json<Methodology>(r)),
   events(id, h) {
     let finished = false;
     let poll: ReturnType<typeof setInterval> | null = null;
-    const es = typeof EventSource !== 'undefined' ? new EventSource(`/api/analyses/${encodeURIComponent(id)}/events`) : null;
+    const es = typeof EventSource !== 'undefined' ? new EventSource(apiUrl(`/api/analyses/${encodeURIComponent(id)}/events`)) : null;
     const close = () => {
       es?.close();
       if (poll) clearInterval(poll);

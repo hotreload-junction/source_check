@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from . import cache, db, demo
@@ -32,6 +33,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Source Check", lifespan=lifespan)
 app.include_router(router)
+# F10: the browser extension's pages call the API from their own origin. Only extension origins, no cookies: the web app
+# itself is same-origin and needs no CORS, and no other website may drive the API from a visitor's browser.
+app.add_middleware(CORSMiddleware, allow_origin_regex=r"^(chrome-extension|moz-extension|safari-web-extension)://[a-zA-Z0-9-]+$",
+                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"], allow_credentials=False)
 
 
 @app.get("/api/health")

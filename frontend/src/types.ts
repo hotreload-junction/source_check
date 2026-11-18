@@ -71,6 +71,7 @@ export interface Focus {
   status: 'found' | 'not_in_article' | 'failed';
   claim_ids: string[];
   note: string;
+  kind?: 'question' | 'selection';  // additive (F10): 'selection' = passage the reader selected in the browser extension; absent = question
 }
 
 export type SourceType = 'official' | 'press_release' | 'academic' | 'reference' | 'news' | 'blog' | 'social' | 'unknown';

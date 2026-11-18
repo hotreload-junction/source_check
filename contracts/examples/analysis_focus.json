@@ -312,7 +312,8 @@
       "claim_ids": [
         "c3"
       ],
-      "note": "Your question matches one sentence of the article, highlighted below. It is checked like every claim but is not one of the article's central claims, so it does not change the article verdict."
+      "note": "Your question matches one sentence of the article, highlighted below. It is checked like every claim but is not one of the article's central claims, so it does not change the article verdict.",
+      "kind": "question"
     },
     "audit": {
       "model_extract": "mx",

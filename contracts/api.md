@@ -35,6 +35,23 @@ and sources work as for a web article. Cached by SHA-256 of the file. Same respo
 `pdf:<hash>` (no web address) and `article.domain` is `""`: there is no own-domain row in `domains` and no
 `hosted_on` edge for the article.
 
+### POST /api/analyses/page
+F10 browser extension (`browser-extension/`): analyse the page AS THE READER'S BROWSER RENDERS IT. Body (JSON, max 6 M
+characters of HTML; the proxy allows 8 MB on this path):
+`{"url": str, "html": str, "title": str|null, "selection": str|null, "question": str|null, "force": bool = false}`
+- `html` = `document.documentElement.outerHTML`. Read with trafilatura (markdown, links kept) like the server-side
+  fallback fetch; also the input for the infrastructure signals and the publication date. The article is not fetched.
+- `selection` (12..1500 characters) = text the reader selected ("Check this claim"). Located in the article by CODE
+  (rapidfuzz on plain text, markdown and quote styles ignored; the sentence that contains it, or max 2 sentences it
+  spans); the focus reading (same prompt as `question`) only supplies its attributions and is the fallback when the
+  text is not verbatim in the extracted article. Then exactly like a question: `Result.focus` with `kind: "selection"`,
+  the sentence is checked like every claim and NEVER changes the article verdict. Not together with `question` (422).
+- Cache key = URL + hash of the EXTRACTED text (+ selection / question): a page a reader sent is never served for a
+  plain `POST /api/analyses` and never mixed with another reader's version. Without selection/question, a URL that is a
+  demo case answers with the demo job (offline-safe, like the demo buttons).
+Same responses as `POST /api/analyses`, plus `413 too_large` and `422 unreadable_page` (no article text in the HTML).
+CORS: `chrome-extension://`, `moz-extension://` and `safari-web-extension://` origins may call the API (no credentials).
+
 ### SSE events (`text/event-stream`)
 Each event has `event:` = type and `data:` = JSON. Events are additive: the frontend can build the
 graph from them, and the final `done` carries the full `Analysis` anyway.
@@ -101,7 +118,9 @@ or true ...), "propaganda"/"lies" unless the label is propaganda_pattern, or a c
 Focus: {question: str,                          # as sent, whitespace collapsed
         status: "found" | "not_in_article" | "failed",
         claim_ids: str[],                       # claims with focus: true (empty unless status == "found")
-        note: str}                              # one plain-English sentence for the result header, built by code
+        note: str,                              # one plain-English sentence for the result header, built by code
+        kind: "question" | "selection"}         # additive (F10): selection = passage selected in the browser extension;
+                                                # absent in older results = question
 ```
 Focus rules (DECISIONS F6): the question locates sentences (majority vote, max 2); they are verified with the same
 prompt as every claim (the verify model never sees the question). A focus sentence that is also central keeps
